@@ -171,8 +171,8 @@ Each one is resolved (✅ = decision baked into the chunk plans) or needs your i
 
 ### Stage 1 — Foundation, OIDC, RLS
 - [x] 1.1 Repository bootstrap & toolchain
-- [ ] 1.2a Containerised infrastructure services, networks & secrets
-- [ ] 1.2b Backend image, reverse proxy (Caddy) & HTTPS single origin
+- [x] 1.2a Containerised infrastructure services, networks & secrets
+- [x] 1.2b Backend image, reverse proxy (Caddy) & HTTPS single origin
 - [ ] 1.3 Database layer, roles & core models
 - [ ] 1.4 Row-Level Security & immutable audit log
 - [ ] 1.5 OIDC Authorization Code + PKCE (BFF)

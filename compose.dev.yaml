@@ -1,0 +1,80 @@
+# Mac dev overrides. Use via `make up` (docker compose -f compose.yaml -f compose.dev.yaml).
+#
+# Debug ports are bound to 127.0.0.1 only. Docker does not publish ports of containers that are
+# attached only to `internal` networks, so data services also join the dev-only `devhost`
+# bridge. That network never exists in prod.
+
+networks:
+  devhost:
+    driver: bridge
+    ipam: { config: [{ subnet: 172.30.9.0/24 }] }
+
+secrets:
+  dev_user_password: { file: ./secrets/dev_user_password }
+  dev_totp_seed: { file: ./secrets/dev_totp_seed }
+
+services:
+  postgres:
+    networks: [backend, devhost]
+    ports: ["127.0.0.1:5432:5432"]
+
+  redis:
+    networks: [backend, devhost]
+    ports: ["127.0.0.1:6379:6379"]
+
+  qdrant:
+    networks: [backend, devhost]
+    ports: ["127.0.0.1:6333:6333"]
+
+  minio:
+    networks: [backend, devhost]
+    ports: ["127.0.0.1:9000:9000", "127.0.0.1:9001:9001"]
+
+  clamav:
+    networks: [backend, egress, devhost]
+    ports: ["127.0.0.1:3310:3310"]
+
+  keycloak:
+    secrets:
+      [pg_keycloak_password, keycloak_admin_password, oidc_client_secret, dev_user_password, dev_totp_seed]
+    environment:
+      KC_COMMAND: start-dev --import-realm
+      KC_LOG_LEVEL: info
+    volumes:
+      - ./infra/keycloak/realm-spoldzielnia.json:/opt/keycloak/data/import/realm-spoldzielnia.json:ro
+
+  # --- Application ----------------------------------------------------------
+  migrate:
+    build: &backend-build
+      context: .
+      dockerfile: docker/backend.Dockerfile
+      target: api
+    environment:
+      SPOLDZIELNIA_ENVIRONMENT: dev
+
+  bootstrap:
+    build: *backend-build
+    environment:
+      SPOLDZIELNIA_ENVIRONMENT: dev
+
+  api:
+    build: *backend-build
+    environment:
+      SPOLDZIELNIA_ENVIRONMENT: dev
+    develop:
+      watch:
+        # The image installs the package non-editable, so source changes rebuild it.
+        - { action: rebuild, path: ./src }
+        - { action: rebuild, path: ./pyproject.toml }
+        - { action: rebuild, path: ./uv.lock }
+
+  proxy:
+    # Dev: HTTPS on loopback only.
+    ports: !override ["127.0.0.1:80:80", "127.0.0.1:443:443"]
+    environment:
+      # Docker Desktop NATs browser traffic from the host through a private bridge address.
+      KC_ADMIN_ALLOW: private_ranges
+
+  mailpit:
+    networks: [public]
+    ports: ["127.0.0.1:8025:8025"]

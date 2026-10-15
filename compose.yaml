@@ -1,0 +1,312 @@
+# Spółdzielnia AI — base stack (prod-like). Dev overrides: compose.dev.yaml.
+# Design: docs/implementation/DEPLOYMENT_DOCKER.md
+#
+# Rules: no published ports here (only `proxy`, added in 1.2b); secrets only via Docker
+# secrets (never env vars); third-party images pinned by digest.
+name: spoldzielnia
+
+x-logging: &logging
+  driver: json-file
+  options: { max-size: "20m", max-file: "5" }
+
+# Baseline for application containers (DEPLOYMENT_DOCKER §7).
+x-hardening: &hardening
+  # No `init: true`: the image's ENTRYPOINT already runs tini as PID 1.
+  read_only: true
+  tmpfs: ["/tmp:size=256m"]
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+  pids_limit: 512
+  logging: *logging
+
+x-backend-image: &backend-image
+  image: ${REGISTRY:-spoldzielnia}/api:${VERSION:-dev}
+
+x-app-env: &app-env
+  SPOLDZIELNIA_ENVIRONMENT: ${SPOLDZIELNIA_ENVIRONMENT:-prod}
+  SPOLDZIELNIA_LOG_LEVEL: ${SPOLDZIELNIA_LOG_LEVEL:-INFO}
+
+x-infra: &infra
+  restart: unless-stopped
+  init: true
+  logging: *logging
+  security_opt: ["no-new-privileges:true"]
+
+networks:
+  # Internet-facing: proxy + Keycloak (IdP brokering) only.
+  public:
+    driver: bridge
+    ipam: { config: [{ subnet: 172.30.0.0/24 }] }
+  # proxy <-> api/frontend. No internet.
+  edge:
+    driver: bridge
+    internal: true
+    ipam: { config: [{ subnet: 172.30.1.0/24 }] }
+  # Data services and workers. No internet.
+  backend:
+    driver: bridge
+    internal: true
+    ipam: { config: [{ subnet: 172.30.2.0/24 }] }
+  # Controlled egress: ClamAV signature updates, worker-egress (Stage 2).
+  egress:
+    driver: bridge
+    ipam: { config: [{ subnet: 172.30.3.0/24 }] }
+
+volumes:
+  caddy_data:
+  caddy_config:
+  pgdata:
+  redisdata:
+  qdrantdata:
+  miniodata:
+  clamavdb:
+
+secrets:
+  pg_superuser_password: { file: ./secrets/pg_superuser_password }
+  pg_owner_password: { file: ./secrets/pg_owner_password }
+  pg_app_password: { file: ./secrets/pg_app_password }
+  pg_keycloak_password: { file: ./secrets/pg_keycloak_password }
+  redis_password: { file: ./secrets/redis_password }
+  qdrant_api_key: { file: ./secrets/qdrant_api_key }
+  qdrant_tls_cert: { file: ./secrets/tls/qdrant.pem }
+  qdrant_tls_key: { file: ./secrets/tls/qdrant.key }
+  internal_ca: { file: ./secrets/tls/ca.pem }
+  minio_root_password: { file: ./secrets/minio_root_password }
+  minio_kms_key: { file: ./secrets/minio_kms_key }
+  oidc_client_secret: { file: ./secrets/oidc_client_secret }
+  keycloak_admin_password: { file: ./secrets/keycloak_admin_password }
+  session_secret: { file: ./secrets/session_secret }
+
+services:
+  postgres:
+    <<: *infra
+    image: postgres:16.15@sha256:ca0bd484cb98bf4b24eb1010e73fb3fcbd6714d240fbc1a10eea5b7dbecb641d
+    networks: [backend]
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD_FILE: /run/secrets/pg_superuser_password
+      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256 --auth-local=peer"
+    secrets: [pg_superuser_password, pg_owner_password, pg_app_password, pg_keycloak_password]
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./infra/postgres/init:/docker-entrypoint-initdb.d:ro
+    shm_size: 256m
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d spoldzielnia -h 127.0.0.1"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
+
+  redis:
+    <<: *infra
+    image: redis:7.4.11@sha256:4fa24486b8bcca8eec45ee0eb166edc674795e53a2b53d1a9ef263eecebaac85
+    networks: [backend]
+    secrets: [redis_password]
+    # The password goes into a container-local config file, not argv or env.
+    entrypoint:
+      - sh
+      - -c
+      - |
+        umask 077
+        printf 'requirepass "%s"\nappendonly yes\ndir /data\nprotected-mode yes\n' \
+          "$$(cat /run/secrets/redis_password)" > /tmp/redis.conf
+        chown redis:redis /tmp/redis.conf
+        exec docker-entrypoint.sh redis-server /tmp/redis.conf
+    volumes: [redisdata:/data]
+    healthcheck:
+      test: ["CMD-SHELL", "REDISCLI_AUTH=\"$$(cat /run/secrets/redis_password)\" redis-cli ping | grep -q PONG"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  qdrant:
+    <<: *infra
+    image: qdrant/qdrant:v1.19.2-unprivileged@sha256:efb96a9425a90d2d5a1a0a474156280df1892dcdf1af3e8515bd2589b1bfd88b
+    networks: [backend]
+    secrets: [qdrant_api_key, qdrant_tls_cert, qdrant_tls_key, internal_ca]
+    entrypoint:
+      - bash
+      - -c
+      - |
+        export QDRANT__SERVICE__API_KEY="$$(cat /run/secrets/qdrant_api_key)"
+        exec ./entrypoint.sh
+    volumes:
+      - qdrantdata:/qdrant/storage
+      - ./infra/qdrant/config.yaml:/qdrant/config/local.yaml:ro
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c ':> /dev/tcp/127.0.0.1/6333'"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  minio:
+    <<: *infra
+    # Official MinIO images are no longer published; Chainguard builds MinIO from source.
+    image: cgr.dev/chainguard/minio:latest@sha256:2136d593beacf4461187035eca949fe49abd589d5079735025c711ca58fee0c8
+    networks: [backend]
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: spoldzielnia
+      MINIO_ROOT_PASSWORD_FILE: minio_root_password
+      # KMS master key for SSE-S3 (bucket default encryption is set by `bootstrap`, 1.2b).
+      MINIO_KMS_SECRET_KEY_FILE: /run/secrets/minio_kms_key
+      MINIO_BROWSER_REDIRECT: "off"
+      MINIO_UPDATE: "off"
+    secrets: [minio_root_password, minio_kms_key]
+    volumes: [miniodata:/data]
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  clamav:
+    <<: *infra
+    # clamav/clamav has no arm64 build; the Debian variant is multi-arch.
+    image: clamav/clamav-debian:1.5.4@sha256:9a96980b265cb2b51a20bdcca921dc80aa55ed0e56cdfb076198ee27a9171927
+    # egress is only for freshclam signature updates.
+    networks: [backend, egress]
+    volumes: [clamavdb:/var/lib/clamav]
+    healthcheck:
+      test: ["CMD", "clamdcheck.sh"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      # First start downloads the signature database (~300 MB).
+      start_period: 300s
+
+  keycloak:
+    <<: *infra
+    image: quay.io/keycloak/keycloak:26.4.7@sha256:9409c59bdfb65dbffa20b11e6f18b8abb9281d480c7ca402f51ed3d5977e6007
+    networks: [public, backend]
+    depends_on:
+      postgres: { condition: service_healthy }
+    secrets: [pg_keycloak_password, keycloak_admin_password, oidc_client_secret]
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
+      KC_DB_USERNAME: keycloak
+      KC_HOSTNAME: https://auth.spoldzielnia.localhost
+      KC_HTTP_ENABLED: "true"
+      KC_PROXY_HEADERS: xforwarded
+      KC_HEALTH_ENABLED: "true"
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_COMMAND: start
+    # Secrets are exported only inside the container process environment.
+    entrypoint:
+      - bash
+      - -c
+      - |
+        export KC_DB_PASSWORD="$$(< /run/secrets/pg_keycloak_password)"
+        export KC_BOOTSTRAP_ADMIN_PASSWORD="$$(< /run/secrets/keycloak_admin_password)"
+        export OIDC_CLIENT_SECRET="$$(< /run/secrets/oidc_client_secret)"
+        [[ -r /run/secrets/dev_user_password ]] && export DEV_USER_PASSWORD="$$(< /run/secrets/dev_user_password)"
+        [[ -r /run/secrets/dev_totp_seed ]] && export DEV_TOTP_SEED="$$(< /run/secrets/dev_totp_seed)"
+        exec /opt/keycloak/bin/kc.sh $$KC_COMMAND
+    healthcheck:
+      test:
+        - CMD
+        - bash
+        - -c
+        - >-
+          exec 3<>/dev/tcp/127.0.0.1/9000 &&
+          printf 'GET /health/ready HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n' >&3 &&
+          grep -q '"UP"' <&3
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 60s
+
+  mailpit:
+    <<: *infra
+    image: axllent/mailpit:latest@sha256:23fe39e81bde596a918000b3135c0f85dc8bb4c9ea6be274b051143f3e300387
+    profiles: [tools]
+    networks: [public]
+
+  # --- Application (chunk 1.2b) ----------------------------------------------
+  migrate:
+    <<: [*hardening, *backend-image]
+    command: ["migrate"]
+    restart: "no"
+    networks: [backend]
+    depends_on:
+      postgres: { condition: service_healthy }
+    environment: *app-env
+    secrets:
+      - { source: pg_owner_password, target: db__owner_password }
+
+  bootstrap:
+    <<: [*hardening, *backend-image]
+    command: ["bootstrap"]
+    restart: "no"
+    networks: [backend]
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      minio: { condition: service_healthy }
+    environment: *app-env
+    secrets:
+      # TODO(2.1): replace root credentials with a scoped MinIO service account.
+      - { source: minio_root_password, target: s3__secret_key }
+
+  api:
+    <<: [*hardening, *backend-image]
+    command: ["api"]
+    restart: unless-stopped
+    networks: [edge, backend]
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      bootstrap: { condition: service_completed_successfully }
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      qdrant: { condition: service_healthy }
+      minio: { condition: service_healthy }
+    environment:
+      <<: *app-env
+      # Trust X-Forwarded-* only from the proxy's network.
+      SPOLDZIELNIA_FORWARDED_ALLOW_IPS: 172.30.1.0/24
+      SPOLDZIELNIA_SECURITY__ALLOWED_ORIGINS: '["https://${SITE_DOMAIN:-spoldzielnia.localhost}"]'
+      SPOLDZIELNIA_OIDC__ISSUER: https://auth.${SITE_DOMAIN:-spoldzielnia.localhost}/realms/spoldzielnia
+      SPOLDZIELNIA_QDRANT__CA_BUNDLE: /run/secrets/internal_ca
+    secrets:
+      - { source: pg_app_password, target: db__app_password }
+      - { source: redis_password, target: redis__password }
+      - { source: oidc_client_secret, target: oidc__client_secret }
+      - { source: session_secret, target: security__session_secret }
+      - { source: qdrant_api_key, target: qdrant__api_key }
+      - { source: minio_root_password, target: s3__secret_key }
+      - internal_ca
+
+  proxy:
+    <<: *infra
+    image: caddy:2.11.7@sha256:685ae3d7c34d9b5f8caeddc5d14051db7bbd88ff1f5a2fa0c16bd8ca328fb7af
+    # The only service with published ports.
+    ports: ["80:80", "443:443"]
+    read_only: true
+    tmpfs: ["/tmp:size=64m"]
+    cap_drop: [ALL]
+    cap_add: [NET_BIND_SERVICE]
+    networks:
+      public: {}
+      edge:
+        # The API reaches the IdP through the same public hostname as the browser
+        # (OIDC issuer split-horizon fix, gap G23).
+        aliases:
+          - auth.${SITE_DOMAIN:-spoldzielnia.localhost}
+    environment:
+      SITE_DOMAIN: ${SITE_DOMAIN:-spoldzielnia.localhost}
+      CADDY_TLS: ${CADDY_TLS:-internal}
+      KC_ADMIN_ALLOW: ${KC_ADMIN_ALLOW:-127.0.0.1/8}
+    depends_on:
+      api: { condition: service_healthy }
+      keycloak: { condition: service_healthy }
+    volumes:
+      - ./infra/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./infra/caddy/site:/srv/site:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8081/"]
+      interval: 10s
+      timeout: 5s
+      retries: 10

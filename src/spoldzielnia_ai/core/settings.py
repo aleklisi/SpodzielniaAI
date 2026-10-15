@@ -5,15 +5,19 @@ groups separated by ``__``, e.g. ``SPOLDZIELNIA_DB__HOST``). Secrets come from D
 mounted under ``/run/secrets``. Each file name is the nested field path, e.g.
 ``/run/secrets/db__app_password``. Defaults for hosts are compose service names and never
 ``localhost``.
+
+Each process gets only the secrets it needs (least privilege): the API loads ``Settings``,
+the one-shot ``migrate`` job loads ``MigrateSettings`` (owner DSN only) and ``bootstrap``
+loads ``BootstrapSettings`` (object storage only).
 """
 
 from __future__ import annotations
 
 from functools import lru_cache
-from typing import Literal
+from typing import Literal, Self
 from urllib.parse import quote
 
-from pydantic import BaseModel, Field, SecretStr
+from pydantic import BaseModel, Field, SecretStr, model_validator
 from pydantic_settings import (
     BaseSettings,
     NestedSecretsSettingsSource,
@@ -30,7 +34,7 @@ class DbSettings(BaseModel):
     port: int = 5432
     name: str = "spoldzielnia"
     app_user: str = "spoldzielnia_app"
-    app_password: SecretStr
+    app_password: SecretStr | None = None
     owner_user: str = "spoldzielnia_owner"
     owner_password: SecretStr | None = None
     pool_size: int = Field(default=10, ge=1)
@@ -47,6 +51,8 @@ class DbSettings(BaseModel):
 
     def app_url(self) -> str:
         """DSN for the runtime role (``NOBYPASSRLS``, not the table owner)."""
+        if self.app_password is None:
+            raise ValueError("db.app_password is required for the runtime DSN")
         return self._url(self.app_user, self.app_password)
 
     def migration_url(self) -> str:
@@ -86,6 +92,7 @@ class S3Settings(BaseModel):
     access_key: str = "spoldzielnia"
     secret_key: SecretStr | None = None
     bucket: str = "spoldzielnia-private"
+    region: str = "us-east-1"
 
 
 class LlmSettings(BaseModel):
@@ -102,7 +109,7 @@ class SecuritySettings(BaseModel):
     mfa_acr_values: list[str] = Field(default_factory=lambda: ["mfa"])
 
 
-class Settings(BaseSettings):
+class _BaseSettings(BaseSettings):
     model_config = SettingsConfigDict(
         env_prefix="SPOLDZIELNIA_",
         env_nested_delimiter="__",
@@ -118,18 +125,6 @@ class Settings(BaseSettings):
 
     environment: Literal["dev", "test", "prod"] = "prod"
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
-    root_path: str = "/api"
-    api_host: str = "0.0.0.0"  # noqa: S104 - container listens on all interfaces behind Caddy
-    api_port: int = 8000
-    forwarded_allow_ips: str = "127.0.0.1"
-
-    db: DbSettings
-    redis: RedisSettings
-    oidc: OidcSettings
-    security: SecuritySettings
-    qdrant: QdrantSettings = Field(default_factory=QdrantSettings)
-    s3: S3Settings = Field(default_factory=S3Settings)
-    llm: LlmSettings = Field(default_factory=LlmSettings)
 
     @classmethod
     def settings_customise_sources(
@@ -143,6 +138,53 @@ class Settings(BaseSettings):
         # Docker secrets map to nested fields: /run/secrets/db__app_password -> db.app_password.
         secrets = NestedSecretsSettingsSource(file_secret_settings)
         return (init_settings, env_settings, dotenv_settings, secrets)
+
+
+class Settings(_BaseSettings):
+    """Runtime settings of the API process."""
+
+    root_path: str = "/api"
+    api_host: str = "0.0.0.0"  # noqa: S104 - container listens on all interfaces behind Caddy
+    api_port: int = 8000
+    forwarded_allow_ips: str = "127.0.0.1"
+
+    db: DbSettings
+    redis: RedisSettings
+    oidc: OidcSettings
+    security: SecuritySettings
+    qdrant: QdrantSettings = Field(default_factory=QdrantSettings)
+    s3: S3Settings = Field(default_factory=S3Settings)
+    llm: LlmSettings = Field(default_factory=LlmSettings)
+
+    @model_validator(mode="after")
+    def _require_runtime_secrets(self) -> Self:
+        if self.db.app_password is None:
+            raise ValueError("db.app_password is required")
+        return self
+
+
+class MigrateSettings(_BaseSettings):
+    """Settings of the one-shot ``migrate`` job: schema-owner DSN only."""
+
+    db: DbSettings = Field(default_factory=DbSettings)
+
+    @model_validator(mode="after")
+    def _require_owner_password(self) -> Self:
+        if self.db.owner_password is None:
+            raise ValueError("db.owner_password is required")
+        return self
+
+
+class BootstrapSettings(_BaseSettings):
+    """Settings of the one-shot ``bootstrap`` job: object storage (and Qdrant from 4.1)."""
+
+    s3: S3Settings = Field(default_factory=S3Settings)
+
+    @model_validator(mode="after")
+    def _require_s3_secret(self) -> Self:
+        if self.s3.secret_key is None:
+            raise ValueError("s3.secret_key is required")
+        return self
 
 
 @lru_cache(maxsize=1)

@@ -1,0 +1,248 @@
+{
+  "realm": "spoldzielnia",
+  "displayName": "Spółdzielnia AI",
+  "enabled": true,
+  "sslRequired": "external",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": true,
+  "editUsernameAllowed": false,
+  "bruteForceProtected": true,
+  "permanentLockout": false,
+  "failureFactor": 10,
+  "maxFailureWaitSeconds": 900,
+  "passwordPolicy": "length(12) and notUsername and notEmail",
+  "accessTokenLifespan": 900,
+  "ssoSessionIdleTimeout": 3600,
+  "ssoSessionMaxLifespan": 43200,
+  "revokeRefreshToken": true,
+  "refreshTokenMaxReuse": 0,
+  "otpPolicyType": "totp",
+  "otpPolicyAlgorithm": "HmacSHA1",
+  "otpPolicyDigits": 6,
+  "otpPolicyPeriod": 30,
+  "otpPolicyLookAheadWindow": 1,
+  "smtpServer": {
+    "host": "mailpit",
+    "port": "1025",
+    "from": "noreply@spoldzielnia.localhost",
+    "fromDisplayName": "Spółdzielnia AI"
+  },
+  "roles": {
+    "realm": [
+      { "name": "MEMBER", "description": "Cooperative member" },
+      { "name": "EXPERT", "description": "Expert council reviewer (MFA required)" },
+      { "name": "ADMIN", "description": "Cooperative administrator (MFA required)" }
+    ]
+  },
+  "browserFlow": "browser-amr",
+  "authenticatorConfig": [
+    {
+      "alias": "amr-pwd",
+      "config": { "default.reference.value": "pwd", "default.reference.maxAge": "43200" }
+    },
+    {
+      "alias": "amr-otp",
+      "config": { "default.reference.value": "otp", "default.reference.maxAge": "43200" }
+    }
+  ],
+  "authenticationFlows": [
+    {
+      "alias": "browser-amr",
+      "description": "Browser login emitting amr=[pwd] / amr=[pwd,otp]",
+      "providerId": "basic-flow",
+      "topLevel": true,
+      "builtIn": false,
+      "authenticationExecutions": [
+        {
+          "authenticator": "auth-cookie",
+          "requirement": "ALTERNATIVE",
+          "priority": 10,
+          "authenticatorFlow": false,
+          "autheticatorFlow": false,
+          "userSetupAllowed": false
+        },
+        {
+          "requirement": "ALTERNATIVE",
+          "priority": 20,
+          "flowAlias": "browser-amr forms",
+          "authenticatorFlow": true,
+          "autheticatorFlow": true,
+          "userSetupAllowed": false
+        }
+      ]
+    },
+    {
+      "alias": "browser-amr forms",
+      "description": "Username/password, then OTP when the user has it configured",
+      "providerId": "basic-flow",
+      "topLevel": false,
+      "builtIn": false,
+      "authenticationExecutions": [
+        {
+          "authenticator": "auth-username-password-form",
+          "authenticatorConfig": "amr-pwd",
+          "requirement": "REQUIRED",
+          "priority": 10,
+          "authenticatorFlow": false,
+          "autheticatorFlow": false,
+          "userSetupAllowed": false
+        },
+        {
+          "requirement": "CONDITIONAL",
+          "priority": 20,
+          "flowAlias": "browser-amr conditional otp",
+          "authenticatorFlow": true,
+          "autheticatorFlow": true,
+          "userSetupAllowed": false
+        }
+      ]
+    },
+    {
+      "alias": "browser-amr conditional otp",
+      "description": "OTP step for users with a configured authenticator",
+      "providerId": "basic-flow",
+      "topLevel": false,
+      "builtIn": false,
+      "authenticationExecutions": [
+        {
+          "authenticator": "conditional-user-configured",
+          "requirement": "REQUIRED",
+          "priority": 10,
+          "authenticatorFlow": false,
+          "autheticatorFlow": false,
+          "userSetupAllowed": false
+        },
+        {
+          "authenticator": "auth-otp-form",
+          "authenticatorConfig": "amr-otp",
+          "requirement": "REQUIRED",
+          "priority": 20,
+          "authenticatorFlow": false,
+          "autheticatorFlow": false,
+          "userSetupAllowed": false
+        }
+      ]
+    }
+  ],
+  "clients": [
+    {
+      "clientId": "spoldzielnia-backend",
+      "name": "Spółdzielnia AI backend (BFF)",
+      "protocol": "openid-connect",
+      "enabled": true,
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "${OIDC_CLIENT_SECRET}",
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "frontchannelLogout": false,
+      "fullScopeAllowed": true,
+      "consentRequired": false,
+      "rootUrl": "https://spoldzielnia.localhost",
+      "baseUrl": "/",
+      "redirectUris": ["https://spoldzielnia.localhost/api/auth/callback"],
+      "webOrigins": ["https://spoldzielnia.localhost"],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "https://spoldzielnia.localhost/",
+        "use.refresh.tokens": "true",
+        "backchannel.logout.session.required": "true",
+        "backchannel.logout.revoke.offline.tokens": "true",
+        "id.token.signed.response.alg": "RS256",
+        "access.token.signed.response.alg": "RS256"
+      },
+      "defaultClientScopes": ["web-origins", "profile", "email", "basic"],
+      "optionalClientScopes": ["offline_access"],
+      "protocolMappers": [
+        {
+          "name": "realm roles",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-realm-role-mapper",
+          "consentRequired": false,
+          "config": {
+            "multivalued": "true",
+            "claim.name": "roles",
+            "jsonType.label": "String",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true",
+            "introspection.token.claim": "true"
+          }
+        },
+        {
+          "name": "amr",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-amr-mapper",
+          "consentRequired": false,
+          "config": {
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "introspection.token.claim": "true"
+          }
+        }
+      ]
+    }
+  ],
+  "users": [
+    {
+      "username": "member1",
+      "email": "member1@spoldzielnia.localhost",
+      "emailVerified": true,
+      "firstName": "Member",
+      "lastName": "One",
+      "enabled": true,
+      "realmRoles": ["MEMBER"],
+      "credentials": [{ "type": "password", "value": "${DEV_USER_PASSWORD}", "temporary": false }]
+    },
+    {
+      "username": "member2",
+      "email": "member2@spoldzielnia.localhost",
+      "emailVerified": true,
+      "firstName": "Member",
+      "lastName": "Two",
+      "enabled": true,
+      "realmRoles": ["MEMBER"],
+      "credentials": [{ "type": "password", "value": "${DEV_USER_PASSWORD}", "temporary": false }]
+    },
+    {
+      "username": "expert1",
+      "email": "expert1@spoldzielnia.localhost",
+      "emailVerified": true,
+      "firstName": "Expert",
+      "lastName": "One",
+      "enabled": true,
+      "realmRoles": ["MEMBER", "EXPERT"],
+      "credentials": [
+        { "type": "password", "value": "${DEV_USER_PASSWORD}", "temporary": false },
+        {
+          "type": "otp",
+          "userLabel": "dev-totp",
+          "secretData": "{\"value\":\"${DEV_TOTP_SEED}\"}",
+          "credentialData": "{\"subType\":\"totp\",\"digits\":6,\"counter\":0,\"period\":30,\"algorithm\":\"HmacSHA1\"}"
+        }
+      ]
+    },
+    {
+      "username": "admin1",
+      "email": "admin1@spoldzielnia.localhost",
+      "emailVerified": true,
+      "firstName": "Admin",
+      "lastName": "One",
+      "enabled": true,
+      "realmRoles": ["MEMBER", "ADMIN"],
+      "credentials": [
+        { "type": "password", "value": "${DEV_USER_PASSWORD}", "temporary": false },
+        {
+          "type": "otp",
+          "userLabel": "dev-totp",
+          "secretData": "{\"value\":\"${DEV_TOTP_SEED}\"}",
+          "credentialData": "{\"subType\":\"totp\",\"digits\":6,\"counter\":0,\"period\":30,\"algorithm\":\"HmacSHA1\"}"
+        }
+      ]
+    }
+  ]
+}

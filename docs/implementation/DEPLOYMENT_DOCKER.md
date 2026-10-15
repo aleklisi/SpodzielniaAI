@@ -198,8 +198,28 @@ make deploy VERSION=v1.0.0   # prod: pull, migrate, up (run on server)
   `pg_owner_password`, `pg_app_password`, `pg_keycloak_password`, `redis_password`,
   `qdrant_api_key`, `minio_root_password`, `oidc_client_secret`, `kek` (notebook encryption, 2.1),
   `watermark_key` (5.5), `honeypot_key` (5.4), `session_secret`.
+  Also generated: `pg_superuser_password`, `minio_kms_key` (SSE-S3 master key),
+  `keycloak_admin_password`, dev-only `dev_user_password` / `dev_totp_seed`, and
+  `secrets/tls/` (internal CA + Qdrant server cert, `gen-dev-certs.sh`).
+- **Secret file naming (implemented in 1.1/1.2):** compose secrets keep the flat names above;
+  app containers mount them under the nested `Settings` path via the long syntax, e.g.
+  `{ source: pg_app_password, target: db__app_password }` → `/run/secrets/db__app_password`
+  → `Settings.db.app_password`. Each one-shot job mounts only what it needs
+  (`migrate`: `db__owner_password`; `bootstrap`: `s3__secret_key`).
+- `./secrets` is `0700`; files are `0644` because compose bind-mounts file secrets with host
+  permissions and the consumers run as different non-root uids.
 - Postgres init (`infra/postgres/init/*.sh`) reads the secret files and creates roles
   `spoldzielnia_owner`, `spoldzielnia_app` (`NOBYPASSRLS`), `keycloak`, plus databases.
+
+---
+
+### 5.1 Image substitutions (decided in 1.2a)
+
+| Planned | Used | Why |
+|---|---|---|
+| `minio/minio` | `cgr.dev/chainguard/minio` (pinned digest) | Official MinIO images are no longer published; Chainguard builds MinIO from source. Free tier only tags `latest`, so upgrades are digest bumps. |
+| `clamav/clamav` | `clamav/clamav-debian` | `clamav/clamav` has no arm64 build. |
+| `qdrant/qdrant` | `qdrant/qdrant:<ver>-unprivileged` | Runs as non-root. |
 
 ---
 

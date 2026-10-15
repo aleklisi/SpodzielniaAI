@@ -12,6 +12,7 @@ dependencies = [
     "asyncpg>=0.32.0",
     "fastapi>=0.143.2",
     "httpx>=0.28.1",
+    "minio>=7.2.20",
     "pydantic>=2",
     "pydantic-settings>=2.16.0",
     "redis>=5",
@@ -66,6 +67,7 @@ venv = ".venv"
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 testpaths = ["tests"]
+pythonpath = ["src", "."]
 addopts = ["--strict-markers", "-ra"]
 markers = [
     "integration: requires Docker services (testcontainers / compose stack)",

@@ -148,8 +148,8 @@ Pełna specyfikacja techniczna i architektura wdrożenia w kontenerach Docker zn
 ### Etap 1: Fundament, OAuth2/OIDC i Izolacja Bazy Danych (Postgres RLS)
 *Dokumentacja: [docs/implementation/01_FOUNDATION_AUTH_RLS.md](docs/implementation/01_FOUNDATION_AUTH_RLS.md)*
 - [x] 1.1 Inicjalizacja monorepo i toolchainu (`uv`, `ruff`, `pyright`, `pytest`, `Settings`, `cli.py`)
-- [ ] 1.2a Konteneryzacja usług pomocniczych w Docker Compose (PostgreSQL, Qdrant TLS, Redis, Keycloak, ClamAV, MinIO, Docker secrets)
-- [ ] 1.2b Obraz API backendu, reverse proxy (Caddy HTTPS) i test dymny (smoke test)
+- [x] 1.2a Konteneryzacja usług pomocniczych w Docker Compose (PostgreSQL, Qdrant TLS, Redis, Keycloak, ClamAV, MinIO, Docker secrets)
+- [x] 1.2b Obraz API backendu, reverse proxy (Caddy HTTPS) i test dymny (smoke test)
 - [ ] 1.3 Warstwa bazy danych, role uprawnień (owner vs app) i modele domenowe SQLAlchemy 2.0
 - [ ] 1.4 Izolacja Row-Level Security (Postgres RLS) i niemodyfikowalny audyt (SecurityAuditLog hash chain)
 - [ ] 1.5 Uwierzytelnianie OIDC Authorization Code Flow z PKCE (wzorzec BFF)

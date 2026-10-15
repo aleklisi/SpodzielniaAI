@@ -5,7 +5,12 @@ from typing import TYPE_CHECKING
 import pytest
 from pydantic import ValidationError
 
-from spoldzielnia_ai.core.settings import Settings, get_settings
+from spoldzielnia_ai.core.settings import (
+    BootstrapSettings,
+    MigrateSettings,
+    Settings,
+    get_settings,
+)
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -56,6 +61,7 @@ def test_secrets_load_from_secrets_dir(tmp_path: Path) -> None:
 
     loaded = _load(secrets_dir)
 
+    assert loaded.db.app_password is not None
     assert loaded.db.app_password.get_secret_value() == "file-app-pw"
     assert loaded.db.owner_password is not None
     assert loaded.db.owner_password.get_secret_value() == "file-owner-pw"
@@ -96,3 +102,45 @@ def test_redis_url_escapes_password(settings: Settings) -> None:
 
     redis = settings.redis.model_copy(update={"password": SecretStr("p@ss/word:1")})
     assert redis.url() == "redis://:p%40ss%2Fword%3A1@redis:6379/0"
+
+
+def test_api_settings_require_app_password(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    for key, value in REQUIRED_ENV.items():
+        monkeypatch.setenv(key, value)
+    monkeypatch.delenv("SPOLDZIELNIA_DB__APP_PASSWORD")
+    monkeypatch.setenv("SPOLDZIELNIA_DB__HOST", "postgres")
+
+    with pytest.raises(ValidationError, match="app_password"):
+        _load(tmp_path)
+
+
+def test_migrate_settings_need_only_owner_password(tmp_path: Path) -> None:
+    secrets_dir = tmp_path / "secrets"
+    secrets_dir.mkdir()
+    (secrets_dir / "db__owner_password").write_text("owner-pw")
+
+    loaded = MigrateSettings(_env_file=None, _secrets_dir=secrets_dir)  # pyright: ignore[reportCallIssue]
+
+    assert loaded.db.migration_url().startswith(
+        "postgresql+asyncpg://spoldzielnia_owner:owner-pw@postgres:5432/"
+    )
+    with pytest.raises(ValueError, match="app_password"):
+        loaded.db.app_url()
+
+
+def test_migrate_settings_fail_without_owner_password(tmp_path: Path) -> None:
+    with pytest.raises(ValidationError, match="owner_password"):
+        MigrateSettings(_env_file=None, _secrets_dir=tmp_path)  # pyright: ignore[reportCallIssue]
+
+
+def test_bootstrap_settings_need_only_s3_secret(tmp_path: Path) -> None:
+    secrets_dir = tmp_path / "secrets"
+    secrets_dir.mkdir()
+    (secrets_dir / "s3__secret_key").write_text("minio-pw")
+
+    loaded = BootstrapSettings(_env_file=None, _secrets_dir=secrets_dir)  # pyright: ignore[reportCallIssue]
+
+    assert loaded.s3.secret_key is not None
+    assert loaded.s3.secret_key.get_secret_value() == "minio-pw"
+    with pytest.raises(ValidationError, match="secret_key"):
+        BootstrapSettings(_env_file=None, _secrets_dir=tmp_path)  # pyright: ignore[reportCallIssue]

@@ -13,7 +13,7 @@ import sys
 from collections.abc import Callable, Sequence
 
 from spoldzielnia_ai.core.logging import configure_logging, get_logger
-from spoldzielnia_ai.core.settings import get_settings
+from spoldzielnia_ai.core.settings import BootstrapSettings, MigrateSettings, get_settings
 
 log = get_logger(__name__)
 
@@ -39,14 +39,19 @@ def _cmd_api(args: argparse.Namespace) -> int:
 
 
 def _cmd_migrate(_args: argparse.Namespace) -> int:
-    configure_logging(get_settings().log_level)
+    settings = MigrateSettings()  # pyright: ignore[reportCallIssue]  # env/secrets
+    configure_logging(settings.log_level)
     log.info("migrate.noop", reason="no migrations defined yet (chunk 1.3)")
     return 0
 
 
 def _cmd_bootstrap(_args: argparse.Namespace) -> int:
-    configure_logging(get_settings().log_level)
-    log.info("bootstrap.noop", reason="no resources to provision yet (chunk 1.2b)")
+    from spoldzielnia_ai.bootstrap import run_bootstrap
+
+    settings = BootstrapSettings()  # pyright: ignore[reportCallIssue]  # env/secrets
+    configure_logging(settings.log_level)
+    run_bootstrap(settings)
+    log.info("bootstrap.done")
     return 0
 
 

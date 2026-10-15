@@ -1,0 +1,64 @@
+# Single origin for UI + API, plus the IdP on auth.<domain>.
+#   SITE_DOMAIN   spoldzielnia.localhost (dev) | real domain (prod)
+#   CADDY_TLS     "internal" (dev: Caddy's local CA) | ACME e-mail address (prod: Let's Encrypt)
+#   KC_ADMIN_ALLOW  remote IPs/CIDRs allowed to reach the Keycloak admin console
+{
+	admin off
+	# No `trusted_proxies`: Caddy is the outermost hop, so client-supplied X-Forwarded-* are
+	# replaced with the real peer address.
+}
+
+# Container healthcheck only; bound to loopback inside the proxy container, never published.
+http://127.0.0.1:8081 {
+	bind 127.0.0.1
+	respond "ok" 200
+}
+
+(security_headers) {
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "no-referrer"
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+		-Server
+		-Via
+	}
+}
+
+{$SITE_DOMAIN:spoldzielnia.localhost} {
+	tls {$CADDY_TLS:internal}
+	import security_headers
+	encode zstd gzip
+
+	# Matches the upload limit enforced by the API (chunk 2.2).
+	request_body {
+		max_size 50MB
+	}
+
+	handle_path /api/* {
+		reverse_proxy api:8000 {
+			header_up X-Forwarded-Proto https
+		}
+	}
+
+	# Placeholder until the Next.js frontend exists (6.1).
+	handle {
+		root * /srv/site
+		file_server
+	}
+}
+
+auth.{$SITE_DOMAIN:spoldzielnia.localhost} {
+	tls {$CADDY_TLS:internal}
+	import security_headers
+
+	@admin_denied {
+		path /admin /admin/*
+		not remote_ip {$KC_ADMIN_ALLOW:127.0.0.1/8}
+	}
+	respond @admin_denied "Forbidden" 403
+
+	# Metrics/health live on the management port (9000), never exposed.
+	reverse_proxy keycloak:8080
+}

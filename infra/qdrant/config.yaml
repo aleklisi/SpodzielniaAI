@@ -1,0 +1,17 @@
+# Mounted as /qdrant/config/local.yaml (overrides the image defaults).
+# The API key is injected from the Docker secret as QDRANT__SERVICE__API_KEY by the
+# compose entrypoint wrapper, so it never appears in this file or in `docker compose config`.
+log_level: INFO
+
+service:
+  enable_tls: true
+  # Reject unauthenticated requests; health endpoints (/healthz, /livez, /readyz) stay open.
+  verify_https_client_certificate: false
+
+tls:
+  cert: /run/secrets/qdrant_tls_cert
+  key: /run/secrets/qdrant_tls_key
+  ca_cert: /run/secrets/internal_ca
+  cert_ttl: 3600
+
+telemetry_disabled: true

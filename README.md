@@ -27,6 +27,29 @@ export SPOLDZIELNIA_DB__APP_PASSWORD=dev SPOLDZIELNIA_REDIS__PASSWORD=dev \
 uv run spoldzielnia api --reload          # GET /healthz, /readyz, /docs (non-prod)
 ```
 
+## Docker stack (macOS dev)
+
+Requires Docker Desktop (≥ 12 GB RAM recommended).
+
+```bash
+make up          # generate ./secrets, build the API image, start everything, wait for health
+make trust-cert  # once: trust Caddy's local CA so https://spoldzielnia.localhost is green
+make smoke       # HTTPS, IdP discovery, container hardening, ports, network isolation
+make test-int    # integration tests against the running stack
+make down        # stop (keeps data) · make reset: stop and delete all volumes
+```
+
+| URL | What |
+|---|---|
+| `https://spoldzielnia.localhost/api/docs` | API (OpenAPI UI, non-prod) |
+| `https://auth.spoldzielnia.localhost` | Keycloak (realm `spoldzielnia`) |
+
+Dev users `member1`, `member2`, `expert1`, `admin1` share the password in
+`secrets/dev_user_password`. `expert1`/`admin1` have TOTP configured with the raw key in
+`secrets/dev_totp_seed` (Keycloak stores the raw string; authenticator apps need its base32
+encoding). Debug ports (`127.0.0.1` only): Postgres 5432, Redis 6379, Qdrant 6333 (TLS),
+MinIO 9000/9001, ClamAV 3310, Mailpit 8025 (`--profile tools`).
+
 ## Configuration
 
 `spoldzielnia_ai.core.settings.Settings` reads:
