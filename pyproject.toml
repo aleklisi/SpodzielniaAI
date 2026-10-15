@@ -1,0 +1,74 @@
+[project]
+name = "spoldzielnia-ai"
+version = "0.1.0"
+description = "Spółdzielnia AI — cooperative knowledge platform with private notebooks, governed wiki and anti-distillation RAG"
+readme = "README.md"
+authors = [
+    { name = "Piotr Pacewicz", email = "piotr@pacewi.cz" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "alembic>=1.20.0",
+    "asyncpg>=0.32.0",
+    "fastapi>=0.143.2",
+    "httpx>=0.28.1",
+    "pydantic>=2",
+    "pydantic-settings>=2.16.0",
+    "redis>=5",
+    "sqlalchemy[asyncio]>=2",
+    "structlog>=26.1.0",
+    "uvicorn[standard]>=0.54.0",
+]
+
+[project.scripts]
+spoldzielnia = "spoldzielnia_ai.cli:main"
+
+[build-system]
+requires = ["uv_build>=0.12.7,<0.13.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "fakeredis>=2.40.0",
+    "freezegun>=1.5.5",
+    "pyright>=1.1.414",
+    "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
+    "pytest-cov>=7.1.0",
+    "respx>=0.23.1",
+    "ruff>=0.17.1",
+    "testcontainers[postgres,redis]>=4.15.0",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "S", "ASYNC", "SIM", "RUF", "PT", "TC"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["spoldzielnia_ai"]
+
+[tool.pyright]
+typeCheckingMode = "strict"
+pythonVersion = "3.12"
+include = ["src", "tests"]
+stubPath = "typings"
+venvPath = "."
+venv = ".venv"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+testpaths = ["tests"]
+addopts = ["--strict-markers", "-ra"]
+markers = [
+    "integration: requires Docker services (testcontainers / compose stack)",
+    "ml: requires heavy ML models (Presidio, spaCy, LLM-Guard)",
+    "e2e: end-to-end tests against the running compose stack",
+]

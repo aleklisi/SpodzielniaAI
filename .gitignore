@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+build/
+dist/
+
+# Tooling caches
+.ruff_cache/
+.pytest_cache/
+.pyright/
+.coverage
+coverage.xml
+htmlcov/
+
+# Local config & secrets — never commit
+.env
+.env.*
+!.env.example
+secrets/
+*.pem
+*.key
+
+# OS / editors
+.DS_Store
+.idea/
+.vscode/
+
+# Frontend (Stage 6)
+node_modules/
+.next/
