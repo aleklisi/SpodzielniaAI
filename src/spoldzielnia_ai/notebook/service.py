@@ -7,9 +7,10 @@ indistinguishable from a missing one (``None``).
 
 from __future__ import annotations
 
+import datetime as dt
 from dataclasses import dataclass
-from datetime import datetime  # noqa: TC003 - dataclass field types
-from typing import TYPE_CHECKING
+from datetime import datetime
+from typing import TYPE_CHECKING, Any
 from uuid import UUID  # noqa: TC003 - dataclass field types
 
 from sqlalchemy import select
@@ -63,6 +64,8 @@ class DerivativeView:
     error: str | None
     created_at: datetime
     updated_at: datetime
+    injection_flags: dict[str, Any]
+    quarantine_confirmed_at: datetime | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -125,6 +128,8 @@ class NotebookService:
             error=row.error,
             created_at=row.created_at,
             updated_at=row.updated_at,
+            injection_flags=dict(row.injection_flags),
+            quarantine_confirmed_at=row.quarantine_confirmed_at,
         )
 
     # --- Notes --------------------------------------------------------------------------
@@ -259,6 +264,21 @@ class NotebookService:
         self._session.add(row)
         await self._session.flush()
         await self._session.refresh(row)
+        return self.derivative_view(row)
+
+    async def confirm_quarantine(self, note_id: UUID, derivative_id: UUID) -> DerivativeView | None:
+        """The owner reviewed the flagged spans and lets this derivative into promotion."""
+        row = await self._session.scalar(
+            select(NoteDerivative)
+            .where(NoteDerivative.id == derivative_id, NoteDerivative.note_id == note_id)
+            .with_for_update()
+        )
+        if row is None:
+            return None
+        if row.status == DerivativeStatus.QUARANTINED and row.quarantine_confirmed_at is None:
+            row.quarantine_confirmed_at = dt.datetime.now(dt.UTC)
+            await self._session.flush()
+            await self._session.refresh(row)
         return self.derivative_view(row)
 
     async def update(

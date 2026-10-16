@@ -213,7 +213,7 @@ def _wait_for(
     while True:
         body = client.get(url).json()
         derivatives = [d for d in body["derivatives"] if d["kind"] == pick]
-        if derivatives and derivatives[0]["status"] in ("DONE", "FAILED"):
+        if derivatives and derivatives[0]["status"] in ("DONE", "FAILED", "QUARANTINED"):
             return derivatives[0]
         if time.monotonic() > deadline:
             raise AssertionError(f"timed out waiting for {pick}: {body['derivatives']}")
@@ -259,7 +259,9 @@ def test_link_is_fetched_by_the_egress_worker(caddy_ca: Path) -> None:
                 ("dns_failed", "connection_failed", "retries_exhausted")
             ):
                 pytest.skip(f"no internet from the egress worker: {derivative['error']}")
-            assert derivative["status"] == "DONE", derivative
+            # The English classifier flags example.org's imperative boilerplate (~0.94):
+            # quarantine is a valid outcome; the content is stored either way.
+            assert derivative["status"] in ("DONE", "QUARANTINED"), derivative
             assert "documentation examples" in str(derivative["content"])  # main text
         finally:
             client.delete(f"{SITE}/api/notes/{note['id']}", headers=headers)

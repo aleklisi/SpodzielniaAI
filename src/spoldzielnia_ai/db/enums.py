@@ -59,6 +59,7 @@ class DerivativeStatus(StrEnum):
     PROCESSING = "PROCESSING"
     DONE = "DONE"
     FAILED = "FAILED"
+    QUARANTINED = "QUARANTINED"  # 3.3: injection score above threshold
 
 
 PG_ENUM_NAMES: dict[type[StrEnum], str] = {

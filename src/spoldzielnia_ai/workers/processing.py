@@ -19,7 +19,7 @@ import shutil
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 from urllib.parse import urlsplit
 
 from spoldzielnia_ai.audit.events import EventType
@@ -30,6 +30,8 @@ from spoldzielnia_ai.db.enums import DerivativeKind, DerivativeStatus, ScanStatu
 from spoldzielnia_ai.db.models import NoteAttachment, NoteDerivative
 from spoldzielnia_ai.db.rls import rls_session
 from spoldzielnia_ai.files.multipart import SpooledUpload, safe_filename
+from spoldzielnia_ai.files.pdf_hidden import HiddenSpan, remove_hidden
+from spoldzielnia_ai.llm.injection_rules import count_invisible, find_rules, strip_invisible
 from spoldzielnia_ai.net.safe_fetch import FetchFailed, SsrfBlocked
 from spoldzielnia_ai.net.to_markdown import to_markdown
 from spoldzielnia_ai.notebook.service import ATTACHMENT, DERIVATIVE
@@ -37,7 +39,7 @@ from spoldzielnia_ai.notebook.uploads import UploadRejected
 from spoldzielnia_ai.workers.engines.base import PermanentError, TransientError
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Awaitable, Callable
     from uuid import UUID
 
     from spoldzielnia_ai.core.crypto import EnvelopeCipher
@@ -94,7 +96,9 @@ class DerivativeProcessor:
         tmp_dir: str | None = None,
         fetcher: SafeFetcher | None = None,
         uploads: UploadPipeline | None = None,
+        on_done: Callable[[DerivativeJob], Awaitable[None]] | None = None,
     ) -> None:
+        self._on_done = on_done
         self._factory = factory
         self._cipher = cipher
         self._storage = storage
@@ -109,7 +113,7 @@ class DerivativeProcessor:
         if source is None:
             return False
         try:
-            content, attachment_id = await self._produce(source)
+            content, attachment_id, document = await self._produce(source)
         except PermanentError as exc:
             await self._fail(source, exc.code)
             return False
@@ -119,7 +123,9 @@ class DerivativeProcessor:
                 return False
             log.warning("worker.transient", derivative=str(source.derivative_id), error=str(exc))
             return True
-        await self._complete(source, content, attachment_id)
+        await self._complete(source, content, attachment_id, document)
+        if self._on_done is not None:
+            await self._on_done(job)  # prompt-injection screening in worker-core (3.3)
         return False
 
     async def fail_timeout(self, job: DerivativeJob) -> None:
@@ -135,7 +141,11 @@ class DerivativeProcessor:
             if row is None or row.owner_id != job.owner_id:
                 log.info("worker.derivative_gone", derivative=str(job.derivative_id))
                 return None
-            if row.status in (DerivativeStatus.DONE, DerivativeStatus.FAILED):
+            if row.status in (
+                DerivativeStatus.DONE,
+                DerivativeStatus.FAILED,
+                DerivativeStatus.QUARANTINED,
+            ):
                 return None  # redelivered after completion
             if row.status == DerivativeStatus.PROCESSING and not allow_processing:
                 return None
@@ -173,7 +183,13 @@ class DerivativeProcessor:
                 url=url,
             )
 
-    async def _complete(self, source: _Source, content: str, attachment_id: UUID | None) -> None:
+    async def _complete(
+        self,
+        source: _Source,
+        content: str,
+        attachment_id: UUID | None,
+        document: dict[str, Any],
+    ) -> None:
         async with rls_session(self._factory, source.owner_id) as session:
             row = await session.get(NoteDerivative, source.derivative_id, with_for_update=True)
             if row is None:
@@ -184,6 +200,8 @@ class DerivativeProcessor:
             row.content_ciphertext = self._cipher.encrypt_field(dek, text.encode(), aad, "content")
             row.status = DerivativeStatus.DONE
             row.error = None
+            # Parsing findings (no text). worker-core adds the injection verdict.
+            row.injection_flags = {"document": document}
             if attachment_id is not None:
                 row.attachment_id = attachment_id
         log.info("worker.done", derivative=str(source.derivative_id), kind=source.kind.value)
@@ -205,12 +223,17 @@ class DerivativeProcessor:
 
     # --- Work ---------------------------------------------------------------------------
 
-    async def _produce(self, source: _Source) -> tuple[str, UUID | None]:
+    async def _produce(self, source: _Source) -> tuple[str, UUID | None, dict[str, Any]]:
+        document: dict[str, Any] = {}
         if source.kind == DerivativeKind.FETCHED_LINK:
-            return await self._fetch_link(source)
-        return await self._extract(source), None
+            text, attachment_id = await self._fetch_link(source)
+        else:
+            text, attachment_id = await self._extract(source, document), None
+        # Zero-width and bidi controls hide or reorder text for humans only (3.3).
+        document["invisible_chars"] = count_invisible(text)
+        return strip_invisible(text), attachment_id, document
 
-    async def _extract(self, source: _Source) -> str:
+    async def _extract(self, source: _Source, document: dict[str, Any]) -> str:
         if source.object_key is None or source.mime_type is None or source.attachment_dek is None:
             raise PermanentError("attachment_missing")
         engine = self._engines(source.kind, source.mime_type)
@@ -218,12 +241,38 @@ class DerivativeProcessor:
         try:
             plain = workdir / f"input{SUFFIX.get(source.mime_type, '')}"
             await self._materialize(source, workdir, plain)
+            hidden = await self._hidden_text(plain, source.mime_type)
             text = await asyncio.to_thread(engine.extract, plain, source.mime_type)
+            if hidden:
+                text, removed = remove_hidden(text, hidden)
+                document["hidden_text"] = [
+                    {
+                        "page": span.page,
+                        "reason": span.reason,
+                        "chars": len(span.text),
+                        "instruction_like": bool(find_rules(span.text)),
+                    }
+                    for span in hidden
+                ]
+                document["hidden_removed"] = removed
         finally:
             await asyncio.to_thread(shutil.rmtree, workdir, True)
         if not text.strip():
             raise PermanentError("empty_result")
         return text
+
+    @staticmethod
+    async def _hidden_text(plain: Path, mime_type: str) -> list[HiddenSpan]:
+        """Text a reader can't see (white, invisible, tiny, off-page) in PDFs (3.3)."""
+        if mime_type != "application/pdf":
+            return []
+        from spoldzielnia_ai.files.pdf_hidden import find_hidden_text
+
+        try:
+            return await asyncio.to_thread(find_hidden_text, plain)
+        except Exception as exc:  # pdfium refuses the file: Docling decides whether it's usable
+            log.warning("worker.hidden_text_scan_failed", error=type(exc).__name__)
+            return []
 
     async def _materialize(self, source: _Source, workdir: Path, plain: Path) -> None:
         assert source.object_key is not None  # noqa: S101 - checked by the caller

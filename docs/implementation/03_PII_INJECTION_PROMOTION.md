@@ -141,6 +141,40 @@ class PiiScrubber:
   and the phrase is removed from output.
 - `ml`: LLM-Guard flags the English injection sample.
 
+
+**As built (decisions made during implementation)**
+- **Layer 1 without the LLM-Guard package** (see 3.1): `llm/injection_model.py` runs
+  `protectai/deberta-v3-base-prompt-injection-v2` (pinned commit + SHA-256 of
+  `model.safetensors`/`spm.model`, from the models volume) over 510-token windows, stride 384.
+- **Calibration findings with the real model:** it is English-trained, and on Polish it misfires.
+  Benign Polish typed without diacritics ("podaje sie zima, gdy nie ma czerwiu") scored 0.99,
+  and the same sentence with diacritics scored 0.0. It also flags imperative English boilerplate
+  (example.org's "avoid relying on it for testing": 0.94). Policy: on windows guessed to be
+  Polish (diacritics or ≥ 15 % Polish function words) the classifier is **advisory**, capped at
+  0.75 (recorded and shown, no quarantine), and the Polish heuristics are authoritative.
+  Elsewhere, uncorroborated scores quarantine only from LLM-Guard's default 0.92. Quarantine stays
+  reversible by the owner. Re-calibrate on a real corpus before production.
+- Heuristics (`llm/injection_rules.py`): normalisation folds diacritics and homoglyphs (written
+  as `\u` escapes in the source), drops zero-width/bidi characters, collapses letter-spaced
+  words, and decodes base64 blobs. Matches extend to the word end and map back to original
+  offsets.
+- Hidden PDF text (`files/pdf_hidden.py`): **pypdfium2** (Apache/BSD, already present via
+  Docling) instead of PyMuPDF (AGPL). It detects invisible/clip render modes, white or
+  transparent fill, < 2 pt, and off-page glyphs. In worker-media the runs are removed from the
+  Docling output. Recorded per span: page, reason, length, and `instruction_like` (heuristics run
+  on the hidden text before it is discarded). Invisible characters are stripped from every
+  derivative and counted.
+- `injection_flags` (plaintext JSONB in the encrypted zone) hold **no content**: `document`
+  (parsing findings) and `scan` (verdict: score, quarantine, flags with kind/rule/offsets/score,
+  `classifier: ok|unavailable`).
+- Flow: media/egress worker → derivative DONE → `core.scan_derivative` (worker-core) → DONE or
+  **QUARANTINED** (migration `0005_quarantine`) + `PROMPT_INJECTION_DETECTED`.
+  `POST /notes/{id}/derivatives/{did}/confirm-quarantine` sets `quarantine_confirmed_at` and is
+  audited (`QUARANTINE_CONFIRMED`). Without the model the scan still runs heuristics and records
+  `classifier: unavailable`.
+- Migration downgrade lesson: `FORCE ROW LEVEL SECURITY` binds the owner too, so data fixes in
+  migrations must lift FORCE around the statement.
+
 ---
 
 ## Chunk 3.4 — LLM Gateway (LiteLLM) & safe prompt builder

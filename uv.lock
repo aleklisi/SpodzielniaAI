@@ -4800,6 +4800,9 @@ core = [
     { name = "presidio-analyzer" },
     { name = "presidio-anonymizer" },
     { name = "spacy" },
+    { name = "torch", version = "2.14.1", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform != 'linux'" },
+    { name = "torch", version = "2.14.1+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "sys_platform == 'linux'" },
+    { name = "transformers" },
 ]
 dev = [
     { name = "fakeredis", extra = ["lua"] },
@@ -4856,6 +4859,9 @@ core = [
     { name = "presidio-analyzer", specifier = ">=2.2.364" },
     { name = "presidio-anonymizer", specifier = ">=2.2.362" },
     { name = "spacy", specifier = ">=3.8.16" },
+    { name = "torch", marker = "sys_platform != 'linux'", specifier = ">=2.8.0" },
+    { name = "torch", marker = "sys_platform == 'linux'", specifier = ">=2.8.0", index = "https://download.pytorch.org/whl/cpu" },
+    { name = "transformers", specifier = ">=4.50.0" },
 ]
 dev = [
     { name = "fakeredis", extras = ["lua"], specifier = ">=2.40.0" },

@@ -151,7 +151,13 @@ def test_migrations_form_a_single_linear_history() -> None:
     script = ScriptDirectory.from_config(alembic_config())
     history = [rev.revision for rev in script.walk_revisions()]  # head first
     assert script.get_heads() == [head_revision()]
-    assert history[::-1] == ["0001_core_schema", "0002_rls", "0003_audit", "0004_private_zone"]
+    assert history[::-1] == [
+        "0001_core_schema",
+        "0002_rls",
+        "0003_audit",
+        "0004_private_zone",
+        "0005_quarantine",
+    ]
 
 
 def test_migration_enum_types_match_python_enums() -> None:
@@ -160,4 +166,5 @@ def test_migration_enum_types_match_python_enums() -> None:
         for revision in ("0001_core_schema", "0004_private_zone")
         for e in cast("tuple[SAEnum, ...]", _revision_module(revision).ENUMS)
     }
+    migrated["derivative_status"].append("QUARANTINED")  # added by 0005_quarantine
     assert migrated == {name: [m.value for m in enum] for enum, name in PG_ENUM_NAMES.items()}

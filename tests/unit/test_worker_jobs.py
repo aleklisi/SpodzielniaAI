@@ -84,8 +84,10 @@ def test_celery_is_json_only_with_late_acks() -> None:
 def test_every_kind_has_a_task_and_queue() -> None:
     assert set(KIND_TASK) == set(DerivativeKind)
     assert set(TASK_QUEUE) == set(TaskName)
-    media_queues = {TASK_QUEUE[t] for t in TaskName if t != TaskName.FETCH_LINK}
-    assert media_queues == {Queue.TRANSCRIBE, Queue.VISION, Queue.PARSE}  # never egress
+    content_tasks = set(KIND_TASK.values()) - {TaskName.FETCH_LINK}
+    assert {TASK_QUEUE[t] for t in content_tasks} == {Queue.TRANSCRIBE, Queue.VISION, Queue.PARSE}
+    assert TASK_QUEUE[TaskName.FETCH_LINK] == Queue.FETCH  # the only egress task
+    assert TASK_QUEUE[TaskName.SCAN_DERIVATIVE] == Queue.CORE_SCAN
 
 
 @pytest.mark.parametrize(

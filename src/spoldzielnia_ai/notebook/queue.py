@@ -58,6 +58,10 @@ class CeleryProcessingQueue:
             await self._send(KIND_TASK[derivative_kind], job)
         return kinds
 
+    async def derivative_done(self, job: DerivativeJob) -> None:
+        """A derivative has content: screen it for prompt injection (worker-core)."""
+        await self._send(TaskName.SCAN_DERIVATIVE, job)
+
     async def link_added(self, derivative_id: UUID, owner_id: UUID) -> None:
         job = DerivativeJob(derivative_id=derivative_id, owner_id=owner_id)
         await self._send(TaskName.FETCH_LINK, job)

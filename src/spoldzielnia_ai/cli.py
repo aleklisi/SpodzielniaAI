@@ -116,7 +116,9 @@ def _cmd_models(args: argparse.Namespace) -> int:
     root = Path(args.root)
     if args.action == "download":
         sizes = [s for s in str(args.whisper).split(",") if s]
-        models.download_all(root, sizes, docling=not args.no_docling)
+        models.download_all(
+            root, sizes, docling=not args.no_docling, injection=not args.no_injection
+        )
     broken = models.verify(root)
     for path in broken:
         log.error("models.integrity_failure", path=path)
@@ -160,6 +162,9 @@ def build_parser() -> argparse.ArgumentParser:
     models_cmd.add_argument("--root", default="/models", help="models directory (volume)")
     models_cmd.add_argument("--whisper", default="small", help="comma-separated sizes")
     models_cmd.add_argument("--no-docling", action="store_true", help="skip Docling models")
+    models_cmd.add_argument(
+        "--no-injection", action="store_true", help="skip the prompt-injection classifier"
+    )
     models_cmd.set_defaults(handler=_cmd_models)
 
     bootstrap = sub.add_parser("bootstrap", help="provision buckets and collections")

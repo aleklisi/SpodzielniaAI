@@ -43,6 +43,24 @@ WHISPER: dict[str, tuple[str, dict[str, str]]] = {
 }
 WHISPER_FILES = ["config.json", "model.bin", "tokenizer.json", "vocabulary.txt"]
 
+# Prompt-injection classifier (3.3): the model LLM-Guard's PromptInjection scanner uses.
+INJECTION_REPO = "protectai/deberta-v3-base-prompt-injection-v2"
+INJECTION_REVISION = "90c9989b1a342275dd0d1a95aad283c04e075671"
+INJECTION_HASHES = {
+    "model.safetensors": "6521cb8d0ac08148c81464899c424e6148fcc62befa371089fa4061d8b6e0424",
+    "spm.model": "c679fbf93643d19aab7ee10c0b99e460bdbc02fedf34b92b05af343b4af586fd",
+}
+INJECTION_FILES = [
+    "config.json",
+    "model.safetensors",
+    "spm.model",
+    "tokenizer.json",
+    "tokenizer_config.json",
+    "special_tokens_map.json",
+    "added_tokens.json",
+]
+INJECTION_DIR = "injection/deberta-v3-base-prompt-injection-v2"
+
 
 class ModelIntegrityError(Exception):
     pass
@@ -74,6 +92,24 @@ def download_whisper(root: Path, size: str) -> Path:
         if actual != expected:
             raise ModelIntegrityError(f"whisper-{size}/{name}: sha256 {actual} != {expected}")
     log.info("models.whisper_ready", size=size, revision=revision)
+    return target
+
+
+def download_injection(root: Path) -> Path:
+    from huggingface_hub import snapshot_download  # pyright: ignore[reportUnknownVariableType]
+
+    target = root / INJECTION_DIR
+    snapshot_download(
+        INJECTION_REPO,
+        revision=INJECTION_REVISION,
+        local_dir=target,
+        allow_patterns=INJECTION_FILES,
+    )
+    for name, expected in INJECTION_HASHES.items():
+        actual = sha256_file(target / name)
+        if actual != expected:
+            raise ModelIntegrityError(f"{INJECTION_REPO}/{name}: sha256 {actual} != {expected}")
+    log.info("models.injection_ready", revision=INJECTION_REVISION)
     return target
 
 
@@ -118,11 +154,15 @@ def verify(root: Path) -> list[str]:
     return broken
 
 
-def download_all(root: Path, whisper_sizes: list[str], docling: bool) -> None:
+def download_all(
+    root: Path, whisper_sizes: list[str], docling: bool, injection: bool = True
+) -> None:
     root.mkdir(parents=True, exist_ok=True)
     for size in whisper_sizes:
         download_whisper(root, size)
     if docling:
         download_docling(root)
+    if injection:
+        download_injection(root)
     count = write_manifest(root)
     log.info("models.manifest_written", files=count)

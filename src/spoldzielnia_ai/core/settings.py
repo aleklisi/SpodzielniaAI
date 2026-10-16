@@ -190,6 +190,10 @@ class ModelSettings(BaseModel):
     def docling_dir(self) -> str:
         return f"{self.root}/docling"
 
+    @property
+    def injection_dir(self) -> str:
+        return f"{self.root}/injection/deberta-v3-base-prompt-injection-v2"
+
 
 class WorkerSecuritySettings(BaseModel):
     """Workers decrypt and encrypt private-zone data: they need the KEK and nothing else."""

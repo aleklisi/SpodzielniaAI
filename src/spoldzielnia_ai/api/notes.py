@@ -6,18 +6,21 @@ Another user's note answers exactly like a missing one: 404, never 403 (no exist
 from __future__ import annotations
 
 from datetime import datetime  # noqa: TC003 - pydantic resolves annotations at runtime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 from uuid import UUID  # noqa: TC003 - FastAPI/pydantic resolve annotations at runtime
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Response, status
 from pydantic import BaseModel, Field, model_validator
 
+from spoldzielnia_ai.audit.events import EventType
+from spoldzielnia_ai.audit.service import AuditService, AuditTarget
 from spoldzielnia_ai.auth.deps import CurrentUser  # noqa: TC001 - FastAPI resolves it
-from spoldzielnia_ai.db.enums import (  # noqa: TC001 - pydantic resolves them
+from spoldzielnia_ai.db.enums import (
     DerivativeKind,
     DerivativeStatus,
     ScanStatus,
 )
+from spoldzielnia_ai.db.rls import RlsSessionDep  # noqa: TC001 - FastAPI resolves it
 from spoldzielnia_ai.notebook.deps import NotebookDep, StorageDep  # noqa: TC001
 
 if TYPE_CHECKING:
@@ -77,6 +80,9 @@ class DerivativeOut(BaseModel):
     error: str | None
     created_at: datetime
     updated_at: datetime
+    # Prompt-injection screening (3.3): kinds, rules, offsets into `content`, scores.
+    injection_flags: dict[str, Any]
+    quarantine_confirmed_at: datetime | None
 
 
 class NoteOut(BaseModel):
@@ -140,6 +146,31 @@ async def update_note(note_id: UUID, payload: NoteUpdate, notebook: NotebookDep)
     if view is None:
         raise not_found()
     return NoteOut.of(view)
+
+
+@router.post(
+    "/{note_id}/derivatives/{derivative_id}/confirm-quarantine", response_model=DerivativeOut
+)
+async def confirm_quarantine(
+    note_id: UUID,
+    derivative_id: UUID,
+    user: CurrentUser,
+    notebook: NotebookDep,
+    session: RlsSessionDep,
+) -> DerivativeOut:
+    """After reviewing the highlighted spans, the owner allows a QUARANTINED derivative to be
+    used for promotion (3.5). Audited."""
+    view = await notebook.confirm_quarantine(note_id, derivative_id)
+    if view is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Derivative not found")
+    if view.status == DerivativeStatus.QUARANTINED:
+        await AuditService(session).record(
+            EventType.QUARANTINE_CONFIRMED,
+            user.id,
+            AuditTarget("note_derivative", str(derivative_id)),
+            {"kind": view.kind.value},
+        )
+    return DerivativeOut.model_validate(view, from_attributes=True)
 
 
 @router.delete("/{note_id}", status_code=status.HTTP_204_NO_CONTENT)

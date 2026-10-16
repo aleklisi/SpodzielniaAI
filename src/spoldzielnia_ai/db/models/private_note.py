@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any
 from uuid import UUID
 
@@ -77,6 +78,8 @@ class NoteDerivative(Entity):
     content_ciphertext: Mapped[bytes | None]
     dek_wrapped: Mapped[bytes]
     error: Mapped[str | None] = mapped_column(String(64))  # machine-readable reason, no content
+    # Kinds, rule names, offsets and scores only (3.3), never content.
     injection_flags: Mapped[dict[str, Any]] = mapped_column(
         server_default=text("'{}'::jsonb"), default=dict
     )
+    quarantine_confirmed_at: Mapped[datetime | None]

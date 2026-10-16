@@ -30,6 +30,7 @@ class TaskName(StrEnum):
     DESCRIBE_IMAGE = "media.describe_image"
     PARSE_DOCUMENT = "media.parse_document"
     FETCH_LINK = "egress.fetch_link"
+    SCAN_DERIVATIVE = "core.scan_derivative"
 
 
 TASK_QUEUE: dict[TaskName, Queue] = {
@@ -37,6 +38,7 @@ TASK_QUEUE: dict[TaskName, Queue] = {
     TaskName.DESCRIBE_IMAGE: Queue.VISION,
     TaskName.PARSE_DOCUMENT: Queue.PARSE,
     TaskName.FETCH_LINK: Queue.FETCH,
+    TaskName.SCAN_DERIVATIVE: Queue.CORE_SCAN,
 }
 
 KIND_TASK: dict[DerivativeKind, TaskName] = {
@@ -52,6 +54,7 @@ TIME_LIMITS: dict[TaskName, tuple[int, int]] = {
     TaskName.DESCRIBE_IMAGE: (300, 330),
     TaskName.PARSE_DOCUMENT: (900, 960),
     TaskName.FETCH_LINK: (60, 90),
+    TaskName.SCAN_DERIVATIVE: (300, 330),
 }
 
 
