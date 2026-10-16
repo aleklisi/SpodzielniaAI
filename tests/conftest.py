@@ -42,5 +42,8 @@ def settings(tmp_path: Path) -> Settings:
         db=DbSettings(app_password=SecretStr("app-pw")),
         redis=RedisSettings(password=SecretStr("redis-pw")),
         oidc=OidcSettings(client_secret=SecretStr("oidc-secret")),
-        security=SecuritySettings(session_secret=SecretStr("session-secret")),
+        security=SecuritySettings(
+            session_secret=SecretStr("session-secret"),
+            kek=SecretStr("MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="),
+        ),
     )

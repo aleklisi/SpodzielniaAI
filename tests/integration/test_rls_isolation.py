@@ -57,9 +57,8 @@ async def _new_user(factory: SessionFactory) -> UUID:
 def _note(owner_id: UUID, title: str = "Przegląd uli") -> PrivateNote:
     return PrivateNote(
         owner_id=owner_id,
-        title=title,
+        title_ciphertext=title.encode(),
         body_ciphertext=b"ciphertext",
-        body_nonce=b"nonce",
         dek_wrapped=b"dek",
         source_type="text",
     )
@@ -103,7 +102,8 @@ async def test_other_user_cannot_read_update_or_delete(
         assert await repo.list_all() == []
         params = {"id": alice_note}
         updated = await session.execute(
-            text("UPDATE private_note SET title = 'pwned' WHERE id = :id RETURNING id"), params
+            text("UPDATE private_note SET source_type = 'pwned' WHERE id = :id RETURNING id"),
+            params,
         )
         assert updated.all() == []
         deleted = await session.execute(
@@ -114,7 +114,7 @@ async def test_other_user_cannot_read_update_or_delete(
     async with rls_session(factory, alice) as session:
         note = await PrivateNoteRepository(session).get(alice_note)
         assert note is not None
-        assert note.title == "Przegląd uli"
+        assert note.title_ciphertext == "Przegląd uli".encode()
 
 
 async def test_session_without_user_sees_nothing(factory: SessionFactory, alice_note: UUID) -> None:

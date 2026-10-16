@@ -35,6 +35,29 @@ content is validated, scanned, sanitised and processed in network-isolated worke
 - Unit: crypto round-trip; AAD mismatch → `InvalidTag`.
 - Integration: CRUD happy path; cross-user GET/PATCH/DELETE → 404 (BOLA test via HTTP).
 
+
+**As built (decisions made during implementation)**
+- **One DEK per encrypted row/object** (not per user): the schema already carries `dek_wrapped`
+  on every encrypted row, and per-object keys limit the blast radius. Deleting the row destroys
+  the key. The DEK is wrapped with AES-GCM under the KEK with AAD `dek|table:row_id:owner_id`.
+  The wrapped form carries the KEK id (a fingerprint), so `StaticKeyProvider(kek,
+  previous_b64=…)` supports rotation. The KEK is the Docker secret `kek` (`security.kek`).
+- Field blobs carry their own nonce, and the field name is in the AAD (title ≠ body).
+  `private_note.title` was plaintext in 1.3 and is now `title_ciphertext`. `body_nonce` was
+  dropped (migration `0004_private_zone`).
+- Attachments use a **segmented AEAD stream** (1 MiB segments, nonce prefix ‖ counter, index and
+  final flag in the AAD) instead of one-shot GCM, so uploads of hundreds of MB never sit in
+  memory, and truncation, reordering or extension is detected.
+- `note_derivative` has `note_id` (required) and `attachment_id` (NULL for `FETCHED_LINK`),
+  plus `status`, `error` (a machine code, never content), and `source_ciphertext` (e.g. the
+  URL).
+- Storage: `files/storage.py` `S3ObjectStorage` wraps the existing `minio` client in threads
+  (lazy client: only processes that store files need the S3 secret). Keys are
+  `att/<128 random bits>`. `MemoryObjectStorage` is for tests.
+- API: `notebook/service.py` is the only place plaintext exists. `DELETE /notes/{id}` removes
+  the storage objects in a background task, i.e. after the RLS transaction committed. Limits:
+  title ≤ 200 chars, body ≤ 200 000.
+
 ---
 
 ## Chunk 2.2 — File type validation & archive guard

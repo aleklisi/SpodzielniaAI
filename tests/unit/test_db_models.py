@@ -25,6 +25,8 @@ from spoldzielnia_ai.db.models import (
     ArticleBlock,
     Base,
     ExpertReview,
+    NoteAttachment,
+    NoteDerivative,
     PrivateNote,
     User,
     WikiArticle,
@@ -50,6 +52,8 @@ def test_tables_registered() -> None:
         "article_block",
         "expert_review",
         "security_audit_log",
+        "note_attachment",
+        "note_derivative",
     }
 
 
@@ -117,10 +121,14 @@ def test_block_provenance_columns_are_mandatory() -> None:
 
 
 def test_private_note_is_owned_and_stores_only_ciphertext() -> None:
-    columns = _table(PrivateNote).c
-    assert columns["owner_id"].nullable is False
-    assert {"body_ciphertext", "body_nonce", "dek_wrapped"} <= set(columns.keys())
-    assert "body" not in columns
+    for model in (PrivateNote, NoteAttachment, NoteDerivative):
+        columns = _table(model).c
+        assert columns["owner_id"].nullable is False
+        assert "dek_wrapped" in columns
+    note = set(_table(PrivateNote).c.keys())
+    assert {"title_ciphertext", "body_ciphertext"} <= note
+    assert not {"title", "body", "body_nonce"} & note
+    assert "filename" not in _table(NoteAttachment).c
 
 
 def test_constraint_names_follow_convention() -> None:
@@ -143,10 +151,13 @@ def test_migrations_form_a_single_linear_history() -> None:
     script = ScriptDirectory.from_config(alembic_config())
     history = [rev.revision for rev in script.walk_revisions()]  # head first
     assert script.get_heads() == [head_revision()]
-    assert history[::-1] == ["0001_core_schema", "0002_rls", "0003_audit"]
+    assert history[::-1] == ["0001_core_schema", "0002_rls", "0003_audit", "0004_private_zone"]
 
 
 def test_migration_enum_types_match_python_enums() -> None:
-    module = _revision_module("0001_core_schema")
-    migrated = {e.name: list(e.enums) for e in cast("tuple[SAEnum, ...]", module.ENUMS)}
-    assert migrated == {PG_ENUM_NAMES[e]: [m.value for m in e] for e in ENUMS}
+    migrated = {
+        e.name: list(e.enums)
+        for revision in ("0001_core_schema", "0004_private_zone")
+        for e in cast("tuple[SAEnum, ...]", _revision_module(revision).ENUMS)
+    }
+    assert migrated == {name: [m.value for m in enum] for enum, name in PG_ENUM_NAMES.items()}

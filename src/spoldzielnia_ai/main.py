@@ -11,16 +11,19 @@ from redis.asyncio import Redis
 
 from spoldzielnia_ai.api.auth import router as auth_router
 from spoldzielnia_ai.api.me import router as me_router
+from spoldzielnia_ai.api.notes import router as notes_router
 from spoldzielnia_ai.auth.crypto import CsrfTokens, TokenSealer, derive_key
 from spoldzielnia_ai.auth.csrf import csrf_middleware
 from spoldzielnia_ai.auth.deps import DbAuditSink
 from spoldzielnia_ai.auth.oidc_client import OidcClient
+from spoldzielnia_ai.core.crypto import EnvelopeCipher, StaticKeyProvider
 from spoldzielnia_ai.core.logging import configure_logging, get_logger
 from spoldzielnia_ai.core.readiness import ReadinessCheck, default_checks
 from spoldzielnia_ai.core.settings import Settings, get_settings
 from spoldzielnia_ai.db.engine import create_app_engine
 from spoldzielnia_ai.db.migrate import head_revision
 from spoldzielnia_ai.db.session import create_session_factory
+from spoldzielnia_ai.files.storage import S3ObjectStorage
 
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator, Awaitable, Callable
@@ -83,8 +86,11 @@ def create_app(
     csrf_tokens = CsrfTokens(derive_key(session_secret, "csrf"))
     app.state.csrf_tokens = csrf_tokens
     app.state.audit_sink = DbAuditSink(app.state)
+    app.state.cipher = EnvelopeCipher(StaticKeyProvider(settings.security.kek.get_secret_value()))
+    app.state.storage = S3ObjectStorage(settings.s3)
     app.include_router(auth_router)
     app.include_router(me_router)
+    app.include_router(notes_router)
 
     @app.get("/healthz", response_model=HealthResponse, tags=["ops"])
     async def healthz() -> HealthResponse:  # pyright: ignore[reportUnusedFunction]

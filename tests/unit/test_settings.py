@@ -21,6 +21,7 @@ REQUIRED_ENV = {
     "SPOLDZIELNIA_REDIS__PASSWORD": "env-redis-pw",
     "SPOLDZIELNIA_OIDC__CLIENT_SECRET": "env-oidc-secret",
     "SPOLDZIELNIA_SECURITY__SESSION_SECRET": "env-session-secret",
+    "SPOLDZIELNIA_SECURITY__KEK": "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=",
 }
 
 
@@ -56,6 +57,7 @@ def test_secrets_load_from_secrets_dir(tmp_path: Path) -> None:
         "redis__password": "file-redis-pw",
         "oidc__client_secret": "file-oidc-secret",
         "security__session_secret": "file-session-secret",
+        "security__kek": "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=",
     }
     for name, value in files.items():
         (secrets_dir / name).write_text(value + "\n")

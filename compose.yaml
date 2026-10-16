@@ -76,6 +76,8 @@ secrets:
   oidc_client_secret: { file: ./secrets/oidc_client_secret }
   keycloak_admin_password: { file: ./secrets/keycloak_admin_password }
   session_secret: { file: ./secrets/session_secret }
+  # Key-encryption key of the private zone (core.crypto). Back it up separately from the DB.
+  kek: { file: ./secrets/kek }
 
 services:
   postgres:
@@ -275,6 +277,7 @@ services:
       - { source: redis_password, target: redis__password }
       - { source: oidc_client_secret, target: oidc__client_secret }
       - { source: session_secret, target: security__session_secret }
+      - { source: kek, target: security__kek }
       - { source: qdrant_api_key, target: qdrant__api_key }
       - { source: minio_root_password, target: s3__secret_key }
       - internal_ca

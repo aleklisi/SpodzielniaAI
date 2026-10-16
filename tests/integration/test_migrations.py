@@ -34,8 +34,18 @@ APP_TABLES = {
     "article_block",
     "expert_review",
     "security_audit_log",
+    "note_attachment",
+    "note_derivative",
 }
-ENUM_TYPES = {"user_role", "consent_status", "article_status", "review_decision"}
+ENUM_TYPES = {
+    "user_role",
+    "consent_status",
+    "article_status",
+    "review_decision",
+    "scan_status",
+    "derivative_kind",
+    "derivative_status",
+}
 INSUFFICIENT_PRIVILEGE = "42501"
 
 

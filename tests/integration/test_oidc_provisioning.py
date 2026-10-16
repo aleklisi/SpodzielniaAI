@@ -181,9 +181,8 @@ async def test_session_drives_rls_and_logout_is_audited(
         await PrivateNoteRepository(session).add(
             PrivateNote(
                 owner_id=user_id,
-                title="t",
+                title_ciphertext=b"t",
                 body_ciphertext=b"c",
-                body_nonce=b"n",
                 dek_wrapped=b"k",
                 source_type="text",
             )

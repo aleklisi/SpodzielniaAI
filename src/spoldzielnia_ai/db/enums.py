@@ -40,11 +40,35 @@ class ReviewDecision(StrEnum):
     MARK_DISPUTED = "MARK_DISPUTED"
 
 
+class ScanStatus(StrEnum):
+    PENDING = "PENDING"
+    CLEAN = "CLEAN"
+    INFECTED = "INFECTED"
+    REJECTED = "REJECTED"
+
+
+class DerivativeKind(StrEnum):
+    TRANSCRIPT = "TRANSCRIPT"
+    IMAGE_DESCRIPTION = "IMAGE_DESCRIPTION"
+    PARSED_DOC = "PARSED_DOC"
+    FETCHED_LINK = "FETCHED_LINK"
+
+
+class DerivativeStatus(StrEnum):
+    PENDING = "PENDING"
+    PROCESSING = "PROCESSING"
+    DONE = "DONE"
+    FAILED = "FAILED"
+
+
 PG_ENUM_NAMES: dict[type[StrEnum], str] = {
     Role: "user_role",
     ConsentStatus: "consent_status",
     ArticleStatus: "article_status",
     ReviewDecision: "review_decision",
+    ScanStatus: "scan_status",
+    DerivativeKind: "derivative_kind",
+    DerivativeStatus: "derivative_status",
 }
 
 

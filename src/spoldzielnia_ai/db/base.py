@@ -14,8 +14,11 @@ from spoldzielnia_ai.core.ids import uuid7
 from spoldzielnia_ai.db.enums import (
     ArticleStatus,
     ConsentStatus,
+    DerivativeKind,
+    DerivativeStatus,
     ReviewDecision,
     Role,
+    ScanStatus,
     pg_enum,
 )
 
@@ -39,6 +42,9 @@ class Base(DeclarativeBase):
         ConsentStatus: pg_enum(ConsentStatus),
         ArticleStatus: pg_enum(ArticleStatus),
         ReviewDecision: pg_enum(ReviewDecision),
+        ScanStatus: pg_enum(ScanStatus),
+        DerivativeKind: pg_enum(DerivativeKind),
+        DerivativeStatus: pg_enum(DerivativeStatus),
     }
 
 

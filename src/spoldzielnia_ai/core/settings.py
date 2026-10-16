@@ -133,6 +133,8 @@ class LlmSettings(BaseModel):
 class SecuritySettings(BaseModel):
     # Keys for token encryption at rest and CSRF tokens are derived from it (HKDF).
     session_secret: SecretStr
+    # Key-encryption key of the private zone (base64, 32 bytes): Docker secret `kek`.
+    kek: SecretStr
     allowed_origins: list[str] = Field(default_factory=lambda: ["https://spoldzielnia.localhost"])
     # How long the server trusts a session before re-checking with the IdP (refresh).
     access_token_ttl_seconds: int = Field(default=15 * 60, ge=60)
