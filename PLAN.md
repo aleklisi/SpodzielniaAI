@@ -165,7 +165,7 @@ Pełna specyfikacja techniczna i architektura wdrożenia w kontenerach Docker zn
 
 ### Etap 3: Ochrona OWASP LLM01/LLM02, Przepływ „Push-to-Wiki” i PII Scrubbing
 *Dokumentacja: [docs/implementation/03_PII_INJECTION_PROMOTION.md](docs/implementation/03_PII_INJECTION_PROMOTION.md)*
-- [ ] 3.1 Polskie rozpoznawacze PII (PESEL, NIP, REGON, KRS, IBAN, działki, WNI) z walidacją sum kontrolnych
+- [x] 3.1 Polskie rozpoznawacze PII (PESEL, NIP, REGON, KRS, IBAN, działki, WNI) z walidacją sum kontrolnych
 - [ ] 3.2 Usługa anonimizacji Microsoft Presidio ze spaCy (`pl_core_news_lg`) i stałymi pseudonimami
 - [ ] 3.3 Wielowarstwowa detekcja Prompt Injection (LLM-Guard, polskie reguły, ukryty tekst w PDF)
 - [ ] 3.4 Bramka modeli LiteLLM (wymuszenie lokalnego LLM) i bezpieczny generator promptów XML

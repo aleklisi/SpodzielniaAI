@@ -30,6 +30,25 @@ the content is scrubbed of Polish PII, screened for injected instructions and tr
 **Tests:** property-based with `hypothesis`: generated valid IDs validate, single-digit
 mutations fail. Known edge cases (PESEL for 2000+ births, NIP with `PL` prefix and dashes).
 
+
+**As built (decisions made during implementation)**
+- `privacy/pl_identifiers.py`: validators + regex constants + `find_checksum_identifiers(text)`
+  (context-free scan of digit runs, used after LLM generation in 3.5). Trivial values
+  (all-same digits) are refused for NIP/REGON/KRS. A 14-digit REGON must extend a valid 9-digit
+  one. The IBAN length is checked for known countries (PL = 28).
+- Property tests (hypothesis) on generated IDs (`tests/fixtures/pl_ids.py`, no real data):
+  validity in every notation, and single-digit substitutions are rejected. **REGON caveat:** the
+  official algorithm maps residue 10 to check digit 0, so errors that move the residue between
+  0 and 10 are undetectable. The test asserts that this is the *only* blind spot. NIP refuses
+  residue 10 and catches every single-digit error.
+- Dependency groundwork for Stage 3: `core` group (Presidio 2.2.36x, spaCy 3.8,
+  `pl_core_news_lg` 3.8.0 from its locked wheel URL), LiteLLM in the main dependencies,
+  hypothesis + reportlab for tests. **LLM-Guard is not used as a package:** its current
+  release pins `presidio-anonymizer==2.2.358` → `cryptography<44.1`, which would downgrade the
+  library behind our envelope encryption by six majors (and older releases need xformers built
+  from source). Layer 1 of 3.3 runs the same classifier LLM-Guard wraps
+  (`protectai/deberta-v3-base-prompt-injection-v2`) directly with `transformers`.
+
 ---
 
 ## Chunk 3.2 — Presidio + spaCy `pl_core_news_lg` scrubbing service
