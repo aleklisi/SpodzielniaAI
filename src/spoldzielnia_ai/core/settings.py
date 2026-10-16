@@ -69,9 +69,15 @@ class RedisSettings(BaseModel):
     db: int = 0
     password: SecretStr
 
-    def url(self) -> str:
+    # Celery broker (2.5), kept apart from sessions/login state in `db`.
+    broker_db: int = 1
+
+    def url(self, db: int | None = None) -> str:
         password = quote(self.password.get_secret_value(), safe="")
-        return f"redis://:{password}@{self.host}:{self.port}/{self.db}"
+        return f"redis://:{password}@{self.host}:{self.port}/{self.db if db is None else db}"
+
+    def broker_url(self) -> str:
+        return self.url(self.broker_db)
 
 
 # Asymmetric signatures only: `none` and HMAC (`HS*`, keyed with the shared client secret) are
@@ -163,6 +169,32 @@ class FetchSettings(BaseModel):
         ]
     )
     user_agent: str = "SpoldzielniaAI-LinkFetcher/1.0 (+https://spoldzielnia.localhost)"
+
+
+class ModelSettings(BaseModel):
+    """Local ML models in the read-only `models` volume (filled by `make models`)."""
+
+    root: str = "/models"
+    whisper_model: str = "small"  # dev: small (CPU int8). Prod: large-v3 (GPU).
+    whisper_device: Literal["cpu", "cuda", "auto"] = "cpu"
+    whisper_compute_type: str = "int8"
+    whisper_language: str = "pl"
+    whisper_beam_size: int = Field(default=5, ge=1)
+    docling_ocr: bool = True
+
+    @property
+    def whisper_dir(self) -> str:
+        return f"{self.root}/whisper/{self.whisper_model}"
+
+    @property
+    def docling_dir(self) -> str:
+        return f"{self.root}/docling"
+
+
+class WorkerSecuritySettings(BaseModel):
+    """Workers decrypt and encrypt private-zone data: they need the KEK and nothing else."""
+
+    kek: SecretStr
 
 
 class LlmSettings(BaseModel):
@@ -259,6 +291,27 @@ class AuditVerifySettings(_BaseSettings):
     """Settings of the one-shot ``audit-verify`` job: runtime DSN only (it only reads the log)."""
 
     db: DbSettings = Field(default_factory=DbSettings)
+
+    @model_validator(mode="after")
+    def _require_app_password(self) -> Self:
+        if self.db.app_password is None:
+            raise ValueError("db.app_password is required")
+        return self
+
+
+class WorkerSettings(_BaseSettings):
+    """Celery workers (`spoldzielnia worker`): app DSN, broker, KEK, storage, scanner, fetcher,
+    models. No session secret and no OIDC client secret."""
+
+    db: DbSettings = Field(default_factory=DbSettings)
+    redis: RedisSettings
+    security: WorkerSecuritySettings
+    s3: S3Settings = Field(default_factory=S3Settings)
+    clamav: ClamavSettings = Field(default_factory=ClamavSettings)
+    uploads: UploadSettings = Field(default_factory=UploadSettings)
+    fetch: FetchSettings = Field(default_factory=FetchSettings)
+    models: ModelSettings = Field(default_factory=ModelSettings)
+    concurrency: int = Field(default=1, ge=1)
 
     @model_validator(mode="after")
     def _require_app_password(self) -> Self:

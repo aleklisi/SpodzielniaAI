@@ -113,6 +113,16 @@ check_not "backend network has no internet access" \
   docker run --rm --network "${PROJECT}_backend" --entrypoint python "$API_IMAGE" -c "$NOINET"
 check "api reaches IdP via proxy alias" "${COMPOSE[@]}" exec -T api python -c \
   "import socket; socket.create_connection(('auth.$DOMAIN', 443), 3)"
+OUT='import socket; socket.create_connection(("1.1.1.1", 443), 5)'
+check_not "worker-media has no internet access" "${COMPOSE[@]}" exec -T worker-media python -c "$OUT"
+check "worker-egress reaches the internet" "${COMPOSE[@]}" exec -T worker-egress python -c "$OUT"
+
+echo "6. Media pipeline"
+check "worker-media: model volume matches its manifest" \
+  "${COMPOSE[@]}" exec -T worker-media spoldzielnia models verify --root /models
+check "worker-media: model volume is read-only" bash -c \
+  "! ${COMPOSE[*]} exec -T worker-media sh -c 'touch /models/.probe' 2>/dev/null"
+
 
 echo
 echo "smoke: $pass passed, $fail failed"

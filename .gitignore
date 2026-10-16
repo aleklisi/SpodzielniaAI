@@ -30,3 +30,6 @@ secrets/
 # Frontend (Stage 6)
 node_modules/
 .next/
+
+# Offline ML models for host-side `ml` tests (make models-host)
+.models/

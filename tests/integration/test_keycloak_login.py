@@ -14,7 +14,7 @@ import re
 import ssl
 import struct
 import time
-from typing import TYPE_CHECKING
+from pathlib import Path
 
 import httpx
 import pytest
@@ -23,9 +23,6 @@ from sqlalchemy.engine import URL
 from sqlalchemy.ext.asyncio import create_async_engine
 
 from tests.integration.stack import compose, require_port, secret
-
-if TYPE_CHECKING:
-    from pathlib import Path
 
 pytestmark = pytest.mark.integration
 
@@ -203,3 +200,66 @@ def test_upload_through_the_stack(caddy_ca: Path) -> None:
         assert clean.json()["scan_status"] == "CLEAN"
 
         assert client.delete(f"{SITE}/api/notes/{note['id']}", headers=headers).status_code == 204
+
+
+SPEECH = Path(__file__).resolve().parents[1] / "fixtures" / "audio" / "pl_pszczoly.wav"
+
+
+def _wait_for(
+    client: httpx.Client, url: str, pick: str, timeout: float = 180.0
+) -> dict[str, object]:
+    """Poll until the derivative picked by ``pick`` (kind) leaves PENDING/PROCESSING."""
+    deadline = time.monotonic() + timeout
+    while True:
+        body = client.get(url).json()
+        derivatives = [d for d in body["derivatives"] if d["kind"] == pick]
+        if derivatives and derivatives[0]["status"] in ("DONE", "FAILED"):
+            return derivatives[0]
+        if time.monotonic() > deadline:
+            raise AssertionError(f"timed out waiting for {pick}: {body['derivatives']}")
+        time.sleep(1.0)
+
+
+def test_wav_upload_produces_transcript_in_the_stack(caddy_ca: Path) -> None:
+    """Chunk 2.5 Docker gate: api → Celery → worker-media (Whisper small, offline) → TRANSCRIPT."""
+    with _client(caddy_ca) as client:
+        assert _login(client, "member2").status_code == 303
+        headers = {"Origin": SITE, "X-CSRF-Token": client.cookies.get("__Host-csrf") or ""}
+        note = client.post(f"{SITE}/api/notes", json={"title": "Nagranie"}, headers=headers).json()
+        wav = {"file": ("pszczoly.wav", SPEECH.read_bytes(), "audio/wav")}
+        upload = client.post(
+            f"{SITE}/api/notes/{note['id']}/attachments", files=wav, headers=headers
+        )
+        assert upload.status_code == 202, upload.text
+        try:
+            status_url = f"{SITE}/api/notes/{note['id']}/attachments/{upload.json()['id']}"
+            derivative = _wait_for(client, status_url, "TRANSCRIPT")
+            assert derivative["status"] == "DONE", derivative
+            text = str(derivative["content"]).lower()
+            assert "rzepaku" in text or "nektar" in text, text
+        finally:
+            client.delete(f"{SITE}/api/notes/{note['id']}", headers=headers)
+
+
+def test_link_is_fetched_by_the_egress_worker(caddy_ca: Path) -> None:
+    """api → Celery → worker-egress (SSRF-safe, internet) → FETCHED_LINK as Markdown."""
+    with _client(caddy_ca) as client:
+        assert _login(client, "member2").status_code == 303
+        headers = {"Origin": SITE, "X-CSRF-Token": client.cookies.get("__Host-csrf") or ""}
+        note = client.post(f"{SITE}/api/notes", json={"title": "Link"}, headers=headers).json()
+        try:
+            link = client.post(
+                f"{SITE}/api/notes/{note['id']}/links",
+                json={"url": "https://example.org/"},
+                headers=headers,
+            )
+            assert link.status_code == 202, link.text
+            derivative = _wait_for(client, f"{SITE}/api/notes/{note['id']}", "FETCHED_LINK", 60)
+            if derivative["status"] == "FAILED" and str(derivative["error"]).startswith(
+                ("dns_failed", "connection_failed", "retries_exhausted")
+            ):
+                pytest.skip(f"no internet from the egress worker: {derivative['error']}")
+            assert derivative["status"] == "DONE", derivative
+            assert "documentation examples" in str(derivative["content"])  # main text
+        finally:
+            client.delete(f"{SITE}/api/notes/{note['id']}", headers=headers)

@@ -8,7 +8,7 @@ help: ## Show targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  %-12s %s\n", $$1, $$2}'
 
 # --- Stack -------------------------------------------------------------------
-.PHONY: secrets build up watch down reset logs ps smoke trust-cert migrate revision
+.PHONY: secrets build up watch down reset logs ps smoke trust-cert migrate revision models models-host
 secrets: ## Generate Docker secrets + dev TLS certs into ./secrets (idempotent)
 	@infra/scripts/init-secrets.sh
 
@@ -30,6 +30,12 @@ revision: ## New migration: make revision REV=0002_rls MSG="row level security"
 	SPOLDZIELNIA_DB__HOST=127.0.0.1 SPOLDZIELNIA_DB__OWNER_PASSWORD="$$(cat secrets/pg_owner_password)" \
 	  uv run alembic revision --autogenerate --rev-id "$(REV)" -m "$(MSG)"
 	uv run ruff format src/spoldzielnia_ai/db/migrations/versions
+
+models: ## Download the offline ML models into the `models` volume (internet, one-shot)
+	$(COMPOSE) --profile tools run --rm --build models-init
+
+models-host: ## Models for host-side `ml` tests (.models: whisper tiny + Docling)
+	uv run spoldzielnia models download --root .models --whisper tiny
 
 smoke: ## Stack smoke test (HTTPS, IdP, hardening, ports, isolation)
 	@COMPOSE="$(COMPOSE)" infra/scripts/smoke.sh

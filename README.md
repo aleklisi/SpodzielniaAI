@@ -108,6 +108,23 @@ send `X-CSRF-Token: <__Host-csrf>` from an allowed `Origin`. `GET /api/me` retur
 Dev users: `member1`, `member2` (password), `expert1`, `admin1` (password + TOTP). The password is
 in `secrets/dev_user_password`, the TOTP seed in `secrets/dev_totp_seed`.
 
+## Private notebook & media pipeline (Stage 2)
+
+Notes, attachments and derivatives are encrypted per row (envelope encryption, KEK = Docker
+secret `kek`) and isolated by Postgres RLS. Uploads (`POST /api/notes/{id}/attachments`) are
+validated by content (libmagic), checked by the archive guard, scanned by ClamAV (fail-closed),
+stripped of metadata and stored encrypted in MinIO. Links (`POST /api/notes/{id}/links`) pass
+SSRF checks and are fetched by `worker-egress`. Celery workers produce derivatives: transcripts
+(faster-whisper), parsed documents (Docling) and fetched pages.
+
+```bash
+make models        # once: Whisper small + Docling into the `models` volume (needs internet)
+make up            # starts worker-media (no internet) and worker-egress too
+make models-host   # Whisper tiny + Docling into ./.models for the `ml` tests
+```
+
+Host-side file-type tests need libmagic (`brew install libmagic`).
+
 ## Test markers
 
 `integration` (Docker services), `ml` (heavy models), `e2e` (running stack). Run a subset with

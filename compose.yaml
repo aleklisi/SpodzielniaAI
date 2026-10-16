@@ -60,6 +60,8 @@ volumes:
   qdrantdata:
   miniodata:
   clamavdb:
+  # Offline ML models (make models): written by models-init, read-only for the media worker.
+  models:
 
 secrets:
   pg_superuser_password: { file: ./secrets/pg_superuser_password }
@@ -290,6 +292,71 @@ services:
       - { source: qdrant_api_key, target: qdrant__api_key }
       - { source: minio_root_password, target: s3__secret_key }
       - internal_ca
+
+  # --- Workers (2.5) ----------------------------------------------------------
+  # Media processing: `backend` only, no route to the internet (smoke test checks this).
+  worker-media:
+    <<: *hardening
+    image: ${REGISTRY:-spoldzielnia}/worker-media:${VERSION:-dev}
+    command: ["worker", "--queues", "media.transcribe,media.vision,media.parse"]
+    restart: unless-stopped
+    networks: [backend]
+    # Decrypted inputs + Docling/Whisper scratch space.
+    tmpfs: ["/tmp:size=2g"]
+    mem_limit: 4g
+    cpus: 4
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      minio: { condition: service_healthy }
+    environment:
+      <<: *app-env
+      SPOLDZIELNIA_MODELS__WHISPER_MODEL: ${WHISPER_MODEL:-small}
+    volumes:
+      - models:/models:ro
+    secrets: &worker-secrets
+      - { source: pg_app_password, target: db__app_password }
+      - { source: redis_password, target: redis__password }
+      - { source: kek, target: security__kek }
+      # TODO(2.1 follow-up): scoped MinIO service account instead of the root credentials.
+      - { source: minio_root_password, target: s3__secret_key }
+
+  # Link fetching: the only application container with internet access (egress network).
+  # It reuses the api image (no ML). The SSRF guard in net/safe_fetch.py applies, plus
+  # infra/scripts/egress-firewall.sh on the prod host.
+  worker-egress:
+    <<: [*hardening, *backend-image]
+    command: ["worker", "--queues", "egress.fetch"]
+    restart: unless-stopped
+    networks: [backend, egress]
+    tmpfs: ["/tmp:size=256m"]
+    mem_limit: 512m
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      minio: { condition: service_healthy }
+      clamav: { condition: service_healthy }
+    environment: *app-env
+    secrets: *worker-secrets
+    healthcheck:
+      disable: true
+
+  # One-shot model download with internet access (`make models`). Not part of `up`.
+  models-init:
+    <<: *hardening
+    image: ${REGISTRY:-spoldzielnia}/worker-media:${VERSION:-dev}
+    profiles: [tools]
+    command: ["models", "download", "--root", "/models", "--whisper", "${WHISPER_MODEL:-small}"]
+    restart: "no"
+    networks: [egress]
+    tmpfs: ["/tmp:size=2g"]
+    environment:
+      HF_HUB_OFFLINE: "0"
+      TRANSFORMERS_OFFLINE: "0"
+    volumes:
+      - models:/models
 
   proxy:
     <<: *infra

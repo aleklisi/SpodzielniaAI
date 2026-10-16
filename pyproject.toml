@@ -10,6 +10,7 @@ requires-python = ">=3.12"
 dependencies = [
     "alembic>=1.20.0",
     "asyncpg>=0.32.0",
+    "celery>=5.6.3",
     "cryptography>=50.0.2",
     "fastapi>=0.143.2",
     "httpx>=0.28.1",
@@ -38,6 +39,16 @@ requires = ["uv_build>=0.12.7,<0.13.0"]
 build-backend = "uv_build"
 
 [dependency-groups]
+# Media workers only (2.5): faster-whisper, Docling (pulls PyTorch). The api image is built
+# with `--no-default-groups`; the worker-media image adds `--group media`.
+media = [
+    "faster-whisper>=1.2.0",
+    "docling>=2.60.0",
+    "huggingface-hub>=0.35.0",
+    # Direct so that [tool.uv.sources] can route them to the CPU index on Linux.
+    "torch>=2.8.0",
+    "torchvision>=0.23.0",
+]
 dev = [
     "fakeredis[lua]>=2.40.0",
     "freezegun>=1.5.5",
@@ -49,6 +60,20 @@ dev = [
     "ruff>=0.17.1",
     "testcontainers[postgres,redis]>=4.15.0",
 ]
+
+[tool.uv]
+default-groups = ["dev", "media"]
+
+# CPU-only PyTorch wheels on Linux (the worker image); PyPI's default Linux x86_64 wheels bundle
+# CUDA (~GBs). GPU builds use their own index via compose.gpu.yaml (Stage 6).
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.uv.sources]
+torch = [{ index = "pytorch-cpu", marker = "sys_platform == 'linux'" }]
+torchvision = [{ index = "pytorch-cpu", marker = "sys_platform == 'linux'" }]
 
 [tool.ruff]
 line-length = 100

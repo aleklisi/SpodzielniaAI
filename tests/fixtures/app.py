@@ -15,6 +15,7 @@ from httpx import ASGITransport, AsyncClient
 
 from spoldzielnia_ai.files.storage import MemoryObjectStorage
 from spoldzielnia_ai.main import create_app
+from spoldzielnia_ai.notebook.uploads import NoProcessing
 from tests.fixtures.oidc import FakeIdP
 
 if TYPE_CHECKING:
@@ -67,6 +68,7 @@ async def harness(settings: Settings, factory: SessionFactory) -> AsyncGenerator
     app.state.session_factory = factory
     storage = MemoryObjectStorage()
     app.state.storage = storage
+    app.state.processing_queue = NoProcessing()  # tests opt in to Celery (eager) explicitly
     idp = FakeIdP()
     with respx.mock(assert_all_called=False) as router:
         idp.mount(router)

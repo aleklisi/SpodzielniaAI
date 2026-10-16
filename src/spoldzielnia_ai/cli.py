@@ -4,6 +4,8 @@ Subcommands:
     api        run the FastAPI app with uvicorn
     migrate    apply database migrations (Alembic, owner role)
     audit-verify  re-compute the security audit log hash chain; exit 1 on any break
+    worker     run a Celery worker for the given queues (2.5)
+    models     download/verify the offline ML models (2.5)
     bootstrap  create storage buckets / vector collections — wired up in chunk 1.2b / 4.1
 """
 
@@ -87,6 +89,41 @@ def _cmd_audit_verify(_args: argparse.Namespace) -> int:
     return 0 if report.ok else 1
 
 
+def _cmd_worker(args: argparse.Namespace) -> int:
+    from spoldzielnia_ai.core.settings import WorkerSettings
+    from spoldzielnia_ai.workers.celery_adapter import worker_main
+    from spoldzielnia_ai.workers.jobs import Queue
+    from spoldzielnia_ai.workers.runtime import build_worker
+
+    settings = WorkerSettings()  # pyright: ignore[reportCallIssue]  # env/secrets
+    configure_logging(settings.log_level, json=settings.environment != "dev")
+    queues = [q.strip() for q in str(args.queues).split(",") if q.strip()]
+    known = {q.value for q in Queue}
+    if not queues or not set(queues) <= known:
+        log.error("worker.unknown_queue", queues=queues, known=sorted(known))
+        return 2
+    log.info("worker.start", queues=queues, concurrency=settings.concurrency)
+    worker_main(build_worker(settings), queues, settings.concurrency, settings.log_level)
+    return 0
+
+
+def _cmd_models(args: argparse.Namespace) -> int:
+    from pathlib import Path
+
+    from spoldzielnia_ai.workers import models
+
+    configure_logging("INFO")
+    root = Path(args.root)
+    if args.action == "download":
+        sizes = [s for s in str(args.whisper).split(",") if s]
+        models.download_all(root, sizes, docling=not args.no_docling)
+    broken = models.verify(root)
+    for path in broken:
+        log.error("models.integrity_failure", path=path)
+    log.info("models.verified", root=str(root), ok=not broken)
+    return 0 if not broken else 1
+
+
 def _cmd_bootstrap(_args: argparse.Namespace) -> int:
     from spoldzielnia_ai.bootstrap import run_bootstrap
 
@@ -111,6 +148,19 @@ def build_parser() -> argparse.ArgumentParser:
 
     audit_verify = sub.add_parser("audit-verify", help="verify the audit log hash chain")
     audit_verify.set_defaults(handler=_cmd_audit_verify)
+
+    worker = sub.add_parser("worker", help="run a Celery worker")
+    worker.add_argument(
+        "--queues", required=True, help="comma-separated, e.g. media.transcribe,media.parse"
+    )
+    worker.set_defaults(handler=_cmd_worker)
+
+    models_cmd = sub.add_parser("models", help="download or verify offline ML models")
+    models_cmd.add_argument("action", choices=["download", "verify"])
+    models_cmd.add_argument("--root", default="/models", help="models directory (volume)")
+    models_cmd.add_argument("--whisper", default="small", help="comma-separated sizes")
+    models_cmd.add_argument("--no-docling", action="store_true", help="skip Docling models")
+    models_cmd.set_defaults(handler=_cmd_models)
 
     bootstrap = sub.add_parser("bootstrap", help="provision buckets and collections")
     bootstrap.set_defaults(handler=_cmd_bootstrap)

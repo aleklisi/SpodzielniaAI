@@ -183,7 +183,7 @@ Each one is resolved (✅ = decision baked into the chunk plans) or needs your i
 - [x] 2.2 File type validation & archive (zip-bomb) guard
 - [x] 2.3 ClamAV scanning, EXIF stripping, upload endpoint
 - [x] 2.4 SSRF-safe link fetcher
-- [ ] 2.5 Celery media pipeline in network-isolated workers
+- [x] 2.5 Celery media pipeline in network-isolated workers
 
 ### Stage 3 — PII, Prompt Injection, Push-to-Wiki
 - [ ] 3.1 Polish PII recognizers (checksums)

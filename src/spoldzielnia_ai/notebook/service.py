@@ -209,6 +209,34 @@ class NotebookService:
         )
         return self.attachment_view(row), [self.derivative_view(d) for d in derivatives]
 
+    async def create_derivatives(
+        self, attachment_id: UUID, kinds: Sequence[DerivativeKind]
+    ) -> list[UUID]:
+        """PENDING derivatives for an attachment (one per kind), so status shows immediately."""
+        attachment = await self._session.get(NoteAttachment, attachment_id)
+        if attachment is None:
+            return []
+        ids: list[UUID] = []
+        for kind in kinds:
+            derivative_id = uuid7()
+            aad = row_aad(DERIVATIVE, derivative_id, attachment.owner_id)
+            self._session.add(
+                NoteDerivative(
+                    id=derivative_id,
+                    owner_id=attachment.owner_id,
+                    note_id=attachment.note_id,
+                    attachment_id=attachment.id,
+                    kind=kind,
+                    status=DerivativeStatus.PENDING,
+                    source_ciphertext=None,
+                    content_ciphertext=None,
+                    dek_wrapped=self._cipher.new_key(aad).wrapped,
+                )
+            )
+            ids.append(derivative_id)
+        await self._session.flush()
+        return ids
+
     async def add_link(self, note_id: UUID, url: str) -> DerivativeView | None:
         """A pending ``FETCHED_LINK`` derivative holding the (encrypted) URL."""
         note = await self._note(note_id)

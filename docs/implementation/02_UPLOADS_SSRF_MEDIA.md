@@ -273,5 +273,47 @@ Order of operations (each failure → specific status, audited as `UPLOAD_REJECT
   `1.1.1.1:443` **fails**. From `worker-egress` it succeeds. Uploading a short WAV through
   `https://spoldzielnia.localhost/api/...` produces a `TRANSCRIPT` derivative end-to-end in the stack.
 
+
+**As built (decisions made during implementation)**
+- Tasks carry only `{derivative_id, owner_id}`. `DerivativeJob` is strict (`extra="forbid"`,
+  UUIDs) and validated on receipt, and `send()` only takes a `DerivativeJob`. The API creates
+  the `PENDING` derivative rows in their own RLS transaction **before** sending, so the status
+  is visible at once and the worker always finds its row. The links endpoint had the opposite
+  order (enqueue before commit) and was fixed.
+- Celery (`workers/celery_adapter.py`, typed adapter): Redis broker on `redis.broker_db` (1),
+  JSON only, no result backend, `acks_late` + `reject_on_worker_lost`, prefetch 1, visibility
+  timeout above the longest hard limit, tasks registered `shared=False`. Retries: exponential
+  backoff (30 s → 10 min), at most 3. Eager mode (tests) loops the attempts synchronously.
+- `workers/processing.py` (Celery-independent): claim the row (`SELECT … FOR UPDATE`, PENDING
+  or redelivered PROCESSING → PROCESSING), decrypt into tmpfs **outside** any transaction, run
+  the engine in a thread, save. `PermanentError` → FAILED with a user-visible code and an
+  audited `PROCESSING_FAILED`. `TransientError` → retry, and after the last attempt FAILED
+  `retries_exhausted`. Soft time limit → FAILED `timeout`.
+- Engines: faster-whisper (decoding through PyAV ourselves, because faster-whisper 1.2 still
+  passes `metadata_errors=` to `av.open`, which PyAV ≥15 removed), Docling (PDF/DOCX, offline
+  `artifacts_path`, `enable_remote_services=False`, RapidOCR; ODT → FAILED
+  `odt_not_supported`), text passthrough. Vision is an explicit `vision_unavailable` failure
+  until the LLM gateway exists (3.4).
+- Linked PDFs: the egress worker stores them through the same `UploadPipeline` (validate, ClamAV,
+  sanitise, encrypt), which queues `PARSED_DOC` for the media worker. The `FETCHED_LINK`
+  derivative points to that attachment. A host whose DNS answers privately fails at fetch time
+  with `ssrf_blocked:private_address`.
+- Dependencies: the ML stack is the `media` **dependency group** (default for the host, so pyright
+  and `ml` tests work). Images build with `--no-default-groups`, and `worker-media` adds
+  `--group media`. torch/torchvision are direct deps routed to the PyTorch CPU index on Linux
+  (no CUDA wheels, no triton). The api image has no torch/Docling (checked).
+- Models: `spoldzielnia models download|verify`. Whisper revisions **and** `model.bin` SHA-256 are
+  pinned in `workers/models.py`. Docling uses its own downloader (layout, TableFormer, RapidOCR).
+  `MANIFEST.sha256` covers the volume, and `make smoke` re-verifies it inside `worker-media`
+  and checks the mount is read-only. `make models` (volume, Whisper `small`), `make models-host`
+  (`./.models`, Whisper `tiny`, for `ml` tests, which skip without it).
+- Compose: `worker-media` (backend only, 4 GB / 4 CPUs, tmpfs 2 GB, `models:ro`),
+  `worker-egress` (api image, backend + egress), `models-init` (profile `tools`, egress only).
+  Workers get the app DSN, broker password, KEK and S3 secret, but no session/OIDC secrets
+  (`WorkerSettings`).
+- Verified in the stack: a Keycloak user's WAV upload over HTTPS → `TRANSCRIPT` from Whisper
+  `small` (offline). `https://example.org/` → `FETCHED_LINK` through `worker-egress`.
+  `worker-media` cannot reach `1.1.1.1:443`, and `worker-egress` can.
+
 **Stage 2 exit criteria:** exe-as-pdf → 415, SSRF matrix blocked, EICAR rejected, media tasks
 produce derivatives, isolation smoke test passes.

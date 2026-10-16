@@ -28,7 +28,8 @@ from spoldzielnia_ai.db.migrate import head_revision
 from spoldzielnia_ai.db.session import create_session_factory
 from spoldzielnia_ai.files.antivirus import ClamdScanner
 from spoldzielnia_ai.files.storage import S3ObjectStorage
-from spoldzielnia_ai.notebook.uploads import NoProcessing
+from spoldzielnia_ai.notebook.queue import CeleryProcessingQueue
+from spoldzielnia_ai.workers.celery_adapter import make_celery
 
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator, Awaitable, Callable
@@ -94,7 +95,11 @@ def create_app(
     app.state.cipher = EnvelopeCipher(StaticKeyProvider(settings.security.kek.get_secret_value()))
     app.state.storage = S3ObjectStorage(settings.s3)
     app.state.scanner = ClamdScanner(settings.clamav)
-    app.state.processing_queue = NoProcessing()  # Celery from 2.5
+    # Producer only: no broker connection until the first task is sent.
+    app.state.celery = make_celery(settings.redis.broker_url())
+    app.state.processing_queue = CeleryProcessingQueue(
+        app.state.session_factory, app.state.cipher, app.state.celery
+    )
     app.state.upload_slots = asyncio.Semaphore(settings.uploads.max_concurrent)
     app.include_router(auth_router)
     app.include_router(me_router)

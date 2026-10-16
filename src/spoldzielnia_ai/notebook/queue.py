@@ -1,0 +1,63 @@
+"""Celery-backed ``ProcessingQueue`` (used by the api and by the egress worker for linked PDFs).
+
+Derivative rows are created PENDING *before* the task is sent, in their own RLS transaction,
+so the user sees the status at once and the worker always finds its row.
+"""
+
+from __future__ import annotations
+
+import asyncio
+from typing import TYPE_CHECKING, Any
+
+from spoldzielnia_ai.db.enums import DerivativeKind
+from spoldzielnia_ai.db.rls import rls_session
+from spoldzielnia_ai.notebook.service import NotebookService
+from spoldzielnia_ai.workers.celery_adapter import send
+from spoldzielnia_ai.workers.jobs import KIND_TASK, DerivativeJob, TaskName
+
+if TYPE_CHECKING:
+    from uuid import UUID
+
+    from spoldzielnia_ai.core.crypto import EnvelopeCipher
+    from spoldzielnia_ai.db.session import SessionFactory
+    from spoldzielnia_ai.files.validation import FileKind
+
+
+def derivative_kinds(kind: FileKind) -> list[DerivativeKind]:
+    if kind.category in ("audio", "video"):
+        return [DerivativeKind.TRANSCRIPT]
+    if kind.category == "image":
+        return [DerivativeKind.IMAGE_DESCRIPTION]
+    if kind.category in ("document", "text"):
+        return [DerivativeKind.PARSED_DOC]
+    return []  # archives are kept as files, not processed
+
+
+class CeleryProcessingQueue:
+    def __init__(self, factory: SessionFactory, cipher: EnvelopeCipher, celery: Any) -> None:
+        self._factory = factory
+        self._cipher = cipher
+        self._celery = celery
+
+    async def _send(self, name: TaskName, job: DerivativeJob) -> None:
+        # Publishing is a blocking broker round trip.
+        await asyncio.to_thread(send, self._celery, name, job)
+
+    async def attachment_stored(
+        self, attachment_id: UUID, owner_id: UUID, kind: FileKind
+    ) -> list[DerivativeKind]:
+        kinds = derivative_kinds(kind)
+        if not kinds:
+            return []
+        async with rls_session(self._factory, owner_id) as session:
+            ids = await NotebookService(session, self._cipher).create_derivatives(
+                attachment_id, kinds
+            )
+        for derivative_id, derivative_kind in zip(ids, kinds, strict=True):
+            job = DerivativeJob(derivative_id=derivative_id, owner_id=owner_id)
+            await self._send(KIND_TASK[derivative_kind], job)
+        return kinds
+
+    async def link_added(self, derivative_id: UUID, owner_id: UUID) -> None:
+        job = DerivativeJob(derivative_id=derivative_id, owner_id=owner_id)
+        await self._send(TaskName.FETCH_LINK, job)

@@ -77,6 +77,33 @@ services:
         - { action: rebuild, path: ./pyproject.toml }
         - { action: rebuild, path: ./uv.lock }
 
+  worker-media:
+    build:
+      context: .
+      dockerfile: docker/backend.Dockerfile
+      target: worker-media
+    environment:
+      SPOLDZIELNIA_ENVIRONMENT: dev
+    develop:
+      watch:
+        - { action: rebuild, path: ./src }
+        - { action: rebuild, path: ./uv.lock }
+
+  worker-egress:
+    build: *backend-build
+    environment:
+      SPOLDZIELNIA_ENVIRONMENT: dev
+    develop:
+      watch:
+        - { action: rebuild, path: ./src }
+        - { action: rebuild, path: ./uv.lock }
+
+  models-init:
+    build:
+      context: .
+      dockerfile: docker/backend.Dockerfile
+      target: worker-media
+
   proxy:
     # Dev: HTTPS on loopback only.
     ports: !override ["127.0.0.1:80:80", "127.0.0.1:443:443"]
