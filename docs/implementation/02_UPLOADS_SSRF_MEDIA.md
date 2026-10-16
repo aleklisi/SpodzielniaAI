@@ -202,6 +202,30 @@ Order of operations (each failure → specific status, audited as `UPLOAD_REJECT
 - Public URL redirecting to `http://169.254.169.254` → blocked at hop 2.
 - DNS rebinding: resolver returns public IP first, private second. The connection uses the pinned first IP only.
 
+
+**As built (decisions made during implementation)**
+- Two layers. `check_url` (syntactic, no DNS) runs in the API before anything is queued and
+  again on every redirect hop. It refuses: schemes other than https (http only with
+  `fetch.allow_http`); credentials; non-public IP literals; numeric host encodings (every label
+  decimal or `0x…`); `localhost`, `*.localhost/.local/.internal/.lan/.home.arpa/.intranet/.corp`;
+  **single-label names** (compose service names like `postgres`); ports outside
+  `fetch.allowed_ports` (80/443/8080/8443). Host/IP problems are reported before the port.
+- `SafeFetcher` (egress worker only): one DNS lookup per hop. **All** answers must be public, and
+  the connection goes to the first one, with the original `Host` header and the httpcore
+  `sni_hostname` extension, so certificates are still verified for the name. `trust_env=False`
+  (no proxies from the environment). Overall 15 s budget, 5 MB body cap while streaming,
+  allow-listed content types, manual redirects (max 3, each re-checked and re-resolved).
+- Public = not in the explicit block list **and** `is_global`. IPv4-mapped/compatible, 6to4 and
+  Teredo IPv6 are judged by their embedded IPv4. NAT64 prefixes and `2001::/23` (incl. Teredo)
+  are refused outright.
+- `POST /notes/{id}/links` stores a `FETCHED_LINK` derivative (PENDING) with the normalised URL
+  encrypted in `source_ciphertext` and hands its id to the processing queue (worker in 2.5).
+  HTML → Markdown via trafilatura main-content extraction (`net/to_markdown.py`). A linked
+  PDF is stored as an attachment by the worker and parsed like an upload (2.5).
+- `infra/scripts/egress-firewall.sh` (Linux host, root): dedicated chain on `DOCKER-USER` dropping
+  traffic from the egress subnet to private/loopback/link-local/CGNAT/multicast ranges.
+  It has `--dry-run` and `--remove`. Not applicable to Docker Desktop.
+
 ---
 
 ## Chunk 2.5 — Celery media pipeline in network-isolated workers

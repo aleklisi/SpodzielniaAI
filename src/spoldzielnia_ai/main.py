@@ -12,6 +12,7 @@ from redis.asyncio import Redis
 
 from spoldzielnia_ai.api.attachments import router as attachments_router
 from spoldzielnia_ai.api.auth import router as auth_router
+from spoldzielnia_ai.api.links import router as links_router
 from spoldzielnia_ai.api.me import router as me_router
 from spoldzielnia_ai.api.notes import router as notes_router
 from spoldzielnia_ai.auth.crypto import CsrfTokens, TokenSealer, derive_key
@@ -99,6 +100,7 @@ def create_app(
     app.include_router(me_router)
     app.include_router(notes_router)
     app.include_router(attachments_router)
+    app.include_router(links_router)
 
     @app.get("/healthz", response_model=HealthResponse, tags=["ops"])
     async def healthz() -> HealthResponse:  # pyright: ignore[reportUnusedFunction]

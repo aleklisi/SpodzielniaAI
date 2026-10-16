@@ -182,7 +182,7 @@ Each one is resolved (✅ = decision baked into the chunk plans) or needs your i
 - [x] 2.1 Private notes API, encrypted object storage
 - [x] 2.2 File type validation & archive (zip-bomb) guard
 - [x] 2.3 ClamAV scanning, EXIF stripping, upload endpoint
-- [ ] 2.4 SSRF-safe link fetcher
+- [x] 2.4 SSRF-safe link fetcher
 - [ ] 2.5 Celery media pipeline in network-isolated workers
 
 ### Stage 3 — PII, Prompt Injection, Push-to-Wiki

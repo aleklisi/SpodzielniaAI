@@ -160,7 +160,7 @@ Pełna specyfikacja techniczna i architektura wdrożenia w kontenerach Docker zn
 - [x] 2.1 API notatnika prywatnego z szyfrowaniem kopertowym (AES-256-GCM) i storage MinIO
 - [x] 2.2 Weryfikacja typu plików (magic bytes), ochrona przed archiwami zagnieżdżonymi (Zip Bomb)
 - [x] 2.3 Skanowanie antywirusowe ClamAV, czyszczenie metadanych EXIF i endpoint uploadu
-- [ ] 2.4 Moduł pobierania linków odporny na SSRF (walidacja DNS, blokada adresów prywatnych)
+- [x] 2.4 Moduł pobierania linków odporny na SSRF (walidacja DNS, blokada adresów prywatnych)
 - [ ] 2.5 Zadania Celery przetwarzania multimediów w odizolowanych sieciowo kontenerach workerów
 
 ### Etap 3: Ochrona OWASP LLM01/LLM02, Przepływ „Push-to-Wiki” i PII Scrubbing

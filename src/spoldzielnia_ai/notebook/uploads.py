@@ -70,12 +70,17 @@ class ProcessingQueue(Protocol):
         self, attachment_id: UUID, owner_id: UUID, kind: FileKind
     ) -> list[DerivativeKind]: ...
 
+    async def link_added(self, derivative_id: UUID, owner_id: UUID) -> None: ...
+
 
 class NoProcessing:
     async def attachment_stored(
         self, attachment_id: UUID, owner_id: UUID, kind: FileKind
     ) -> list[DerivativeKind]:
         return []
+
+    async def link_added(self, derivative_id: UUID, owner_id: UUID) -> None:
+        return None
 
 
 def _sha256(path: Path) -> tuple[int, str]:

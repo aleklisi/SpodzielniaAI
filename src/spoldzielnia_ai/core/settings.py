@@ -143,6 +143,28 @@ class UploadSettings(BaseModel):
     max_image_pixels: int = Field(default=60_000_000, gt=0)
 
 
+class FetchSettings(BaseModel):
+    """SSRF-safe link fetching (egress worker)."""
+
+    allow_http: bool = False
+    allowed_ports: list[int] = Field(default_factory=lambda: [80, 443, 8080, 8443])
+    connect_timeout_seconds: float = Field(default=5.0, gt=0)
+    total_timeout_seconds: float = Field(default=15.0, gt=0)
+    max_redirects: int = Field(default=3, ge=0, le=10)
+    max_body_bytes: int = Field(default=5 * 1024 * 1024, gt=0)
+    max_url_length: int = 2048
+    allowed_content_types: list[str] = Field(
+        default_factory=lambda: [
+            "text/html",
+            "application/xhtml+xml",
+            "text/plain",
+            "text/markdown",
+            "application/pdf",
+        ]
+    )
+    user_agent: str = "SpoldzielniaAI-LinkFetcher/1.0 (+https://spoldzielnia.localhost)"
+
+
 class LlmSettings(BaseModel):
     local_base_url: str = "http://llm:11434"
     local_model: str = "ollama/bielik"
@@ -212,6 +234,7 @@ class Settings(_BaseSettings):
     llm: LlmSettings = Field(default_factory=LlmSettings)
     clamav: ClamavSettings = Field(default_factory=ClamavSettings)
     uploads: UploadSettings = Field(default_factory=UploadSettings)
+    fetch: FetchSettings = Field(default_factory=FetchSettings)
 
     @model_validator(mode="after")
     def _require_runtime_secrets(self) -> Self:

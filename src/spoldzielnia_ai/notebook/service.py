@@ -16,13 +16,14 @@ from sqlalchemy import select
 
 from spoldzielnia_ai.core.crypto import row_aad
 from spoldzielnia_ai.core.ids import uuid7
+from spoldzielnia_ai.db.enums import DerivativeKind, DerivativeStatus
 from spoldzielnia_ai.db.models import NoteAttachment, NoteDerivative, PrivateNote
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
     from spoldzielnia_ai.core.crypto import EnvelopeCipher
-    from spoldzielnia_ai.db.enums import DerivativeKind, DerivativeStatus, ScanStatus
+    from spoldzielnia_ai.db.enums import ScanStatus
     from spoldzielnia_ai.db.rls import RlsSession
 
 NOTE = "private_note"
@@ -207,6 +208,30 @@ class NotebookService:
             .order_by(NoteDerivative.created_at, NoteDerivative.id)
         )
         return self.attachment_view(row), [self.derivative_view(d) for d in derivatives]
+
+    async def add_link(self, note_id: UUID, url: str) -> DerivativeView | None:
+        """A pending ``FETCHED_LINK`` derivative holding the (encrypted) URL."""
+        note = await self._note(note_id)
+        if note is None:
+            return None
+        derivative_id = uuid7()
+        aad = row_aad(DERIVATIVE, derivative_id, note.owner_id)
+        key = self._cipher.new_key(aad)
+        row = NoteDerivative(
+            id=derivative_id,
+            owner_id=note.owner_id,
+            note_id=note_id,
+            attachment_id=None,
+            kind=DerivativeKind.FETCHED_LINK,
+            status=DerivativeStatus.PENDING,
+            source_ciphertext=self._cipher.encrypt_field(key.key, url.encode(), aad, "source"),
+            content_ciphertext=None,
+            dek_wrapped=key.wrapped,
+        )
+        self._session.add(row)
+        await self._session.flush()
+        await self._session.refresh(row)
+        return self.derivative_view(row)
 
     async def update(
         self, note_id: UUID, title: str | None = None, body: str | None = None
