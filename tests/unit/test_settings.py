@@ -90,7 +90,7 @@ def test_defaults_use_compose_service_names(settings: Settings) -> None:
     assert settings.redis.host == "redis"
     assert settings.qdrant.url.startswith("https://qdrant:")
     assert settings.s3.endpoint_url == "http://minio:9000"
-    assert settings.llm.local_base_url == "http://llm:11434"
+    assert settings.llm.local_base_url == "http://llm:11434/v1"  # OpenAI-compatible API
     assert settings.root_path == "/api"
 
 

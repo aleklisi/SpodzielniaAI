@@ -5,6 +5,10 @@
 # bridge. That network never exists in prod.
 
 networks:
+  # Dev only: lets the `llm` relay reach the host (LM Studio / Ollama on the Mac).
+  llmhost:
+    driver: bridge
+    ipam: { config: [{ subnet: 172.30.10.0/24 }] }
   devhost:
     driver: bridge
     ipam: { config: [{ subnet: 172.30.9.0/24 }] }
@@ -76,6 +80,16 @@ services:
         - { action: rebuild, path: ./src }
         - { action: rebuild, path: ./pyproject.toml }
         - { action: rebuild, path: ./uv.lock }
+
+  # Relay to the host's OpenAI-compatible server (LM Studio :1234 or Ollama :11434), so workers
+  # on the internal `backend` network use the Mac's GPU without leaving their network.
+  llm:
+    image: alpine/socat:1.8.0.3@sha256:beb4a68d9e4fe6b0f21ea774a0fde6c31f580dde6368939ed70100c5385b015e
+    command: ["TCP-LISTEN:11434,fork,reuseaddr", "TCP:host.docker.internal:${LLM_HOST_PORT:-1234}"]
+    networks: !override [backend, llmhost]
+    volumes: !reset []
+    environment: !reset {}
+    extra_hosts: ["host.docker.internal:host-gateway"]
 
   worker-media:
     build:

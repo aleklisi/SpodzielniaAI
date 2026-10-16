@@ -18,13 +18,14 @@ from spoldzielnia_ai.db.enums import DerivativeKind
 from spoldzielnia_ai.db.session import create_session_factory
 from spoldzielnia_ai.files.antivirus import ClamdScanner
 from spoldzielnia_ai.files.storage import S3ObjectStorage
+from spoldzielnia_ai.llm.gateway import LiteLLMGateway
 from spoldzielnia_ai.llm.injection_guard import InjectionGuard
 from spoldzielnia_ai.net.safe_fetch import SafeFetcher
 from spoldzielnia_ai.notebook.queue import CeleryProcessingQueue
 from spoldzielnia_ai.notebook.uploads import UploadPipeline
 from spoldzielnia_ai.workers.celery_adapter import make_celery, register
 from spoldzielnia_ai.workers.engines.text import TextEngine
-from spoldzielnia_ai.workers.engines.vision import UnavailableVisionEngine
+from spoldzielnia_ai.workers.engines.vision import GatewayVisionEngine, UnavailableVisionEngine
 from spoldzielnia_ai.workers.jobs import TaskName
 from spoldzielnia_ai.workers.processing import DerivativeProcessor
 from spoldzielnia_ai.workers.scan import DerivativeScanner
@@ -81,7 +82,12 @@ class WorkerRuntime:
                 self._engine_cache[key] = DoclingEngine(models)
         else:
             key = "vision"
-            self._engine_cache.setdefault(key, UnavailableVisionEngine())
+            if key not in self._engine_cache:
+                self._engine_cache[key] = (
+                    GatewayVisionEngine(lambda: LiteLLMGateway(self._settings.llm))
+                    if self._settings.llm.vlm_model
+                    else UnavailableVisionEngine()
+                )
         return self._engine_cache[key]
 
     def _shared(self) -> tuple[SessionFactory, EnvelopeCipher]:

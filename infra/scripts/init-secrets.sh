@@ -47,6 +47,14 @@ write watermark_key         "$(rand_key_b64)"
 write honeypot_key          "$(rand_key_b64)"
 # Dev-realm test users only (never imported in prod)
 write dev_user_password     "$(rand_token 20)"
+
+# Local LLM API token (LM Studio requires one; Ollama ignores it). Not generated: paste the
+# server's token into secrets/llm_api_key. An empty file means "no token".
+if [[ ! -e "$DIR/llm_api_key" ]]; then
+  : > "$DIR/llm_api_key"
+  chmod 644 "$DIR/llm_api_key"
+  echo "  created  llm_api_key (empty: paste your LM Studio token if it requires one)"
+fi
 write dev_totp_seed         "$(rand_token 20)"
 
 "$ROOT/infra/scripts/gen-dev-certs.sh"

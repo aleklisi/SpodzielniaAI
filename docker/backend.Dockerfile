@@ -10,6 +10,7 @@ FROM ${UV_IMAGE} AS uv
 FROM ${PYTHON_IMAGE} AS python-base
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
+    LITELLM_LOCAL_MODEL_COST_MAP=True \
     PATH="/app/.venv/bin:$PATH"
 RUN apt-get update \
  && apt-get install -y --no-install-recommends libmagic1 tini \

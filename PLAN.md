@@ -168,7 +168,7 @@ Pełna specyfikacja techniczna i architektura wdrożenia w kontenerach Docker zn
 - [x] 3.1 Polskie rozpoznawacze PII (PESEL, NIP, REGON, KRS, IBAN, działki, WNI) z walidacją sum kontrolnych
 - [x] 3.2 Usługa anonimizacji Microsoft Presidio ze spaCy (`pl_core_news_lg`) i stałymi pseudonimami
 - [x] 3.3 Wielowarstwowa detekcja Prompt Injection (LLM-Guard, polskie reguły, ukryty tekst w PDF)
-- [ ] 3.4 Bramka modeli LiteLLM (wymuszenie lokalnego LLM) i bezpieczny generator promptów XML
+- [x] 3.4 Bramka modeli LiteLLM (wymuszenie lokalnego LLM) i bezpieczny generator promptów XML
 - [ ] 3.5 Endpoint i potok `POST /notes/promote-to-wiki` (tworzenie bloków z provenance)
 
 ### Etap 4: Silnik Governance, Zgody Twórców (Exit Strategy) i Indeks Qdrant

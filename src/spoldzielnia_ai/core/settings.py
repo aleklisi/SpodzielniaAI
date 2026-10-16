@@ -18,7 +18,7 @@ from functools import lru_cache
 from typing import Literal, Self
 from urllib.parse import quote
 
-from pydantic import BaseModel, Field, SecretStr, model_validator
+from pydantic import BaseModel, Field, SecretStr, field_validator, model_validator
 from pydantic_settings import (
     BaseSettings,
     NestedSecretsSettingsSource,
@@ -202,9 +202,33 @@ class WorkerSecuritySettings(BaseModel):
 
 
 class LlmSettings(BaseModel):
-    local_base_url: str = "http://llm:11434"
-    local_model: str = "ollama/bielik"
+    """LLM endpoints over the standard OpenAI API (LM Studio, Ollama, vLLM, …).
+
+    The local endpoint is the compose service ``llm``. In dev it relays to the host (LM Studio
+    or Ollama), in prod it is an Ollama container. A model left empty means "not available":
+    purposes that must stay local then fail with ``LocalModelUnavailable``, never fall back to
+    the cloud.
+    """
+
+    local_base_url: str = "http://llm:11434/v1"
+    chat_model: str | None = None  # e.g. "speakleash/bielik-11b-v2.3-instruct"
+    vlm_model: str | None = None  # e.g. "qwen2.5-vl-7b-instruct"
+    embed_model: str | None = None  # e.g. "text-embedding-embeddinggemma"
+    # Docker secret `llm_api_key` (LM Studio requires a token; Ollama ignores it).
+    api_key: SecretStr | None = None
+    timeout_seconds: float = Field(default=180.0, gt=0)
+    max_tokens: int = Field(default=4096, gt=0)
+    temperature: float = Field(default=0.2, ge=0, le=2)
+    # Optional cloud deployment, only for purposes that may leave the server (none in Stage 3).
     allow_cloud: bool = False
+    cloud_base_url: str | None = None
+    cloud_model: str | None = None
+    cloud_api_key: SecretStr | None = None
+
+    @field_validator("chat_model", "vlm_model", "embed_model", "cloud_model", "cloud_base_url")
+    @classmethod
+    def _empty_is_unset(cls, value: str | None) -> str | None:
+        return value.strip() or None if value is not None else None
 
 
 class SecuritySettings(BaseModel):
@@ -315,6 +339,7 @@ class WorkerSettings(_BaseSettings):
     uploads: UploadSettings = Field(default_factory=UploadSettings)
     fetch: FetchSettings = Field(default_factory=FetchSettings)
     models: ModelSettings = Field(default_factory=ModelSettings)
+    llm: LlmSettings = Field(default_factory=LlmSettings)
     concurrency: int = Field(default=1, ge=1)
 
     @model_validator(mode="after")

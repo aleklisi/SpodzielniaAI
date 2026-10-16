@@ -158,6 +158,15 @@ assert [s.reason for s in spans] == ["white_text"], spans
 '
 check "worker-media: hidden white text in PDFs is detected" \
   "${COMPOSE[@]}" exec -T worker-media python -c "$HID_PY"
+LLM_PY='
+import urllib.request, urllib.error
+try:
+    urllib.request.urlopen("http://llm:11434/v1/models", timeout=5)
+except urllib.error.HTTPError:
+    pass  # 401 from LM Studio without a token still proves the relay reaches the server
+'
+check "worker-core reaches the local LLM endpoint (llm:11434)" \
+  "${COMPOSE[@]}" exec -T worker-core python -c "$LLM_PY"
 check_not "worker-core has no internet access" "${COMPOSE[@]}" exec -T worker-core python -c "$OUT"
 check "worker-media: model volume is read-only" bash -c \
   "! ${COMPOSE[*]} exec -T worker-media sh -c 'touch /models/.probe' 2>/dev/null"

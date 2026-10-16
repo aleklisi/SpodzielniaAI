@@ -132,6 +132,8 @@ def test_compose_config_has_no_plaintext_secrets() -> None:
     for path in SECRETS_DIR.iterdir():
         if path.is_file():
             value = path.read_text().strip()
+            if not value:  # optional secrets (e.g. llm_api_key) may be empty
+                continue
             assert value not in rendered, f"secret {path.name} leaked into compose config"
 
 

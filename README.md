@@ -125,6 +125,22 @@ make models-host   # Whisper tiny + Docling into ./.models for the `ml` tests
 
 Host-side file-type tests need libmagic (`brew install libmagic`).
 
+### Local LLM (OpenAI-compatible: LM Studio or Ollama)
+
+Workers reach the model through the `llm` service. In dev it relays to the server running on
+your Mac. Configure in `.env`:
+
+```bash
+LLM_HOST_PORT=1234                                # LM Studio (Ollama: 11434)
+LLM_CHAT_MODEL=speakleash/bielik-11b-v2.3-instruct # as listed by GET /v1/models
+LLM_VLM_MODEL=qwen2.5-vl-7b-instruct               # optional: image descriptions
+LLM_EMBED_MODEL=text-embedding-embeddinggemma      # Stage 4
+```
+
+If the server requires a token (LM Studio), paste it into `secrets/llm_api_key`. Private data
+never goes to a cloud model: without a local model, promotion and image descriptions fail with
+`LocalModelUnavailable` / `vision_unavailable`.
+
 ## Test markers
 
 `integration` (Docker services), `ml` (heavy models), `e2e` (running stack). Run a subset with

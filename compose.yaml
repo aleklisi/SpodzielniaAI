@@ -25,6 +25,15 @@ x-backend-image: &backend-image
 x-app-env: &app-env
   SPOLDZIELNIA_ENVIRONMENT: ${SPOLDZIELNIA_ENVIRONMENT:-prod}
   SPOLDZIELNIA_LOG_LEVEL: ${SPOLDZIELNIA_LOG_LEVEL:-INFO}
+  # LiteLLM must not download its model price map at runtime (workers are offline).
+  LITELLM_LOCAL_MODEL_COST_MAP: "True"
+
+# Local LLM models (OpenAI-compatible names as the server knows them), from `.env`.
+x-llm-env: &llm-env
+  SPOLDZIELNIA_LLM__LOCAL_BASE_URL: ${LLM_BASE_URL:-http://llm:11434/v1}
+  SPOLDZIELNIA_LLM__CHAT_MODEL: ${LLM_CHAT_MODEL:-}
+  SPOLDZIELNIA_LLM__VLM_MODEL: ${LLM_VLM_MODEL:-}
+  SPOLDZIELNIA_LLM__EMBED_MODEL: ${LLM_EMBED_MODEL:-}
 
 x-infra: &infra
   restart: unless-stopped
@@ -60,6 +69,8 @@ volumes:
   qdrantdata:
   miniodata:
   clamavdb:
+  # Ollama model store (prod `llm` service).
+  ollama:
   # Offline ML models (make models): written by models-init, read-only for the media worker.
   models:
 
@@ -78,6 +89,8 @@ secrets:
   oidc_client_secret: { file: ./secrets/oidc_client_secret }
   keycloak_admin_password: { file: ./secrets/keycloak_admin_password }
   session_secret: { file: ./secrets/session_secret }
+  # Local LLM token (optional; LM Studio). Filled by the operator.
+  llm_api_key: { file: ./secrets/llm_api_key }
   # Key-encryption key of the private zone (core.crypto). Back it up separately from the DB.
   kek: { file: ./secrets/kek }
 
@@ -311,7 +324,7 @@ services:
       redis: { condition: service_healthy }
       minio: { condition: service_healthy }
     environment:
-      <<: *app-env
+      <<: [*app-env, *llm-env]
       SPOLDZIELNIA_MODELS__WHISPER_MODEL: ${WHISPER_MODEL:-small}
     volumes:
       - models:/models:ro
@@ -319,6 +332,7 @@ services:
       - { source: pg_app_password, target: db__app_password }
       - { source: redis_password, target: redis__password }
       - { source: kek, target: security__kek }
+      - { source: llm_api_key, target: llm__api_key }
       # TODO(2.1 follow-up): scoped MinIO service account instead of the root credentials.
       - { source: minio_root_password, target: s3__secret_key }
 
@@ -343,6 +357,17 @@ services:
     healthcheck:
       disable: true
 
+  # Local LLM behind the standard OpenAI API on :11434/v1 (chunk 3.4). Prod: Ollama on `backend`
+  # (GPU via compose.gpu.yaml). Dev: a relay to LM Studio/Ollama on the host (compose.dev.yaml).
+  llm:
+    <<: *infra
+    image: ollama/ollama:0.12.6@sha256:a61a8fd395dbb931cc8cb1b5da7a2510746575c87113fdc45b647ee59ef7f808
+    networks: [backend]
+    volumes: [ollama:/root/.ollama]
+    environment:
+      OLLAMA_HOST: 0.0.0.0:11434
+      OLLAMA_NOPRUNE: "1"
+
   # PII scrubbing, prompt-injection screening, promotion (Stage 3): `backend` only.
   worker-core:
     <<: *hardening
@@ -357,7 +382,8 @@ services:
       migrate: { condition: service_completed_successfully }
       postgres: { condition: service_healthy }
       redis: { condition: service_healthy }
-    environment: *app-env
+    environment:
+      <<: [*app-env, *llm-env]
     volumes:
       - models:/models:ro
     secrets: *worker-secrets

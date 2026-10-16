@@ -226,6 +226,37 @@ class LLMGateway(Protocol):
 - Unit: boundary escaping (data containing `</untrusted_data>` can't break out).
 - Unit: invalid JSON from the fake LLM → retry → error.
 
+
+**As built (decisions made during implementation)**
+- **Standard OpenAI API everywhere** (LM Studio, Ollama, vLLM): LiteLLM's `openai/` provider with
+  `llm.local_base_url` (default `http://llm:11434/v1`) and model names `llm.chat_model`,
+  `llm.vlm_model`, `llm.embed_model` from `.env` (`LLM_CHAT_MODEL`, `LLM_VLM_MODEL`,
+  `LLM_EMBED_MODEL`, `LLM_BASE_URL`). An unset/empty model means "not available". Optional
+  token: Docker secret `llm_api_key` (created empty by `make secrets`; LM Studio needs one).
+- `llm` service: prod = Ollama (pinned digest) on `backend`. Dev = `alpine/socat` relay on
+  `backend` + a dev-only `llmhost` bridge to `host.docker.internal:${LLM_HOST_PORT:-1234}`
+  (LM Studio's port, or 11434 for host Ollama). Smoke: worker-core gets an HTTP answer from
+  `llm:11434/v1/models`.
+- LiteLLM hardening: `LITELLM_LOCAL_MODEL_COST_MAP=True` (set in the gateway before import
+  **and** in every image; otherwise LiteLLM fetches its price map from the internet at import),
+  `turn_off_message_logging`, all callbacks cleared, httpx transport instead of aiohttp, Router
+  with `fallbacks=[]`. (`litellm.telemetry` no longer exists in 1.105.)
+- Routing in typed code (`LiteLLMGateway.route`), with LiteLLM only as an injectable
+  `ChatTransport`. A failure of a local deployment raises `LocalModelUnavailable` and never
+  tries the cloud (tested with a cloud deployment present). `complete()` has typed overloads
+  (text vs. `response_model`).
+- Structured output: JSON schema in `response_format`, pydantic validation, tolerance for
+  ```json fences, one corrective retry. The retry message lists only error locations/types,
+  never the model's output.
+- Prompts: per-request boundary. **All** `<`/`>`/`&` in untrusted data are entity-escaped (not
+  only the tag) and the boundary is removed. Labels also escape `"`. Templates are versioned,
+  and `digest` = SHA-256 over name/version/system/task.
+- Vision (completes 2.5): `GatewayVisionEngine` re-encodes the sanitised image to ≤ 1280 px
+  JPEG and sends it as a `data:` URL, purpose VLM (always local). Without `llm.vlm_model` it is
+  still `vision_unavailable`.
+- `tests/fixtures/llm.py` `FakeLLMGateway`: records calls, asserts `force_local_llm=True` for
+  sensitive purposes, echo-style structured output for 3.5.
+
 ---
 
 ## Chunk 3.5 — `POST /notes/promote-to-wiki`
