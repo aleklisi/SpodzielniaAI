@@ -76,6 +76,20 @@ check "CSRF: cross-origin POST refused (403)" test "$xorigin" = 403
 echo "3. API container hardening"
 uid="$("${COMPOSE[@]}" exec -T api id -u | tr -d '\r')"
 if [[ "$uid" != "0" ]]; then ok "api runs as uid $uid"; else bad "api runs as root"; fi
+# The image's libmagic (Debian) must classify like the tested host build.
+MAGIC_PY='
+import pathlib, tempfile
+from spoldzielnia_ai.files.validation import FileRejected, validate_file
+d = pathlib.Path(tempfile.mkdtemp())
+exe = d / "a"; exe.write_bytes(b"MZ" + b"\x00" * 58 + b"\x40\x00\x00\x00" + b"PE\x00\x00" + b"\x00" * 300)
+try:
+    validate_file(exe, "invoice.pdf", "application/pdf"); raise SystemExit(1)
+except FileRejected as e:
+    assert e.code == "executable", e.code
+pdf = d / "b"; pdf.write_bytes(b"%PDF-1.4\n1 0 obj<</Type/Catalog>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF\n")
+assert validate_file(pdf, "raport.pdf", "application/pdf").mime == "application/pdf"
+'
+check "api: libmagic rejects exe-as-pdf, accepts pdf" "${COMPOSE[@]}" exec -T api python -c "$MAGIC_PY"
 check_not "api rootfs is read-only" "${COMPOSE[@]}" exec -T api sh -c 'touch /app/.probe'
 
 echo "4. Published ports"

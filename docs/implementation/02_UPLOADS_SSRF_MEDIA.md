@@ -90,6 +90,25 @@ content is validated, scanned, sanitised and processed in network-isolated worke
 - Zip bomb fixtures generated at test time (42.zip-style nested, and high-ratio single entry) → rejected.
 - DOCX with macros → rejected. Valid PDF/PNG/MP3 → accepted.
 
+
+**As built (decisions made during implementation)**
+- `files/validation.py` keys the allow-list by the MIME type libmagic reports and maps it to a
+  canonical stored type (`audio/x-wav` → `audio/wav`, `audio/x-m4a` → `audio/mp4`, `.md`
+  stays `text/markdown`). A declared `Content-Type` must be the detected type, a listed alias,
+  or the generic `application/octet-stream` (a browser that makes no claim). Size limits per
+  category: documents 50 MB, text 5 MB, images 25 MB, audio/video 200 MB, ZIP 50 MB.
+- Executables are refused by our own signatures (PE, ELF, Mach-O/Java class, shebang) **and**
+  by libmagic's executable/script types. libmagic alone misses truncated ELF headers.
+- Text must be valid UTF-8. SVG/HTML are not on the allow-list (active content).
+- Archive guard: per-entry ratio is checked only above 1 MiB uncompressed (tiny entries
+  legitimately compress >100:1, and the total limit bounds them). Encrypted entries are
+  refused because they can't be scanned. Entries are also refused when they are executables,
+  and when they are archives (gzip/bzip2/xz/7z/rar/zstd/cab/tar/zip), i.e. nesting depth 1.
+  OOXML with embedded `.docx` objects is therefore refused too, which is acceptable.
+- Macros: DOCX with `vbaProject.bin`/`vbaData.xml`, ODT with `Basic/` or `Scripts/`.
+- Host tests need libmagic (`brew install libmagic`). `make smoke` re-checks the image's
+  Debian libmagic (exe-as-pdf refused, PDF accepted).
+
 ---
 
 ## Chunk 2.3 — ClamAV scanning, EXIF stripping & upload endpoint

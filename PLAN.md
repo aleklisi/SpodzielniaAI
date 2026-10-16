@@ -158,7 +158,7 @@ Pełna specyfikacja techniczna i architektura wdrożenia w kontenerach Docker zn
 ### Etap 2: Bezpieczny Upload Plików i Potok Multimediów (OWASP File Security & SSRF)
 *Dokumentacja: [docs/implementation/02_UPLOADS_SSRF_MEDIA.md](docs/implementation/02_UPLOADS_SSRF_MEDIA.md)*
 - [x] 2.1 API notatnika prywatnego z szyfrowaniem kopertowym (AES-256-GCM) i storage MinIO
-- [ ] 2.2 Weryfikacja typu plików (magic bytes), ochrona przed archiwami zagnieżdżonymi (Zip Bomb)
+- [x] 2.2 Weryfikacja typu plików (magic bytes), ochrona przed archiwami zagnieżdżonymi (Zip Bomb)
 - [ ] 2.3 Skanowanie antywirusowe ClamAV, czyszczenie metadanych EXIF i endpoint uploadu
 - [ ] 2.4 Moduł pobierania linków odporny na SSRF (walidacja DNS, blokada adresów prywatnych)
 - [ ] 2.5 Zadania Celery przetwarzania multimediów w odizolowanych sieciowo kontenerach workerów

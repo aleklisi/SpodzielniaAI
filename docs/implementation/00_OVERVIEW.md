@@ -180,7 +180,7 @@ Each one is resolved (✅ = decision baked into the chunk plans) or needs your i
 
 ### Stage 2 — Uploads, SSRF, Media
 - [x] 2.1 Private notes API, encrypted object storage
-- [ ] 2.2 File type validation & archive (zip-bomb) guard
+- [x] 2.2 File type validation & archive (zip-bomb) guard
 - [ ] 2.3 ClamAV scanning, EXIF stripping, upload endpoint
 - [ ] 2.4 SSRF-safe link fetcher
 - [ ] 2.5 Celery media pipeline in network-isolated workers
