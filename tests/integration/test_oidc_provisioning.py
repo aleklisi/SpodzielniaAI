@@ -7,6 +7,7 @@ import dataclasses
 import secrets
 from typing import TYPE_CHECKING
 from urllib.parse import parse_qs, urlsplit
+from uuid import UUID
 
 import pytest
 import respx
@@ -19,14 +20,15 @@ from spoldzielnia_ai.audit.verify import verify_chain
 from spoldzielnia_ai.auth.identity import OidcIdentity
 from spoldzielnia_ai.auth.provisioning import DbUserProvisioner
 from spoldzielnia_ai.db.enums import Role
-from spoldzielnia_ai.db.models import User
+from spoldzielnia_ai.db.models import PrivateNote, User
+from spoldzielnia_ai.db.repositories import PrivateNoteRepository
+from spoldzielnia_ai.db.rls import RlsSessionDep  # noqa: TC001 - FastAPI reads it at runtime
 from spoldzielnia_ai.db.session import SessionFactory, create_session_factory
 from spoldzielnia_ai.main import create_app
 from tests.fixtures.oidc import ISSUER, FakeIdP
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
-    from uuid import UUID
 
     from sqlalchemy.ext.asyncio import AsyncEngine
 
@@ -162,4 +164,73 @@ async def test_full_callback_provisions_user(
     assert user is not None
     assert user.roles == [Role.EXPERT, Role.MEMBER]
     assert user.email == "pszczelarz@example.org"
+    assert (await verify_chain(app_engine)).ok
+
+
+async def test_session_drives_rls_and_logout_is_audited(
+    settings: Settings, factory: SessionFactory, app_engine: AsyncEngine
+) -> None:
+    """Chunk 1.6 end to end with real Postgres: the session cookie identifies the user for RLS."""
+    app = create_app(settings, readiness_checks={})
+    app.state.redis = FakeAsyncRedis()
+    app.state.session_factory = factory
+
+    @app.post("/test/notes", status_code=201)
+    async def add_note(session: RlsSessionDep) -> None:  # pyright: ignore[reportUnusedFunction]
+        user_id = await session.scalar(text("SELECT current_setting('app.current_user_id')::uuid"))
+        await PrivateNoteRepository(session).add(
+            PrivateNote(
+                owner_id=user_id,
+                title="t",
+                body_ciphertext=b"c",
+                body_nonce=b"n",
+                dek_wrapped=b"k",
+                source_type="text",
+            )
+        )
+
+    @app.get("/test/notes")
+    async def list_notes(session: RlsSessionDep) -> int:  # pyright: ignore[reportUnusedFunction]
+        return len(await PrivateNoteRepository(session).list_all())
+
+    idp = FakeIdP()
+    site = "https://spoldzielnia.localhost"
+
+    async def login(client: AsyncClient, subject: str) -> dict[str, str]:
+        start = await client.get("/auth/login")
+        params = parse_qs(urlsplit(start.headers["location"]).query)
+        idp.id_token = idp.make_id_token(nonce=params["nonce"][0], sub=subject)
+        await client.get("/auth/callback", params={"state": params["state"][0], "code": "c"})
+        csrf = client.cookies.get("__Host-csrf", domain="spoldzielnia.localhost") or ""
+        return {"Origin": site, "X-CSRF-Token": csrf}
+
+    with respx.mock(assert_all_called=False) as router:
+        idp.mount(router)
+        transport = ASGITransport(app=app)
+        async with (
+            AsyncClient(transport=transport, base_url=site) as alice,
+            AsyncClient(transport=transport, base_url=site) as bob,
+        ):
+            alice_headers = await login(alice, secrets.token_hex(8))
+            bob_headers = await login(bob, secrets.token_hex(8))
+
+            assert (await alice.post("/test/notes", headers=alice_headers)).status_code == 201
+            assert (await alice.get("/test/notes")).json() == 1
+            assert (await bob.get("/test/notes")).json() == 0
+
+            me = (await alice.get("/me")).json()
+            assert me["roles"] == ["MEMBER"]
+            assert (await alice.post("/auth/logout", headers=alice_headers)).status_code == 200
+            assert (await alice.get("/test/notes")).status_code == 401
+            assert (await bob.post("/auth/logout", headers=bob_headers)).status_code == 200
+
+    async with factory() as session:
+        logouts = await session.scalar(
+            text(
+                "SELECT count(*) FROM security_audit_log WHERE event_type = 'USER_LOGOUT' "
+                "AND actor_id = :id"
+            ),
+            {"id": UUID(me["id"])},
+        )
+    assert logouts == 1
     assert (await verify_chain(app_engine)).ok

@@ -352,6 +352,45 @@ The allowed `Origin` list comes from settings (`https://spoldzielnia.localhost` 
 domain in prod). Client IPs for audit and rate limiting come from `X-Forwarded-For`, trusted only
 from the Caddy subnet.
 
+**As built (decisions made during implementation)**
+- Redis keys of secrets are hashed: `session:{sha256(sid)}`, `rt:{sha256(rt)}`. A Redis dump
+  yields no usable cookie or token. The refresh token and the ID token (kept for
+  `id_token_hint`) are sealed with AES-256-GCM, the token family id bound as associated data.
+  The key is HKDF-derived from `security.session_secret` (`auth/crypto.py`).
+- The access token is not stored, because the API calls no resource servers. Its expiry, capped
+  at `access_token_ttl_seconds`, decides when the server re-checks with the IdP via the refresh
+  grant. An IdP-side logout or disable therefore ends the session within 15 min.
+- Refresh runs in the `current_session` dependency (only authenticated routes pay for it), not
+  in a global middleware. Under the per-family Redis lock (`SET NX PX`, Lua compare-and-delete
+  release) the family is re-read, so waiters reuse the winner's refresh (the concurrency test
+  checks exactly one IdP call). A current refresh token whose `rt:` record is used, missing or
+  from another family → family revoked, `REFRESH_TOKEN_REUSE` audited (with client IP), 401.
+  The realm also rotates with `refreshTokenMaxReuse: 0`, so Keycloak independently rejects a
+  replayed token (`invalid_grant` → session dropped).
+- IdP outage during refresh → 503 + `Retry-After`, and the session is kept. IdP `invalid_grant`
+  → session dropped, 401.
+- CSRF: `Origin` (or `Referer`) allow-list **and** signed double submit. The token is
+  `HMAC(key, sid)`, so it needs no storage and a token for another session fails. Every unsafe
+  method needs a session, because no unauthenticated unsafe endpoint exists yet.
+- Cookies: `__Host-sid` (HttpOnly, Strict) and `__Host-csrf` (readable, Strict) are browser-session
+  cookies (no `Max-Age`). The server enforces the 12 h absolute lifetime. Because of `Strict`,
+  the browser doesn't send `__Host-sid` on the very redirect that ends the cross-site login
+  chain. The frontend (Stage 6) must load the session with a same-origin `fetch('/api/me')`, not
+  on server-side render of that first page.
+- Re-login (e.g. step-up) drops the browser's previous session. Sessions always get a fresh sid
+  (no fixation).
+- `current_user` reads the `app_user` row on each request: roles and `is_locked` come from the
+  DB (synced at login). A locked user → 423 and the family is revoked.
+- `require_mfa`: `acr ∈ security.mfa_acr_values` or `amr ∩ security.mfa_amr_values`. The realm
+  has no ACR→LoA map, so in practice `amr` (`otp`) decides. 403 body
+  `{"error": "mfa_required", "step_up": "/api/auth/login?prompt=login&acr_values=mfa"}` plus an
+  RFC 9470 `WWW-Authenticate` challenge. `elevated_router(*roles)` adds `require_roles` +
+  `require_mfa` to every route and only accepts EXPERT/ADMIN.
+- `POST /auth/logout` returns `{"logout_url"}` (RP-initiated logout with `id_token_hint`) for
+  the frontend to navigate to. It revokes the refresh token (RFC 7009, best effort) and audits
+  `USER_LOGOUT`.
+- Smoke additionally checks `/api/me` → 401 without a session and a cross-origin POST → 403.
+
 **Stage 1 exit criteria:** chunks 1.1–1.6 green. The RLS isolation test and the OIDC role/MFA
 matrix both pass in CI. On the Mac, `make up` serves the app at `https://spoldzielnia.localhost`,
 and a real Keycloak login (member1) ends with a working `__Host-sid` session (`GET /api/me` → 200).

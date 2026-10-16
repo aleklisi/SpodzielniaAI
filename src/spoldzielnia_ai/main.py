@@ -10,6 +10,10 @@ from pydantic import BaseModel
 from redis.asyncio import Redis
 
 from spoldzielnia_ai.api.auth import router as auth_router
+from spoldzielnia_ai.api.me import router as me_router
+from spoldzielnia_ai.auth.crypto import CsrfTokens, TokenSealer, derive_key
+from spoldzielnia_ai.auth.csrf import csrf_middleware
+from spoldzielnia_ai.auth.deps import DbAuditSink
 from spoldzielnia_ai.auth.oidc_client import OidcClient
 from spoldzielnia_ai.core.logging import configure_logging, get_logger
 from spoldzielnia_ai.core.readiness import ReadinessCheck, default_checks
@@ -74,7 +78,13 @@ def create_app(
     app.state.session_factory = create_session_factory(engine)
     app.state.redis = redis
     app.state.oidc_client = oidc_client
+    session_secret = settings.security.session_secret.get_secret_value()
+    app.state.token_sealer = TokenSealer(derive_key(session_secret, "redis-tokens"))
+    csrf_tokens = CsrfTokens(derive_key(session_secret, "csrf"))
+    app.state.csrf_tokens = csrf_tokens
+    app.state.audit_sink = DbAuditSink(app.state)
     app.include_router(auth_router)
+    app.include_router(me_router)
 
     @app.get("/healthz", response_model=HealthResponse, tags=["ops"])
     async def healthz() -> HealthResponse:  # pyright: ignore[reportUnusedFunction]
@@ -91,6 +101,9 @@ def create_app(
         return ReadinessResponse(
             status="ok" if ok else "unavailable", checks=results, schema_revision=schema_revision
         )
+
+    # Registered before `security_headers`, so its 403s still get the security headers.
+    app.middleware("http")(csrf_middleware(settings.security.allowed_origins, csrf_tokens))
 
     @app.middleware("http")
     async def security_headers(  # pyright: ignore[reportUnusedFunction]

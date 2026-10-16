@@ -1,8 +1,8 @@
 """``/auth``: OIDC login for the Backend-for-Frontend.
 
-The browser only ever sees redirects and cookies. Tokens stay on the server. ``state`` is bound
-to the browser that started the login by a short-lived ``__Host-`` cookie, so a callback URL
-planted by someone else (login CSRF) is refused.
+The browser only ever sees redirects and cookies (``__Host-sid``). Tokens stay on the server.
+``state`` is bound to the browser that started the login by a short-lived ``__Host-`` cookie, so
+a callback URL planted by someone else (login CSRF) is refused.
 """
 
 from __future__ import annotations
@@ -12,10 +12,13 @@ from typing import TYPE_CHECKING, Annotated
 
 from fastapi import APIRouter, Cookie, Request, status
 from fastapi.responses import JSONResponse, RedirectResponse, Response
+from pydantic import BaseModel
 
+from spoldzielnia_ai.auth.cookies import SID_COOKIE, clear_session_cookies, set_session_cookies
 from spoldzielnia_ai.auth.deps import (  # noqa: TC001 - FastAPI resolves dependency annotations
     LoginStateStoreDep,
     OidcClientDep,
+    SessionManagerDep,
     UserProvisionerDep,
 )
 from spoldzielnia_ai.auth.identity import identity_from_token
@@ -26,6 +29,7 @@ from spoldzielnia_ai.auth.redirects import safe_return_to
 from spoldzielnia_ai.core.logging import get_logger
 
 if TYPE_CHECKING:
+    from spoldzielnia_ai.auth.crypto import CsrfTokens
     from spoldzielnia_ai.core.settings import Settings
 
 log = get_logger(__name__)
@@ -112,7 +116,9 @@ async def callback(
     oidc: OidcClientDep,
     store: LoginStateStoreDep,
     provisioner: UserProvisionerDep,
+    sessions: SessionManagerDep,
     login_cookie: Annotated[str | None, Cookie(alias=LOGIN_COOKIE)] = None,
+    previous_sid: Annotated[str | None, Cookie(alias=SID_COOKIE)] = None,
     state: str | None = None,
     code: str | None = None,
     error: str | None = None,
@@ -133,7 +139,7 @@ async def callback(
 
     try:
         tokens = await oidc.exchange_code(code, login_state.code_verifier)
-        verified = await oidc.validate_id_token(tokens.id_token, login_state.nonce)
+        verified = await oidc.validate_id_token(tokens.id_token or "", login_state.nonce)
     except OidcTokenError as exc:
         log.warning("auth.callback.token_rejected", error=str(exc))
         return _error(status.HTTP_401_UNAUTHORIZED, "Login failed")
@@ -147,8 +153,31 @@ async def callback(
         log.warning("auth.callback.user_locked", user_id=str(user.id))
         return _error(status.HTTP_423_LOCKED, "Account locked")
 
+    if previous_sid:
+        # A browser logging in again (e.g. MFA step-up) drops its old session.
+        await sessions.logout(previous_sid)
+    new = await sessions.create(user.id, identity, tokens)
     log.info("auth.login", user_id=str(user.id), created=user.created)
-    # TODO(1.6): issue the `__Host-sid` session and keep `tokens` server-side.
+
+    csrf: CsrfTokens = request.app.state.csrf_tokens
     response = RedirectResponse(login_state.return_to, status_code=status.HTTP_303_SEE_OTHER)
     _clear_login_cookie(response)
+    set_session_cookies(response, new.sid, csrf.for_session(new.sid))
+    return response
+
+
+class LogoutResponse(BaseModel):
+    # RP-initiated logout at the IdP. The frontend navigates there to end the SSO session too.
+    logout_url: str | None
+
+
+@router.post("/logout", response_model=LogoutResponse)
+async def logout(
+    sessions: SessionManagerDep,
+    sid: Annotated[str | None, Cookie(alias=SID_COOKIE)] = None,
+) -> JSONResponse:
+    """End the session (CSRF-protected like every unsafe method). Idempotent."""
+    logout_url = await sessions.logout(sid) if sid else None
+    response = JSONResponse(LogoutResponse(logout_url=logout_url).model_dump())
+    clear_session_cookies(response)
     return response

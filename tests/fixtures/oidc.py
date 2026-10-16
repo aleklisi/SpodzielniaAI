@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import json
 import time
@@ -22,6 +23,8 @@ CLIENT_SECRET = "oidc-secret"  # matches the `settings` fixture  # noqa: S105
 AUTHORIZE_URL = f"{ISSUER}/protocol/openid-connect/auth"
 TOKEN_URL = f"{ISSUER}/protocol/openid-connect/token"
 JWKS_URL = f"{ISSUER}/protocol/openid-connect/certs"
+REVOKE_URL = f"{ISSUER}/protocol/openid-connect/revoke"
+LOGOUT_URL = f"{ISSUER}/protocol/openid-connect/logout"
 DISCOVERY_URL = f"{ISSUER}/.well-known/openid-configuration"
 
 _RSA_KEY = RSAKey.generate_key(2048, parameters={"kid": "rsa-1", "use": "sig", "alg": "RS256"})
@@ -57,6 +60,14 @@ class FakeIdP:
     token_body: dict[str, Any] | None = None
     token_requests: list[httpx.Request] = field(default_factory=list[httpx.Request])
     jwks_calls: int = 0
+    # Refresh grant, Keycloak-style rotation: every refresh issues a new token, and presenting
+    # an already-used one is `invalid_grant`.
+    refresh_counter: int = 0
+    used_refresh_tokens: set[str] = field(default_factory=set[str])
+    refresh_status: int = 200
+    refresh_delay: float = 0.0
+    refreshed_with: list[str] = field(default_factory=list[str])
+    revoked: list[str] = field(default_factory=list[str])
 
     def __post_init__(self) -> None:
         if not self.published:
@@ -67,7 +78,8 @@ class FakeIdP:
                 "authorization_endpoint": AUTHORIZE_URL,
                 "token_endpoint": TOKEN_URL,
                 "jwks_uri": JWKS_URL,
-                "end_session_endpoint": f"{ISSUER}/protocol/openid-connect/logout",
+                "end_session_endpoint": LOGOUT_URL,
+                "revocation_endpoint": REVOKE_URL,
                 "code_challenge_methods_supported": ["plain", "S256"],
                 "id_token_signing_alg_values_supported": ["RS256", "ES256"],
             }
@@ -117,6 +129,7 @@ class FakeIdP:
         router.get(DISCOVERY_URL).mock(side_effect=self._discovery)
         router.get(JWKS_URL).mock(side_effect=self._jwks)
         router.post(TOKEN_URL).mock(side_effect=self._token)
+        router.post(REVOKE_URL).mock(side_effect=self._revoke)
 
     def _discovery(self, _request: httpx.Request) -> httpx.Response:
         return httpx.Response(200, json=self.discovery)
@@ -127,7 +140,13 @@ class FakeIdP:
             200, json={"keys": [k.as_dict(private=False) for k in self.published]}
         )
 
-    def _token(self, request: httpx.Request) -> httpx.Response:
+    def _revoke(self, request: httpx.Request) -> httpx.Response:
+        self.revoked.append(self.form(request)["token"])
+        return httpx.Response(200)
+
+    async def _token(self, request: httpx.Request) -> httpx.Response:
+        if self.form(request).get("grant_type") == "refresh_token":
+            return await self._refresh(request)
         self.token_requests.append(request)
         if self.token_body is not None:
             return httpx.Response(self.token_status, json=self.token_body)
@@ -136,9 +155,30 @@ class FakeIdP:
             json={
                 "token_type": "Bearer",
                 "access_token": "access-token",
-                "refresh_token": "refresh-token",
+                "refresh_token": f"rt-login-{len(self.token_requests)}",
                 "expires_in": 900,
                 "id_token": self.id_token,
+            },
+        )
+
+    async def _refresh(self, request: httpx.Request) -> httpx.Response:
+        presented = self.form(request)["refresh_token"]
+        self.refreshed_with.append(presented)
+        if self.refresh_delay:
+            await asyncio.sleep(self.refresh_delay)  # widen the window for race tests
+        if self.refresh_status != 200:
+            return httpx.Response(self.refresh_status, json={"error": "temporarily_unavailable"})
+        if presented in self.used_refresh_tokens:
+            return httpx.Response(400, json={"error": "invalid_grant"})
+        self.used_refresh_tokens.add(presented)
+        self.refresh_counter += 1
+        return httpx.Response(
+            200,
+            json={
+                "token_type": "Bearer",
+                "access_token": f"access-{self.refresh_counter}",
+                "refresh_token": f"rt-{self.refresh_counter}",
+                "expires_in": 900,
             },
         )
 

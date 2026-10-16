@@ -9,6 +9,7 @@ class EventType(StrEnum):
     # Identity & sessions (1.5, 1.6)
     USER_PROVISIONED = "USER_PROVISIONED"
     USER_LOGIN = "USER_LOGIN"
+    USER_LOGOUT = "USER_LOGOUT"
     REFRESH_TOKEN_REUSE = "REFRESH_TOKEN_REUSE"  # noqa: S105 - event name, not a secret
     # Private notebook & uploads (Stage 2)
     UPLOAD_REJECTED = "UPLOAD_REJECTED"

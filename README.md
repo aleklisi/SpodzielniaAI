@@ -101,8 +101,12 @@ The API is the OAuth confidential client. The browser never sees tokens. `GET /a
 (`?return_to=/path`) redirects to Keycloak with PKCE S256. `GET /api/auth/callback` validates the
 ID token, provisions the user by `(issuer, subject)` and audits the login. External IdPs (Google
 Workspace, Entra ID) are configured as brokers inside Keycloak, so the API trusts one issuer.
+The callback then sets `__Host-sid` (HttpOnly) and `__Host-csrf` cookies. Unsafe requests must
+send `X-CSRF-Token: <__Host-csrf>` from an allowed `Origin`. `GET /api/me` returns the profile and
+`mfa_satisfied`. `POST /api/auth/logout` returns the IdP `logout_url`. Expert/admin endpoints use
+`auth.deps.elevated_router(...)`, which requires the role and MFA (403 with a `step_up` URL otherwise).
 Dev users: `member1`, `member2` (password), `expert1`, `admin1` (password + TOTP). The password is
-in `secrets/dev_user_password`, the TOTP seed in `secrets/dev_totp_seed`. Sessions arrive in 1.6.
+in `secrets/dev_user_password`, the TOTP seed in `secrets/dev_totp_seed`.
 
 ## Test markers
 

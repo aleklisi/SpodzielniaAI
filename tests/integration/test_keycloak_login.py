@@ -63,31 +63,34 @@ def _form_action(page: httpx.Response, form_id: str) -> str:
     return html.unescape(match.group(1))
 
 
-def _login(caddy_ca: Path, username: str, *, otp_seed: str | None = None) -> httpx.Response:
-    password = secret("dev_user_password")
-    with httpx.Client(
+def _client(caddy_ca: Path) -> httpx.Client:
+    return httpx.Client(
         verify=ssl.create_default_context(cafile=caddy_ca), follow_redirects=False, timeout=20
-    ) as client:
-        start = client.get(f"{SITE}/api/auth/login", params={"return_to": "/wiki?x=1"})
-        assert start.status_code == 302
-        form = client.get(start.headers["location"])
-        step = client.post(
-            _form_action(form, "kc-form-login"),
-            data={"username": username, "password": password, "credentialId": ""},
-        )
-        if otp_seed is not None:
-            assert step.status_code == 200, "expected the OTP form"
+    )
+
+
+def _login(client: httpx.Client, username: str, *, otp_seed: str | None = None) -> httpx.Response:
+    password = secret("dev_user_password")
+    start = client.get(f"{SITE}/api/auth/login", params={"return_to": "/wiki?x=1"})
+    assert start.status_code == 302
+    form = client.get(start.headers["location"])
+    step = client.post(
+        _form_action(form, "kc-form-login"),
+        data={"username": username, "password": password, "credentialId": ""},
+    )
+    if otp_seed is not None:
+        assert step.status_code == 200, "expected the OTP form"
+        otp_form = _form_action(step, "kc-otp-login-form")
+        step = client.post(otp_form, data={"otp": _totp(otp_seed)})
+        if step.status_code == 200:
+            # Keycloak refuses a code already used (an earlier run in the same 30 s window):
+            # wait for the next window and try once more.
+            time.sleep(30 - time.time() % 30 + 1)
             otp_form = _form_action(step, "kc-otp-login-form")
             step = client.post(otp_form, data={"otp": _totp(otp_seed)})
-            if step.status_code == 200:
-                # Keycloak refuses a code already used (an earlier run in the same 30 s window):
-                # wait for the next window and try once more.
-                time.sleep(30 - time.time() % 30 + 1)
-                otp_form = _form_action(step, "kc-otp-login-form")
-                step = client.post(otp_form, data={"otp": _totp(otp_seed)})
-        assert step.status_code == 302, step.text[:500]
-        assert step.headers["location"].startswith(f"{SITE}/api/auth/callback?")
-        return client.get(step.headers["location"])
+    assert step.status_code == 302, step.text[:500]
+    assert step.headers["location"].startswith(f"{SITE}/api/auth/callback?")
+    return client.get(step.headers["location"])
 
 
 async def _db_user(email: str) -> tuple[list[str], list[str]]:
@@ -121,18 +124,54 @@ async def _db_user(email: str) -> tuple[list[str], list[str]]:
         await engine.dispose()
 
 
-def test_member_password_login(caddy_ca: Path) -> None:
-    callback = _login(caddy_ca, "member1")
-    assert callback.status_code == 303, callback.text
-    assert callback.headers["location"] == "/wiki?x=1"
+def test_member_password_login_session_and_logout(caddy_ca: Path) -> None:
+    with _client(caddy_ca) as client:
+        callback = _login(client, "member1")
+        assert callback.status_code == 303, callback.text
+        assert callback.headers["location"] == "/wiki?x=1"
+
+        me = client.get(f"{SITE}/api/me")
+        assert me.status_code == 200, me.text
+        assert me.json()["roles"] == ["MEMBER"]
+        assert me.json()["mfa_satisfied"] is False
+
+        csrf = client.cookies.get("__Host-csrf")
+        assert csrf
+        refused = client.post(f"{SITE}/api/auth/logout", headers={"Origin": SITE})
+        assert refused.status_code == 403  # no CSRF token
+        logout = client.post(
+            f"{SITE}/api/auth/logout", headers={"Origin": SITE, "X-CSRF-Token": csrf}
+        )
+        assert logout.status_code == 200
+        assert logout.json()["logout_url"].startswith(
+            "https://auth.spoldzielnia.localhost/realms/spoldzielnia/protocol/openid-connect/logout?"
+        )
+        assert client.get(f"{SITE}/api/me").status_code == 401
+
     roles, amr = asyncio.run(_db_user("member1@spoldzielnia.localhost"))
     assert roles == ["MEMBER"]
     assert amr == ["pwd"]
 
 
-def test_expert_login_with_otp_reports_amr(caddy_ca: Path) -> None:
-    callback = _login(caddy_ca, "expert1", otp_seed=secret("dev_totp_seed"))
-    assert callback.status_code == 303, callback.text
+def test_expert_login_with_otp_satisfies_mfa(caddy_ca: Path) -> None:
+    with _client(caddy_ca) as client:
+        callback = _login(client, "expert1", otp_seed=secret("dev_totp_seed"))
+        assert callback.status_code == 303, callback.text
+        me = client.get(f"{SITE}/api/me").json()
+        assert sorted(me["roles"]) == ["EXPERT", "MEMBER"]
+        assert me["mfa_satisfied"] is True
     roles, amr = asyncio.run(_db_user("expert1@spoldzielnia.localhost"))
     assert sorted(roles) == ["EXPERT", "MEMBER"]
     assert set(amr) >= {"pwd", "otp"}
+
+
+def test_step_up_login_url_is_accepted_by_keycloak(caddy_ca: Path) -> None:
+    """The step-up hint from `require_mfa` must lead to a fresh Keycloak login form."""
+    with _client(caddy_ca) as client:
+        start = client.get(
+            f"{SITE}/api/auth/login", params={"prompt": "login", "acr_values": "mfa"}
+        )
+        assert start.status_code == 302
+        form = client.get(start.headers["location"])
+        assert form.status_code == 200
+        assert 'id="kc-form-login"' in form.text

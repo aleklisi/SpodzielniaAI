@@ -68,6 +68,11 @@ check "login: 302 to IdP authorize with PKCE S256" bash -c \
   "[[ '$login' == '302 https://auth.$DOMAIN/realms/spoldzielnia/protocol/openid-connect/auth?'* \
      && '$login' == *code_challenge_method=S256* ]]"
 
+expect "me: 401 without a session" "https://$DOMAIN/api/me" 401
+xorigin="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 10 "${CA_ARGS[@]}" -X POST \
+  -H 'Origin: https://evil.example' "https://$DOMAIN/api/auth/logout" || true)"
+check "CSRF: cross-origin POST refused (403)" test "$xorigin" = 403
+
 echo "3. API container hardening"
 uid="$("${COMPOSE[@]}" exec -T api id -u | tr -d '\r')"
 if [[ "$uid" != "0" ]]; then ok "api runs as uid $uid"; else bad "api runs as root"; fi

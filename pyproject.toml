@@ -10,6 +10,7 @@ requires-python = ">=3.12"
 dependencies = [
     "alembic>=1.20.0",
     "asyncpg>=0.32.0",
+    "cryptography>=50.0.2",
     "fastapi>=0.143.2",
     "httpx>=0.28.1",
     "joserfc>=1.7.5",
@@ -31,7 +32,7 @@ build-backend = "uv_build"
 
 [dependency-groups]
 dev = [
-    "fakeredis>=2.40.0",
+    "fakeredis[lua]>=2.40.0",
     "freezegun>=1.5.5",
     "pyright>=1.1.414",
     "pytest>=9.1.1",

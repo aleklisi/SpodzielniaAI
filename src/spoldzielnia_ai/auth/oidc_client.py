@@ -63,8 +63,8 @@ class TokenResponse(BaseModel):
     model_config = ConfigDict(frozen=True, extra="ignore")
 
     token_type: str
-    id_token: str
     access_token: str
+    id_token: str | None = None  # required for the code grant, optional on refresh
     refresh_token: str | None = None
     expires_in: int | None = None
     refresh_expires_in: int | None = None
@@ -223,25 +223,25 @@ class OidcClient:
         endpoint = httpx.URL((await self.metadata()).authorization_endpoint)
         return str(endpoint.copy_merge_params(params))
 
-    async def exchange_code(self, code: str, code_verifier: str) -> TokenResponse:
-        token_endpoint = (await self.metadata()).token_endpoint
+    def _client_auth(self) -> httpx.BasicAuth:
         # client_secret_basic: id and secret are form-urlencoded before base64 (RFC 6749 §2.3.1).
-        auth = httpx.BasicAuth(
+        return httpx.BasicAuth(
             quote(self._settings.client_id, safe=""),
             quote(self._settings.client_secret.get_secret_value(), safe=""),
         )
-        data = {
-            "grant_type": "authorization_code",
-            "code": code,
-            "redirect_uri": self._settings.redirect_uri,
-            "code_verifier": code_verifier,
-        }
+
+    async def _token_request(self, data: dict[str, str]) -> TokenResponse:
+        token_endpoint = (await self.metadata()).token_endpoint
         try:
-            response = await self._client().post(token_endpoint, data=data, auth=auth)
+            response = await self._client().post(
+                token_endpoint, data=data, auth=self._client_auth()
+            )
         except httpx.HTTPError as exc:
             raise OidcProviderError(f"token request failed: {type(exc).__name__}") from exc
         if response.status_code in (400, 401):
-            raise OidcTokenError(f"token endpoint rejected the code: {_oauth_error(response)}")
+            raise OidcTokenError(
+                f"token endpoint rejected the {data['grant_type']} grant: {_oauth_error(response)}"
+            )
         if response.status_code != 200:
             raise OidcProviderError(f"token endpoint returned {response.status_code}")
         try:
@@ -251,6 +251,56 @@ class OidcClient:
         if tokens.token_type.lower() != "bearer":
             raise OidcProviderError(f"unexpected token_type {tokens.token_type!r}")
         return tokens
+
+    async def exchange_code(self, code: str, code_verifier: str) -> TokenResponse:
+        tokens = await self._token_request(
+            {
+                "grant_type": "authorization_code",
+                "code": code,
+                "redirect_uri": self._settings.redirect_uri,
+                "code_verifier": code_verifier,
+            }
+        )
+        if not tokens.id_token:
+            raise OidcProviderError("token response has no id_token")
+        return tokens
+
+    async def refresh(self, refresh_token: str) -> TokenResponse:
+        """Refresh-token grant. ``OidcTokenError`` means the IdP ended the session (revoked,
+        expired, idle, or reused): the caller must drop the session."""
+        return await self._token_request(
+            {"grant_type": "refresh_token", "refresh_token": refresh_token}
+        )
+
+    async def revoke(self, refresh_token: str) -> None:
+        """RFC 7009 revocation, best effort: logout must not fail because the IdP is down."""
+        try:
+            endpoint = (await self.metadata()).revocation_endpoint
+            if endpoint is None:
+                return
+            await self._client().post(
+                endpoint,
+                data={"token": refresh_token, "token_type_hint": "refresh_token"},
+                auth=self._client_auth(),
+            )
+        except (OidcError, httpx.HTTPError) as exc:
+            log.warning("oidc.revoke_failed", error=type(exc).__name__)
+
+    async def end_session_url(self, id_token_hint: str | None) -> str | None:
+        """RP-initiated logout URL for the browser, if the IdP offers one."""
+        try:
+            endpoint = (await self.metadata()).end_session_endpoint
+        except OidcError:
+            return None
+        if endpoint is None:
+            return None
+        params = {
+            "client_id": self._settings.client_id,
+            "post_logout_redirect_uri": self._settings.post_logout_redirect_uri,
+        }
+        if id_token_hint:
+            params["id_token_hint"] = id_token_hint
+        return str(httpx.URL(endpoint).copy_merge_params(params))
 
     async def validate_id_token(self, id_token: str, nonce: str) -> VerifiedIdToken:
         try:

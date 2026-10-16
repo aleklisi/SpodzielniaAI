@@ -87,6 +87,7 @@ class OidcSettings(BaseModel):
     client_id: str = "spoldzielnia-backend"
     client_secret: SecretStr
     redirect_uri: str = "https://spoldzielnia.localhost/api/auth/callback"
+    post_logout_redirect_uri: str = "https://spoldzielnia.localhost/"
     scopes: list[str] = Field(default_factory=lambda: ["openid", "profile", "email"])
     # Dotted path to the roles list in the ID token, e.g. "roles" or "realm_access.roles".
     roles_claim: str = "roles"
@@ -130,11 +131,16 @@ class LlmSettings(BaseModel):
 
 
 class SecuritySettings(BaseModel):
+    # Keys for token encryption at rest and CSRF tokens are derived from it (HKDF).
     session_secret: SecretStr
     allowed_origins: list[str] = Field(default_factory=lambda: ["https://spoldzielnia.localhost"])
-    access_token_ttl_seconds: int = 15 * 60
-    session_absolute_ttl_seconds: int = 12 * 60 * 60
+    # How long the server trusts a session before re-checking with the IdP (refresh).
+    access_token_ttl_seconds: int = Field(default=15 * 60, ge=60)
+    session_absolute_ttl_seconds: int = Field(default=12 * 60 * 60, ge=300)
     mfa_acr_values: list[str] = Field(default_factory=lambda: ["mfa"])
+    mfa_amr_values: list[str] = Field(default_factory=lambda: ["otp", "mfa", "hwk", "fido"])
+    # Waiting for another request's refresh of the same token family.
+    refresh_lock_timeout_seconds: float = Field(default=10.0, gt=0)
 
 
 class _BaseSettings(BaseSettings):

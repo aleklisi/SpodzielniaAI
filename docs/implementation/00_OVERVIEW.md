@@ -176,7 +176,7 @@ Each one is resolved (✅ = decision baked into the chunk plans) or needs your i
 - [x] 1.3 Database layer, roles & core models
 - [x] 1.4 Row-Level Security & immutable audit log
 - [x] 1.5 OIDC Authorization Code + PKCE (BFF)
-- [ ] 1.6 Session cookies, refresh rotation, RBAC & MFA guards
+- [x] 1.6 Session cookies, refresh rotation, RBAC & MFA guards
 
 ### Stage 2 — Uploads, SSRF, Media
 - [ ] 2.1 Private notes API, encrypted object storage
