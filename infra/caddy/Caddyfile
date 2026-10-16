@@ -31,9 +31,10 @@ http://127.0.0.1:8081 {
 	import security_headers
 	encode zstd gzip
 
-	# Matches the upload limit enforced by the API (chunk 2.2).
+	# Largest upload accepted by the API (audio/video 200 MB, chunk 2.2) plus multipart overhead.
+	# The API enforces the per-type limits while streaming.
 	request_body {
-		max_size 50MB
+		max_size 210MB
 	}
 
 	handle_path /api/* {

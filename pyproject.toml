@@ -58,7 +58,8 @@ src = ["src", "tests"]
 select = ["E", "F", "W", "I", "UP", "B", "S", "ASYNC", "SIM", "RUF", "PT", "TC"]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["S101"]
+# Tests may touch files synchronously inside async tests.
+"tests/**" = ["S101", "ASYNC230", "ASYNC240"]
 
 [tool.ruff.lint.flake8-type-checking]
 # SQLAlchemy resolves `Mapped[...]` annotations at runtime, so their imports must stay real.

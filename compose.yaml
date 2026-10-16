@@ -170,6 +170,13 @@ services:
     # egress is only for freshclam signature updates.
     networks: [backend, egress]
     volumes: [clamavdb:/var/lib/clamav]
+    environment:
+      # Above the API's largest upload (200 MB). AlertExceedsMax: anything beyond the limits is
+      # reported FOUND (Heuristics.Limits.Exceeded), never a silent unscanned OK (fail-closed).
+      CLAMD_CONF_StreamMaxLength: 210M
+      CLAMD_CONF_MaxFileSize: 210M
+      CLAMD_CONF_MaxScanSize: 400M
+      CLAMD_CONF_AlertExceedsMax: "yes"
     healthcheck:
       test: ["CMD", "clamdcheck.sh"]
       interval: 30s
@@ -254,6 +261,8 @@ services:
   api:
     <<: [*hardening, *backend-image]
     command: ["api"]
+    # Upload spool: up to ~2x the file size per upload, `uploads.max_concurrent` (2) at a time.
+    tmpfs: ["/tmp:size=1g"]
     restart: unless-stopped
     networks: [edge, backend]
     depends_on:

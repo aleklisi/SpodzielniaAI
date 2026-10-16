@@ -191,6 +191,23 @@ class NotebookService:
             [self.derivative_view(d) for d in derivatives],
         )
 
+    async def get_attachment(
+        self, note_id: UUID, attachment_id: UUID
+    ) -> tuple[AttachmentView, list[DerivativeView]] | None:
+        row = await self._session.scalar(
+            select(NoteAttachment).where(
+                NoteAttachment.id == attachment_id, NoteAttachment.note_id == note_id
+            )
+        )
+        if row is None:
+            return None
+        derivatives = await self._session.scalars(
+            select(NoteDerivative)
+            .where(NoteDerivative.attachment_id == attachment_id)
+            .order_by(NoteDerivative.created_at, NoteDerivative.id)
+        )
+        return self.attachment_view(row), [self.derivative_view(d) for d in derivatives]
+
     async def update(
         self, note_id: UUID, title: str | None = None, body: str | None = None
     ) -> NoteView | None:

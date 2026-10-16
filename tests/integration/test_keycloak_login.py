@@ -175,3 +175,31 @@ def test_step_up_login_url_is_accepted_by_keycloak(caddy_ca: Path) -> None:
         form = client.get(start.headers["location"])
         assert form.status_code == 200
         assert 'id="kc-form-login"' in form.text
+
+
+EICAR = rb"X5O!P%@AP[4\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*"
+
+
+def test_upload_through_the_stack(caddy_ca: Path) -> None:
+    """Chunk 2.3 in the real stack: Caddy → api → clamd → MinIO, as a Keycloak user."""
+    with _client(caddy_ca) as client:
+        assert _login(client, "member2").status_code == 303
+        headers = {"Origin": SITE, "X-CSRF-Token": client.cookies.get("__Host-csrf") or ""}
+        note = client.post(f"{SITE}/api/notes", json={"title": "Stack"}, headers=headers).json()
+        url = f"{SITE}/api/notes/{note['id']}/attachments"
+
+        infected = client.post(
+            url, files={"file": ("eicar.txt", EICAR, "text/plain")}, headers=headers
+        )
+        assert infected.status_code == 422, infected.text
+        assert infected.json()["detail"]["error"] == "infected"
+
+        clean = client.post(
+            url,
+            files={"file": ("notatka.txt", "Miód rzepakowy\n".encode(), "text/plain")},
+            headers=headers,
+        )
+        assert clean.status_code == 202, clean.text
+        assert clean.json()["scan_status"] == "CLEAN"
+
+        assert client.delete(f"{SITE}/api/notes/{note['id']}", headers=headers).status_code == 204

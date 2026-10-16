@@ -124,6 +124,25 @@ class S3Settings(BaseModel):
     region: str = "us-east-1"
 
 
+class ClamavSettings(BaseModel):
+    host: str = "clamav"
+    port: int = 3310
+    connect_timeout_seconds: float = Field(default=5.0, gt=0)
+    scan_timeout_seconds: float = Field(default=180.0, gt=0)
+    # Must not exceed clamd's StreamMaxLength (compose: CLAMD_CONF_StreamMaxLength=210M).
+    stream_max_bytes: int = Field(default=210 * 1024 * 1024, gt=0)
+
+
+class UploadSettings(BaseModel):
+    # Spool directory (tmpfs in the container). None: the system temp dir.
+    tmp_dir: str | None = None
+    # Each upload needs up to ~2x its size in the spool: bound the parallelism.
+    max_concurrent: int = Field(default=2, ge=1)
+    # Hard cap on the streamed file part, before type-specific limits apply.
+    max_bytes: int = Field(default=200 * 1024 * 1024, gt=0)
+    max_image_pixels: int = Field(default=60_000_000, gt=0)
+
+
 class LlmSettings(BaseModel):
     local_base_url: str = "http://llm:11434"
     local_model: str = "ollama/bielik"
@@ -191,6 +210,8 @@ class Settings(_BaseSettings):
     qdrant: QdrantSettings = Field(default_factory=QdrantSettings)
     s3: S3Settings = Field(default_factory=S3Settings)
     llm: LlmSettings = Field(default_factory=LlmSettings)
+    clamav: ClamavSettings = Field(default_factory=ClamavSettings)
+    uploads: UploadSettings = Field(default_factory=UploadSettings)
 
     @model_validator(mode="after")
     def _require_runtime_secrets(self) -> Self:

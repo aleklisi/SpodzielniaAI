@@ -143,6 +143,32 @@ Order of operations (each failure → specific status, audited as `UPLOAD_REJECT
 - Scanner down → 503, nothing in storage.
 - JPEG with GPS EXIF → stored image has no GPS. With `keep_location=true`, GPS stays and other tags are gone.
 
+
+**As built (decisions made during implementation)**
+- Upload streaming: `files/multipart.py` parses `request.stream()` with python-multipart's
+  callback parser. Starlette's `request.form()` would buffer the whole file first, with no cap
+  on file parts. One `file` part, known small fields only (`keep_location`). The cap is
+  `uploads.max_bytes` (200 MB) while streaming, and the per-type limits come after detection.
+  Filenames are reduced to a printable base name and stored only encrypted.
+- No DB transaction is held while bytes stream or are scanned. There is a short RLS check of
+  the note before reading the body (404 without consuming it), then processing, then a short
+  RLS transaction inserting the row. It re-checks the note and deletes the stored object if
+  the note vanished or the insert failed.
+- `UPLOAD_REJECTED` is written by the session audit sink in its own transaction, so it
+  survives the failed request. Payload: reason, note id, size or MIME type or signature. Never
+  the filename. `ATTACHMENT_LOCATION_RETAINED` is in the insert transaction.
+- clamd: `CLAMD_CONF_StreamMaxLength/MaxFileSize=210M`, `MaxScanSize=400M`,
+  `AlertExceedsMax=yes`. Without the latter, clamd answers `OK` for files beyond its limits
+  without scanning them. The client refuses anything over `clamav.stream_max_bytes` itself.
+- Sanitising: images are re-encoded after `exif_transpose`. Only the ICC profile is kept, plus
+  the GPS IFD with `keep_location`. Decompression bombs are refused (`uploads.max_image_pixels`).
+  Encrypted PDFs are refused (they can't be inspected). DOCX/ODT/ZIP/text pass unchanged
+  (document text is scrubbed for PII in Stage 3).
+- Concurrency: `uploads.max_concurrent` (2) uploads at a time. The api `/tmp` tmpfs is 1 GB
+  (spool + sanitised copy + ciphertext ≈ 2× file). Caddy `request_body max_size 210MB`.
+- `GET /notes/{id}/attachments/{aid}` (attachment + its derivatives) is already here. The
+  processing queue is a no-op until 2.5.
+
 ---
 
 ## Chunk 2.4 — SSRF-safe link fetcher
