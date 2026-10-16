@@ -182,8 +182,10 @@ make deploy VERSION=v1.0.0   # prod: pull, migrate, up (run on server)
 - **OIDC issuer split-horizon fix:** the browser and the `api` container must use the **same issuer
   URL**. `proxy` gets the network alias `auth.<domain>` on `edge`, so `api` resolves the public
   issuer hostname to Caddy internally (no internet and no hairpin NAT needed). In dev, `api` trusts
-  Caddy's local root CA for the OIDC HTTP client only (`OIDC_CA_BUNDLE`, read-only mount from
-  `caddy_data`).
+  Caddy's local root CA for the OIDC HTTP client only (`SPOLDZIELNIA_OIDC__CA_BUNDLE`). The dev-only
+  `caddy-ca` service copies just `root.crt` from `caddy_data` into the `caddy_ca` volume, which `api`
+  mounts read-only. `caddy_data` itself is never mounted into `api`, because it holds the CA private
+  keys.
 - **Client IPs:** uvicorn runs with `--proxy-headers --forwarded-allow-ips=<edge subnet>`. `edge`
   has a fixed subnet so only Caddy's `X-Forwarded-For` is trusted (matters for audit log and rate limits).
 

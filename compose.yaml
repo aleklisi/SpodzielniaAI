@@ -267,6 +267,7 @@ services:
       SPOLDZIELNIA_FORWARDED_ALLOW_IPS: 172.30.1.0/24
       SPOLDZIELNIA_SECURITY__ALLOWED_ORIGINS: '["https://${SITE_DOMAIN:-spoldzielnia.localhost}"]'
       SPOLDZIELNIA_OIDC__ISSUER: https://auth.${SITE_DOMAIN:-spoldzielnia.localhost}/realms/spoldzielnia
+      SPOLDZIELNIA_OIDC__REDIRECT_URI: https://${SITE_DOMAIN:-spoldzielnia.localhost}/api/auth/callback
       SPOLDZIELNIA_QDRANT__CA_BUNDLE: /run/secrets/internal_ca
     secrets:
       - { source: pg_app_password, target: db__app_password }

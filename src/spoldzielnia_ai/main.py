@@ -7,7 +7,10 @@ from typing import TYPE_CHECKING, Literal
 
 from fastapi import FastAPI, Request, Response, status
 from pydantic import BaseModel
+from redis.asyncio import Redis
 
+from spoldzielnia_ai.api.auth import router as auth_router
+from spoldzielnia_ai.auth.oidc_client import OidcClient
 from spoldzielnia_ai.core.logging import configure_logging, get_logger
 from spoldzielnia_ai.core.readiness import ReadinessCheck, default_checks
 from spoldzielnia_ai.core.settings import Settings, get_settings
@@ -38,6 +41,9 @@ def create_app(
     settings = settings or get_settings()
     configure_logging(settings.log_level, json=settings.environment != "dev")
     engine = create_app_engine(settings.db)
+    # Neither client connects until first use.
+    redis: Redis = Redis.from_url(settings.redis.url())  # pyright: ignore[reportUnknownMemberType]
+    oidc_client = OidcClient(settings.oidc)
     schema_revision = head_revision()
     checks = (
         readiness_checks
@@ -49,6 +55,8 @@ def create_app(
     async def lifespan(_app: FastAPI) -> AsyncGenerator[None]:
         log.info("app.startup", environment=settings.environment, schema_revision=schema_revision)
         yield
+        await oidc_client.aclose()
+        await redis.aclose()
         await engine.dispose()
         log.info("app.shutdown")
 
@@ -64,6 +72,9 @@ def create_app(
     app.state.settings = settings
     app.state.engine = engine
     app.state.session_factory = create_session_factory(engine)
+    app.state.redis = redis
+    app.state.oidc_client = oidc_client
+    app.include_router(auth_router)
 
     @app.get("/healthz", response_model=HealthResponse, tags=["ops"])
     async def healthz() -> HealthResponse:  # pyright: ignore[reportUnusedFunction]

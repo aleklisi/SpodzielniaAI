@@ -279,6 +279,37 @@ never sees access or refresh tokens. It only gets an opaque session cookie.
 `make smoke` checks that `GET /api/auth/login` returns a 302 to the Keycloak authorize endpoint
 with `code_challenge_method=S256`.
 
+**As built (decisions made during implementation)**
+- Deps: `joserfc` (typed JOSE) + `httpx` for the code flow, `redis[hiredis]`. Authlib's Starlette
+  client is untyped and assumes server-side session middleware, which this BFF doesn't use.
+- Modules: `auth/oidc_client.py` (discovery + JWKS cache, exchange, ID-token validation),
+  `auth/pkce.py`, `auth/login_state.py` (Redis adapter, `SET NX` + `GETDEL`), `auth/redirects.py`,
+  `auth/identity.py` (claims → identity, dotted `oidc.roles_claim`), `auth/provisioning.py`,
+  router `api/auth.py`.
+- **Login CSRF protection (beyond the spec):** `/auth/login` also sets `__Host-oidc_login=<state>`
+  (`HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=600`). The callback requires the cookie to
+  equal `state`, so a callback URL planted by an attacker can't log a victim into the attacker's
+  account. It's `Lax` because the IdP redirect is a cross-site top-level navigation.
+- Validation details: `alg` is checked against `oidc.signing_algs` before the key lookup (settings
+  refuse `none`/`HS*`). The token must have a `kid`. JWKS keys with `use=enc` are ignored. An
+  unknown `kid` refetches the JWKS at most every `jwks_min_refresh_seconds`. `azp` must equal the
+  client when present or when `aud` has several entries. Discovery `issuer` must match exactly,
+  and the IdP must offer S256.
+- Status codes: bad/unbound/replayed state, provider `error`, missing code → 400; rejected code
+  or ID token → 401; IdP unreachable/misconfigured → 502; locked user → 423 (the login is still
+  audited, with `outcome="locked"`).
+- Provisioning: `INSERT … ON CONFLICT (oidc_issuer, oidc_subject) DO UPDATE`. Email is stored only
+  when `email_verified` is true. Login never touches `is_locked`/`risk_score`. `USER_PROVISIONED`
+  (first login) and `USER_LOGIN` (`provider`, `outcome`, `roles`, `acr`, `amr`; no PII) are
+  written in the same transaction.
+- `/auth/login` already accepts `acr_values` (only values from `security.mfa_acr_values`) and
+  `prompt=login` for step-up in 1.6. The callback redirects to `return_to` without a session
+  until 1.6 (`TODO(1.6)` in `api/auth.py`). The tokens are discarded until then.
+- Dev CA: `caddy-ca` service (see DEPLOYMENT_DOCKER §"OIDC issuer split-horizon fix"). The OIDC
+  HTTP client is created on first use, because the CA file appears only after the proxy starts.
+- Integration test `test_keycloak_login.py` drives the real Keycloak forms for `member1` (pwd)
+  and `expert1` (pwd + TOTP from the dev seed) and checks the stored roles and audited `amr`.
+
 ---
 
 ## Chunk 1.6 — Session cookies, refresh rotation, RBAC & MFA guards

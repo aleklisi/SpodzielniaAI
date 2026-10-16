@@ -61,6 +61,12 @@ expect "OIDC discovery" "https://auth.$DOMAIN/realms/spoldzielnia/.well-known/op
 check "issuer matches public URL" bash -c \
   "curl -sS ${CA_ARGS[*]} https://auth.$DOMAIN/realms/spoldzielnia/.well-known/openid-configuration \
    | grep -q '\"issuer\":\"https://auth.$DOMAIN/realms/spoldzielnia\"'"
+# The api fetches discovery itself (through the proxy alias, trusting the dev CA) to build this.
+login="$(curl -sS -o /dev/null -w '%{http_code} %{redirect_url}' --max-time 15 "${CA_ARGS[@]}" \
+  "https://$DOMAIN/api/auth/login" || true)"
+check "login: 302 to IdP authorize with PKCE S256" bash -c \
+  "[[ '$login' == '302 https://auth.$DOMAIN/realms/spoldzielnia/protocol/openid-connect/auth?'* \
+     && '$login' == *code_challenge_method=S256* ]]"
 
 echo "3. API container hardening"
 uid="$("${COMPOSE[@]}" exec -T api id -u | tr -d '\r')"

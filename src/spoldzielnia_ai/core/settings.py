@@ -74,12 +74,39 @@ class RedisSettings(BaseModel):
         return f"redis://:{password}@{self.host}:{self.port}/{self.db}"
 
 
+# Asymmetric signatures only: `none` and HMAC (`HS*`, keyed with the shared client secret) are
+# never acceptable for ID tokens.
+OIDC_SIGNING_ALGS = frozenset({"RS256", "RS384", "RS512", "PS256", "PS384", "PS512", "ES256"})
+
+
 class OidcSettings(BaseModel):
+    """The single trusted issuer (Keycloak). External IdPs are brokered inside it."""
+
+    provider: str = "keycloak"
     issuer: str = "https://auth.spoldzielnia.localhost/realms/spoldzielnia"
     client_id: str = "spoldzielnia-backend"
     client_secret: SecretStr
-    ca_bundle: str | None = None
+    redirect_uri: str = "https://spoldzielnia.localhost/api/auth/callback"
+    scopes: list[str] = Field(default_factory=lambda: ["openid", "profile", "email"])
+    # Dotted path to the roles list in the ID token, e.g. "roles" or "realm_access.roles".
     roles_claim: str = "roles"
+    # Dev: Caddy's local root CA. Prod: public certificates, no custom CA.
+    ca_bundle: str | None = None
+    signing_algs: list[str] = Field(default_factory=lambda: ["RS256", "ES256"])
+    leeway_seconds: int = Field(default=60, ge=0, le=300)
+    login_state_ttl_seconds: int = Field(default=600, ge=60, le=600)
+    http_timeout_seconds: float = Field(default=10.0, gt=0)
+    metadata_ttl_seconds: int = Field(default=3600, ge=60)
+    # A `kid` miss refetches the JWKS at most this often (unknown-kid tokens can't force a flood).
+    jwks_min_refresh_seconds: int = Field(default=30, ge=1)
+
+    @model_validator(mode="after")
+    def _check(self) -> Self:
+        if not self.signing_algs or not set(self.signing_algs) <= OIDC_SIGNING_ALGS:
+            raise ValueError(f"oidc.signing_algs must be a subset of {sorted(OIDC_SIGNING_ALGS)}")
+        if "openid" not in self.scopes:
+            raise ValueError("oidc.scopes must include 'openid'")
+        return self
 
 
 class QdrantSettings(BaseModel):

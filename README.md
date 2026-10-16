@@ -95,6 +95,15 @@ entries with `audit.service.AuditService` inside the transaction of the action b
 Revision ids are explicit and sortable (`NNNN_name`). `/api/readyz` reports `schema_revision` and
 fails its `migrations` check until the DB is at the image's head.
 
+## Authentication (OIDC, BFF)
+
+The API is the OAuth confidential client. The browser never sees tokens. `GET /api/auth/login`
+(`?return_to=/path`) redirects to Keycloak with PKCE S256. `GET /api/auth/callback` validates the
+ID token, provisions the user by `(issuer, subject)` and audits the login. External IdPs (Google
+Workspace, Entra ID) are configured as brokers inside Keycloak, so the API trusts one issuer.
+Dev users: `member1`, `member2` (password), `expert1`, `admin1` (password + TOTP). The password is
+in `secrets/dev_user_password`, the TOTP seed in `secrets/dev_totp_seed`. Sessions arrive in 1.6.
+
 ## Test markers
 
 `integration` (Docker services), `ml` (heavy models), `e2e` (running stack). Run a subset with

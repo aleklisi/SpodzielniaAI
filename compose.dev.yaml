@@ -9,6 +9,10 @@ networks:
     driver: bridge
     ipam: { config: [{ subnet: 172.30.9.0/24 }] }
 
+volumes:
+  # Caddy's local root *certificate* only (see caddy-ca), never the CA keys next to it.
+  caddy_ca:
+
 secrets:
   dev_user_password: { file: ./secrets/dev_user_password }
   dev_totp_seed: { file: ./secrets/dev_totp_seed }
@@ -61,6 +65,11 @@ services:
     build: *backend-build
     environment:
       SPOLDZIELNIA_ENVIRONMENT: dev
+      # The OIDC client reaches the issuer through Caddy, whose dev certificate comes from its
+      # local CA. Loaded on first use: the file appears once the proxy is up (caddy-ca).
+      SPOLDZIELNIA_OIDC__CA_BUNDLE: /run/caddy-ca/root.crt
+    volumes:
+      - caddy_ca:/run/caddy-ca:ro
     develop:
       watch:
         # The image installs the package non-editable, so source changes rebuild it.
@@ -74,6 +83,35 @@ services:
     environment:
       # Docker Desktop NATs browser traffic from the host through a private bridge address.
       KC_ADMIN_ALLOW: private_ranges
+
+  # Dev only: copy Caddy's local root certificate into `caddy_ca` once the proxy has created it.
+  # Mounting caddy_data itself into the api would expose the CA private keys. It stays up (idle)
+  # so `up --wait` can wait on its healthcheck: a one-shot that exits fails `--wait`.
+  caddy-ca:
+    image: caddy:2.11.7@sha256:685ae3d7c34d9b5f8caeddc5d14051db7bbd88ff1f5a2fa0c16bd8ca328fb7af
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        src=/caddy/caddy/pki/authorities/local/root.crt
+        for _ in $$(seq 60); do [ -s "$$src" ] && break; sleep 1; done
+        cp "$$src" /ca/.root.crt.tmp && chmod 0444 /ca/.root.crt.tmp && mv -f /ca/.root.crt.tmp /ca/root.crt
+        exec sleep infinity
+    init: true
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "test", "-s", "/ca/root.crt"]
+      interval: 5s
+      timeout: 2s
+      retries: 30
+    network_mode: none
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    volumes:
+      - caddy_data:/caddy:ro
+      - caddy_ca:/ca
+    depends_on:
+      proxy: { condition: service_healthy }
 
   mailpit:
     networks: [public]
