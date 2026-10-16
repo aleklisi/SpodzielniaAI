@@ -11,10 +11,12 @@ from typing import TYPE_CHECKING, Any
 
 from celery import Celery  # pyright: ignore[reportMissingTypeStubs]
 
-from spoldzielnia_ai.workers.jobs import TASK_QUEUE, TIME_LIMITS, DerivativeJob, TaskName
+from spoldzielnia_ai.workers.jobs import JOB_MODEL, TASK_QUEUE, TIME_LIMITS, TaskName
 
 if TYPE_CHECKING:
     from collections.abc import Callable
+
+    from spoldzielnia_ai.workers.jobs import Job
 
 APP_NAME = "spoldzielnia"
 # Longest task (transcription hard limit) plus margin: unacked messages are redelivered after it.
@@ -44,13 +46,13 @@ def make_celery(broker_url: str, *, eager: bool = False) -> Any:
 
 
 def register(
-    app: Any, name: TaskName, run: Callable[[DerivativeJob, int], bool], max_retries: int = 3
+    app: Any, name: TaskName, run: Callable[[Any, int], bool], max_retries: int = 3
 ) -> None:
     """Register ``run(job, attempt) -> retry?`` as a bound task with exponential backoff."""
     soft, hard = TIME_LIMITS[name]
 
     def task(self: Any, **message: object) -> None:
-        job = DerivativeJob.model_validate(message)  # ids only; anything else raises
+        job = JOB_MODEL[name].model_validate(message)  # ids only; anything else raises
         attempt = int(self.request.retries)
         while run(job, attempt) and attempt < max_retries:
             if self.request.is_eager:  # tests: Celery would raise Retry instead of re-running
@@ -69,7 +71,7 @@ def register(
     )(task)
 
 
-def send(app: Any, name: TaskName, job: DerivativeJob) -> None:
+def send(app: Any, name: TaskName, job: Job) -> None:
     if app.conf.task_always_eager:  # tests: `send_task` would ignore eager mode and publish
         app.tasks[name.value].apply(kwargs=job.to_message())
         return

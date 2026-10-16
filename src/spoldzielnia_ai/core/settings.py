@@ -201,6 +201,10 @@ class WorkerSecuritySettings(BaseModel):
     kek: SecretStr
 
 
+class PromotionSettings(BaseModel):
+    daily_limit: int = Field(default=20, ge=1)  # promotions per user per UTC day
+
+
 class LlmSettings(BaseModel):
     """LLM endpoints over the standard OpenAI API (LM Studio, Ollama, vLLM, …).
 
@@ -295,6 +299,7 @@ class Settings(_BaseSettings):
     clamav: ClamavSettings = Field(default_factory=ClamavSettings)
     uploads: UploadSettings = Field(default_factory=UploadSettings)
     fetch: FetchSettings = Field(default_factory=FetchSettings)
+    promotion: PromotionSettings = Field(default_factory=PromotionSettings)
 
     @model_validator(mode="after")
     def _require_runtime_secrets(self) -> Self:

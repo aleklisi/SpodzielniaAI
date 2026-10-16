@@ -15,6 +15,8 @@ from spoldzielnia_ai.api.auth import router as auth_router
 from spoldzielnia_ai.api.links import router as links_router
 from spoldzielnia_ai.api.me import router as me_router
 from spoldzielnia_ai.api.notes import router as notes_router
+from spoldzielnia_ai.api.promotion import notes_router as promote_router
+from spoldzielnia_ai.api.promotion import router as promotions_router
 from spoldzielnia_ai.auth.crypto import CsrfTokens, TokenSealer, derive_key
 from spoldzielnia_ai.auth.csrf import csrf_middleware
 from spoldzielnia_ai.auth.deps import DbAuditSink
@@ -103,7 +105,9 @@ def create_app(
     app.state.upload_slots = asyncio.Semaphore(settings.uploads.max_concurrent)
     app.include_router(auth_router)
     app.include_router(me_router)
+    app.include_router(promote_router)  # before /notes/{note_id}
     app.include_router(notes_router)
+    app.include_router(promotions_router)
     app.include_router(attachments_router)
     app.include_router(links_router)
 

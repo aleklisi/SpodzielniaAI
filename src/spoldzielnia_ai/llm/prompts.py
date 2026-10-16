@@ -16,6 +16,7 @@ Templates are versioned constants. ``PromptTemplate.digest`` goes into the promo
 from __future__ import annotations
 
 import hashlib
+import re
 import secrets
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
@@ -30,9 +31,30 @@ def new_boundary() -> str:
     return secrets.token_hex(12)
 
 
+def _placeholder_pattern() -> re.Pattern[str]:
+    from spoldzielnia_ai.privacy.scrubber import PSEUDONYMIZED, TAGS
+
+    numbered = "|".join(re.escape(TAGS[e]) for e in PSEUDONYMIZED)
+    plain = "|".join(re.escape(t) for e, t in TAGS.items() if e not in PSEUDONYMIZED)
+    return re.compile(rf"&lt;((?:{numbered})_\d{{1,4}}|(?:{plain}))&gt;")
+
+
+# Exactly the scrubber's placeholder vocabulary (<PESEL>, <OSOBA_3> …). These tags cannot close
+# the data block or imitate a role tag, so they stay readable for the model. Anything else,
+# e.g. <SYSTEM>, stays escaped.
+_PLACEHOLDER = _placeholder_pattern()
+
+
 def escape_untrusted(data: str, boundary: str) -> str:
     escaped = data.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    escaped = _PLACEHOLDER.sub(r"<\1>", escaped)
     return escaped.replace(boundary, "")
+
+
+def restore_placeholders(text: str) -> str:
+    """Model output may echo placeholders as entities (``&lt;PESEL&gt;``): turn exactly those
+    back into ``<PESEL>``. Every other entity stays escaped, so no markup is created."""
+    return _PLACEHOLDER.sub(r"<\1>", text)
 
 
 def wrap_untrusted(data: str, boundary: str, label: str = "") -> str:

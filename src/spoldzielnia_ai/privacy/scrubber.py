@@ -135,13 +135,56 @@ class _Pseudonyms:
         return number
 
 
+_CHECKSUM_ENTITIES = {
+    "PESEL": "PL_PESEL",
+    "NIP": "PL_NIP",
+    "REGON": "PL_REGON",
+    "IBAN": "IBAN_CODE",
+    "NRB": "PL_NRB",
+}
+
+
+class ChecksumAnalyzer:
+    """Context-free, checksum-validated Polish IDs (pure Python, ``pl_identifiers``).
+
+    Combined with Presidio as a safety net, and used alone where the heavy NLP engine isn't
+    loaded. Finds reformatted IDs too ("440514 01359", "PL61 1090 …").
+    """
+
+    def analyze(self, text: str) -> list[PiiFinding]:
+        from spoldzielnia_ai.privacy.pl_identifiers import find_checksum_identifiers
+
+        return [
+            PiiFinding(_CHECKSUM_ENTITIES[kind], start, end, 1.0)
+            for kind, start, end in find_checksum_identifiers(text)
+        ]
+
+
+class CombinedAnalyzer:
+    def __init__(self, *analyzers: Analyzer) -> None:
+        self._analyzers = analyzers
+
+    def analyze(self, text: str) -> list[PiiFinding]:
+        return [finding for analyzer in self._analyzers for finding in analyzer.analyze(text)]
+
+
 class PiiScrubber:
     def __init__(self, analyzer: Analyzer) -> None:
         self._analyzer = analyzer
 
     def scrub(self, text: str, *, policy: ScrubPolicy = DEFAULT_POLICY) -> ScrubResult:
-        chosen = _select(self._analyzer.analyze(text), policy)
+        return self._scrub(text, policy, _Pseudonyms())
+
+    def scrub_many(
+        self, texts: list[str], *, policy: ScrubPolicy = DEFAULT_POLICY
+    ) -> list[ScrubResult]:
+        """Scrub several documents with **one** pseudonym table: ``<OSOBA_1>`` is the same
+        person in every document of one promotion."""
         pseudonyms = _Pseudonyms()
+        return [self._scrub(text, policy, pseudonyms) for text in texts]
+
+    def _scrub(self, text: str, policy: ScrubPolicy, pseudonyms: _Pseudonyms) -> ScrubResult:
+        chosen = _select(self._analyzer.analyze(text), policy)
         pieces: list[str] = []
         cursor = 0
         for finding in chosen:

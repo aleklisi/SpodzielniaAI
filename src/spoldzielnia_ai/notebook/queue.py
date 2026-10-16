@@ -13,7 +13,7 @@ from spoldzielnia_ai.db.enums import DerivativeKind
 from spoldzielnia_ai.db.rls import rls_session
 from spoldzielnia_ai.notebook.service import NotebookService
 from spoldzielnia_ai.workers.celery_adapter import send
-from spoldzielnia_ai.workers.jobs import KIND_TASK, DerivativeJob, TaskName
+from spoldzielnia_ai.workers.jobs import KIND_TASK, DerivativeJob, PromotionJob, TaskName
 
 if TYPE_CHECKING:
     from uuid import UUID
@@ -61,6 +61,10 @@ class CeleryProcessingQueue:
     async def derivative_done(self, job: DerivativeJob) -> None:
         """A derivative has content: screen it for prompt injection (worker-core)."""
         await self._send(TaskName.SCAN_DERIVATIVE, job)
+
+    async def promotion_requested(self, promotion_id: UUID, owner_id: UUID) -> None:
+        job = PromotionJob(promotion_id=promotion_id, owner_id=owner_id)
+        await asyncio.to_thread(send, self._celery, TaskName.PROMOTE_NOTES, job)
 
     async def link_added(self, derivative_id: UUID, owner_id: UUID) -> None:
         job = DerivativeJob(derivative_id=derivative_id, owner_id=owner_id)

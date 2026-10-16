@@ -23,6 +23,8 @@ from spoldzielnia_ai.llm.injection_guard import InjectionGuard
 from spoldzielnia_ai.net.safe_fetch import SafeFetcher
 from spoldzielnia_ai.notebook.queue import CeleryProcessingQueue
 from spoldzielnia_ai.notebook.uploads import UploadPipeline
+from spoldzielnia_ai.privacy.scrubber import ChecksumAnalyzer, CombinedAnalyzer, PiiScrubber
+from spoldzielnia_ai.wiki.promotion import PromotionProcessor
 from spoldzielnia_ai.workers.celery_adapter import make_celery, register
 from spoldzielnia_ai.workers.engines.text import TextEngine
 from spoldzielnia_ai.workers.engines.vision import GatewayVisionEngine, UnavailableVisionEngine
@@ -37,7 +39,7 @@ if TYPE_CHECKING:
     from spoldzielnia_ai.db.session import SessionFactory
     from spoldzielnia_ai.llm.injection_guard import Classifier
     from spoldzielnia_ai.workers.engines.base import Engine
-    from spoldzielnia_ai.workers.jobs import DerivativeJob
+    from spoldzielnia_ai.workers.jobs import DerivativeJob, PromotionJob
 
 log = get_logger(__name__)
 
@@ -59,6 +61,8 @@ class WorkerRuntime:
         self._runner: asyncio.Runner | None = None
         self._processor: DerivativeProcessor | None = None
         self._scanner: DerivativeScanner | None = None
+        self._promoter: PromotionProcessor | None = None
+        self._guard: tuple[InjectionGuard, bool] | None = None
         self._factory: SessionFactory | None = None
         self._cipher: EnvelopeCipher | None = None
         self._engine_cache: dict[str, Engine] = {}
@@ -103,17 +107,32 @@ class WorkerRuntime:
         """worker-core: heuristics always; the classifier from the models volume. Without it,
         the scan still runs and records ``classifier: unavailable``."""
         factory, cipher = self._shared()
-        model_dir = Path(self._settings.models.injection_dir)
-        classifier: Classifier | None = None
-        if (model_dir / "model.safetensors").is_file():
-            from spoldzielnia_ai.llm.injection_model import InjectionClassifier
+        guard, has_classifier = self._injection_guard()
+        return DerivativeScanner(factory, cipher, guard, has_classifier)
 
-            classifier = InjectionClassifier(model_dir)
-        else:
-            log.error("worker.injection_classifier_missing", path=str(model_dir))
-        return DerivativeScanner(
-            factory, cipher, InjectionGuard(classifier), classifier is not None
-        )
+    def _injection_guard(self) -> tuple[InjectionGuard, bool]:
+        """One classifier per process, shared by screening and promotion."""
+        if self._guard is None:
+            model_dir = Path(self._settings.models.injection_dir)
+            classifier: Classifier | None = None
+            if (model_dir / "model.safetensors").is_file():
+                from spoldzielnia_ai.llm.injection_model import InjectionClassifier
+
+                classifier = InjectionClassifier(model_dir)
+            else:
+                log.error("worker.injection_classifier_missing", path=str(model_dir))
+            self._guard = (InjectionGuard(classifier), classifier is not None)
+        return self._guard
+
+    def _build_promoter(self) -> PromotionProcessor:
+        """worker-core: Presidio (+ checksum IDs), the guard and the local LLM gateway."""
+        from spoldzielnia_ai.privacy.presidio_adapter import PresidioAnalyzer
+
+        factory, cipher = self._shared()
+        scrubber = PiiScrubber(CombinedAnalyzer(PresidioAnalyzer.shared(), ChecksumAnalyzer()))
+        guard, _ = self._injection_guard()
+        gateway = LiteLLMGateway(self._settings.llm)
+        return PromotionProcessor(factory, cipher, scrubber, guard, gateway)
 
     def _build(self) -> DerivativeProcessor:
         settings = self._settings
@@ -162,7 +181,15 @@ class WorkerRuntime:
             self._scanner = runner.run(_construct(self._build_scanner))
         return runner.run(self._scanner.handle(job, final_attempt=attempt >= MAX_RETRIES))
 
-    def handler(self, name: TaskName) -> Callable[[DerivativeJob, int], bool]:
+    def promote(self, job: PromotionJob, attempt: int) -> bool:
+        runner = self._loop()
+        if self._promoter is None:
+            self._promoter = runner.run(_construct(self._build_promoter))
+        return runner.run(self._promoter.handle(job, final_attempt=attempt >= MAX_RETRIES))
+
+    def handler(self, name: TaskName) -> Callable[[Any, int], bool]:
+        if name == TaskName.PROMOTE_NOTES:
+            return self.promote
         return self.scan if name == TaskName.SCAN_DERIVATIVE else self.run
 
 

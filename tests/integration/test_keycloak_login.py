@@ -265,3 +265,56 @@ def test_link_is_fetched_by_the_egress_worker(caddy_ca: Path) -> None:
             assert "documentation examples" in str(derivative["content"])  # main text
         finally:
             client.delete(f"{SITE}/api/notes/{note['id']}", headers=headers)
+
+
+LLM_READY_PY = """
+import sys, urllib.request
+from spoldzielnia_ai.core.settings import WorkerSettings
+s = WorkerSettings()
+if not s.llm.chat_model:
+    sys.exit("LLM_CHAT_MODEL is not set")
+request = urllib.request.Request(s.llm.local_base_url.rstrip("/") + "/models")
+key = s.llm.api_key.get_secret_value().strip() if s.llm.api_key else ""
+if key:
+    request.add_header("Authorization", "Bearer " + key)
+try:
+    body = urllib.request.urlopen(request, timeout=5).read().decode()
+except Exception as exc:
+    sys.exit(f"local LLM endpoint not usable: {exc}")
+if s.llm.chat_model not in body:
+    sys.exit(f"model {s.llm.chat_model!r} not served by the local endpoint")
+"""
+
+
+def test_promotion_through_the_stack(caddy_ca: Path) -> None:
+    """Chunk 3.5 Docker gate: api → Celery → worker-core (no internet) → local LLM → blocks."""
+    ready = compose("exec", "-T", "worker-core", "python", "-c", LLM_READY_PY)
+    if ready.returncode != 0:
+        reason = (ready.stderr.strip().splitlines() or ["unknown"])[-1]
+        pytest.skip(f"no local chat model for promotion: {reason}")
+    with _client(caddy_ca) as client:
+        assert _login(client, "member2").status_code == 303
+        headers = {"Origin": SITE, "X-CSRF-Token": client.cookies.get("__Host-csrf") or ""}
+        note = client.post(
+            f"{SITE}/api/notes",
+            json={
+                "title": "Przegląd wiosenny",
+                "body": "Rodziny przezimowały dobrze. Właściciel: Jan Kowalski, PESEL 44051401359.",
+            },
+            headers=headers,
+        ).json()
+        try:
+            response = client.post(
+                f"{SITE}/api/notes/promote-to-wiki",
+                json={"note_ids": [note["id"]], "title_hint": "Przezimowanie"},
+                headers=headers,
+            )
+            assert response.status_code == 202, response.text
+            url = f"{SITE}/api/promotions/{response.json()['promotion_id']}"
+            deadline = time.monotonic() + 600
+            while (promotion := client.get(url).json())["status"] in ("PENDING", "RUNNING"):
+                assert time.monotonic() < deadline, promotion
+                time.sleep(2)
+            assert promotion["status"] == "DONE", promotion
+        finally:
+            client.delete(f"{SITE}/api/notes/{note['id']}", headers=headers)

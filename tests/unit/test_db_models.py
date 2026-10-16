@@ -54,6 +54,7 @@ def test_tables_registered() -> None:
         "security_audit_log",
         "note_attachment",
         "note_derivative",
+        "promotion",
     }
 
 
@@ -157,13 +158,14 @@ def test_migrations_form_a_single_linear_history() -> None:
         "0003_audit",
         "0004_private_zone",
         "0005_quarantine",
+        "0006_promotion",
     ]
 
 
 def test_migration_enum_types_match_python_enums() -> None:
     migrated = {
         e.name: list(e.enums)
-        for revision in ("0001_core_schema", "0004_private_zone")
+        for revision in ("0001_core_schema", "0004_private_zone", "0006_promotion")
         for e in cast("tuple[SAEnum, ...]", _revision_module(revision).ENUMS)
     }
     migrated["derivative_status"].append("QUARANTINED")  # added by 0005_quarantine

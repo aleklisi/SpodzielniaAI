@@ -36,6 +36,7 @@ APP_TABLES = {
     "security_audit_log",
     "note_attachment",
     "note_derivative",
+    "promotion",
 }
 ENUM_TYPES = {
     "user_role",
@@ -45,6 +46,7 @@ ENUM_TYPES = {
     "scan_status",
     "derivative_kind",
     "derivative_status",
+    "promotion_status",
 }
 INSUFFICIENT_PRIVILEGE = "42501"
 

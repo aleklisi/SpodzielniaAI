@@ -27,8 +27,9 @@ class WikiArticle(Entity):
     superseded_by_id: Mapped[UUID | None] = mapped_column(ForeignKey("wiki_article.id"))
     version: Mapped[int] = mapped_column(server_default=text("1"), default=1)
     last_verified_at: Mapped[datetime | None]
-    # FK to the promotion table is added with that table (3.5).
-    created_from_promotion_id: Mapped[UUID | None]
+    created_from_promotion_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("promotion.id", ondelete="SET NULL")
+    )
 
 
 class ArticleBlock(Entity):

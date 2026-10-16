@@ -31,6 +31,7 @@ class TaskName(StrEnum):
     PARSE_DOCUMENT = "media.parse_document"
     FETCH_LINK = "egress.fetch_link"
     SCAN_DERIVATIVE = "core.scan_derivative"
+    PROMOTE_NOTES = "promotion.promote_notes"
 
 
 TASK_QUEUE: dict[TaskName, Queue] = {
@@ -39,6 +40,7 @@ TASK_QUEUE: dict[TaskName, Queue] = {
     TaskName.PARSE_DOCUMENT: Queue.PARSE,
     TaskName.FETCH_LINK: Queue.FETCH,
     TaskName.SCAN_DERIVATIVE: Queue.CORE_SCAN,
+    TaskName.PROMOTE_NOTES: Queue.PROMOTION,
 }
 
 KIND_TASK: dict[DerivativeKind, TaskName] = {
@@ -55,6 +57,7 @@ TIME_LIMITS: dict[TaskName, tuple[int, int]] = {
     TaskName.PARSE_DOCUMENT: (900, 960),
     TaskName.FETCH_LINK: (60, 90),
     TaskName.SCAN_DERIVATIVE: (300, 330),
+    TaskName.PROMOTE_NOTES: (1800, 1860),  # local LLM generation can be slow on CPU
 }
 
 
@@ -66,3 +69,20 @@ class DerivativeJob(BaseModel):
 
     def to_message(self) -> dict[str, str]:
         return {"derivative_id": str(self.derivative_id), "owner_id": str(self.owner_id)}
+
+
+class PromotionJob(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    promotion_id: UUID
+    owner_id: UUID
+
+    def to_message(self) -> dict[str, str]:
+        return {"promotion_id": str(self.promotion_id), "owner_id": str(self.owner_id)}
+
+
+type Job = DerivativeJob | PromotionJob
+
+JOB_MODEL: dict[TaskName, type[DerivativeJob] | type[PromotionJob]] = {
+    name: PromotionJob if name == TaskName.PROMOTE_NOTES else DerivativeJob for name in TaskName
+}

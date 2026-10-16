@@ -229,3 +229,15 @@ def test_template_digest_tracks_versions() -> None:
 
     assert PROMOTION.digest == replace(PROMOTION).digest
     assert PROMOTION.digest != replace(PROMOTION, version="next").digest
+
+
+def test_scrubber_placeholders_survive_but_lookalikes_do_not() -> None:
+    from spoldzielnia_ai.llm.prompts import restore_placeholders
+
+    data = "PESEL <PESEL>, osoba <OSOBA_12>, <SYSTEM>, <OSOBA>, <PESEL_1>, <script>"
+    out = escape_untrusted(data, "zz")
+    assert "<PESEL>" in out
+    assert "<OSOBA_12>" in out
+    for hostile in ("<SYSTEM>", "<OSOBA>", "<PESEL_1>", "<script>"):
+        assert hostile not in out
+    assert restore_placeholders("&lt;NIP&gt; &lt;script&gt;") == "<NIP> &lt;script&gt;"

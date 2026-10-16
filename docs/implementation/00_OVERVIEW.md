@@ -190,7 +190,7 @@ Each one is resolved (✅ = decision baked into the chunk plans) or needs your i
 - [x] 3.2 Presidio + spaCy `pl_core_news_lg` scrubbing service
 - [x] 3.3 Prompt-injection detection (LLM-Guard + PL heuristics + hidden text)
 - [x] 3.4 LLM Gateway (LiteLLM, `force_local_llm`) & safe prompt builder
-- [ ] 3.5 `POST /notes/promote-to-wiki`
+- [x] 3.5 `POST /notes/promote-to-wiki`
 
 ### Stage 4 — Governance, Consent, Qdrant
 - [ ] 4.1 Qdrant collections, embeddings & vector repositories

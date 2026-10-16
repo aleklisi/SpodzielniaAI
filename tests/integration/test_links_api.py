@@ -31,6 +31,9 @@ class RecordingQueue:
     async def link_added(self, derivative_id: UUID, owner_id: UUID) -> None:
         self.links.append((derivative_id, owner_id))
 
+    async def promotion_requested(self, promotion_id: UUID, owner_id: UUID) -> None:
+        return None
+
 
 @pytest.fixture
 async def factory(migrated: PgInstance) -> AsyncIterator[SessionFactory]:

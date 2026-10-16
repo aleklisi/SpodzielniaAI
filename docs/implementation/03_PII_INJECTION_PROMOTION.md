@@ -295,5 +295,37 @@ class LLMGateway(Protocol):
 **Docker gate:** `make up` boots `worker-core`. Invoking promotion via `https://spoldzielnia.localhost/api/notes/promote-to-wiki`
 completes asynchronously in `worker-core` without outbound internet access, creating `ArticleBlock`s in Postgres.
 
+
+**As built (decisions made during implementation)**
+- `promotion` table (migration `0006_promotion`) is **private** (FORCE RLS owner policy). Source
+  IDs and title hint are encrypted under the row's DEK. `source_ids_hash`, counts, prompt
+  name/version/digest, model, `injection_flags` (kinds/scores per source index) and `pii_stats`
+  (counts) are stored. `wiki_article.created_from_promotion_id` now has its FK (SET NULL).
+  The article ID is pre-allocated and returned in the 202.
+- Request checks (`wiki/promotion.py`): the Redis daily limit **first** (attempts count, and no
+  row is created on 429), then RLS ownership of every source (404), derivatives DONE or
+  QUARANTINED + confirmed (409 `source_quarantined` / `source_not_ready`), at most 20 sources.
+  `GET /promotions/{id}` (RLS) reports status, error, injection kinds, PII counts.
+- Worker: one pseudonym table across all sources and the title hint (`scrub_many`). The scrubber
+  is `Presidio + ChecksumAnalyzer` (pure-Python checksum IDs as a safety net). Notes can't be
+  confirmed, so a note above the injection threshold stops the promotion
+  (`injection_detected`, before any LLM call). Retries: `LocalModelUnavailable`/`LLMError` →
+  backoff, then FAILED. `LLMOutputInvalid` → FAILED. Failures are audited
+  (`PROMOTION_FAILED`, code only).
+- **Placeholders vs. escaping (found by the end-to-end test):** escaping every `<` turned the
+  scrubber's own `<PESEL>`/`<OSOBA_1>` into `&lt;PESEL&gt;` for the model, and these leaked into
+  articles. The exact scrubber tag vocabulary now passes the escaping (it can't close the data
+  block or imitate a role tag; `<SYSTEM>` or `<PESEL_1>` stay escaped).
+  `restore_placeholders` decodes only those tags in the output, so no other entity becomes
+  markup.
+- Blocks: `## heading\n\ntext`, `author_id` = owner, `consent_status=ACTIVE`, SHA-256
+  `content_hash`. `NOTE_PROMOTED` payload: promotion, article, block/source counts, prompt digest,
+  model, `pii_after_llm`, injection kinds. No content.
+- **Docker gate status:** in the running stack a promotion executes in worker-core (Presidio,
+  classifier, RLS, Celery) and, with no local chat model configured, ends after its backoff
+  retries as `FAILED local_model_unavailable` (221 s), with no cloud attempt. The successful
+  live run (`test_promotion_through_the_stack`) needs a chat model in LM Studio/Ollama
+  (`LLM_CHAT_MODEL`, token in `secrets/llm_api_key`), and it skips with that reason otherwise.
+
 **Stage 3 exit criteria:** PLAN Stage 3 verification test green (`ml` variant run in CI nightly)
 and Docker stack smoke test confirms end-to-end promotion pipeline.

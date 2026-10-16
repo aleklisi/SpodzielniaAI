@@ -91,3 +91,21 @@ def test_checksum_identifier_recall_on_corpus(scrubber: PiiScrubber) -> None:
             found += before - after
     assert expected > 300
     assert found / expected >= 0.95, f"recall {found / expected:.3f}"
+
+
+def test_pseudonyms_are_shared_across_promotion_sources(scrubber: PiiScrubber) -> None:
+    """One person keeps one pseudonym across a promotion's sources (3.5)."""
+    from spoldzielnia_ai.privacy.presidio_adapter import PresidioAnalyzer
+    from spoldzielnia_ai.privacy.scrubber import ChecksumAnalyzer, CombinedAnalyzer
+
+    combined = PiiScrubber(CombinedAnalyzer(PresidioAnalyzer.shared(), ChecksumAnalyzer()))
+    first, second = combined.scrub_many(
+        [
+            "Jan Kowalski przeglądał ule w Zalesiu.",
+            "Według Jana Kowalskiego rodziny są silne. Pomagała Anna Nowak.",
+        ]
+    )
+    assert "<OSOBA_1>" in first.text
+    assert "<OSOBA_1>" in second.text
+    assert "<OSOBA_2>" in second.text
+    assert "Kowalsk" not in first.text + second.text

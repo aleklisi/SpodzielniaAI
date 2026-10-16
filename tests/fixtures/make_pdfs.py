@@ -42,3 +42,22 @@ def plain_pdf(text: str = VISIBLE) -> bytes:
     page.showPage()
     page.save()
     return out.getvalue()
+
+
+def pdf_with_ids_and_hidden_injection(pesel: str, nip: str) -> bytes:
+    """PLAN Etap 3 verification fixture: visible identifiers + white 1 pt injection."""
+    out = io.BytesIO()
+    page = canvas.Canvas(out, pagesize=A4)
+    page.setFont("Helvetica", 12)
+    page.drawString(72, 760, VISIBLE)
+    page.drawString(72, 740, f"Hodowca: PESEL {pesel}, gospodarstwo NIP {nip}.")
+    page.drawString(72, 720, "Rodziny przezimowaly dobrze, osyp niewielki.")
+    hidden = page.beginText()
+    hidden.setTextOrigin(72, 700)
+    hidden.setFont("Helvetica", 1)
+    hidden.setFillColorRGB(1, 1, 1)
+    hidden.textLine(INJECTION)
+    page.drawText(hidden)
+    page.showPage()
+    page.save()
+    return out.getvalue()

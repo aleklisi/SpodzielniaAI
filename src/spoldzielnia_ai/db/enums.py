@@ -62,6 +62,13 @@ class DerivativeStatus(StrEnum):
     QUARANTINED = "QUARANTINED"  # 3.3: injection score above threshold
 
 
+class PromotionStatus(StrEnum):
+    PENDING = "PENDING"
+    RUNNING = "RUNNING"
+    DONE = "DONE"
+    FAILED = "FAILED"
+
+
 PG_ENUM_NAMES: dict[type[StrEnum], str] = {
     Role: "user_role",
     ConsentStatus: "consent_status",
@@ -70,6 +77,7 @@ PG_ENUM_NAMES: dict[type[StrEnum], str] = {
     ScanStatus: "scan_status",
     DerivativeKind: "derivative_kind",
     DerivativeStatus: "derivative_status",
+    PromotionStatus: "promotion_status",
 }
 
 
