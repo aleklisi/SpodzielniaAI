@@ -7,8 +7,9 @@ mounted under ``/run/secrets``. Each file name is the nested field path, e.g.
 ``localhost``.
 
 Each process gets only the secrets it needs (least privilege): the API loads ``Settings``,
-the one-shot ``migrate`` job loads ``MigrateSettings`` (owner DSN only) and ``bootstrap``
-loads ``BootstrapSettings`` (object storage only).
+the one-shot ``migrate`` job loads ``MigrateSettings`` (owner DSN only), ``audit-verify`` loads
+``AuditVerifySettings`` (app DSN only) and ``bootstrap`` loads ``BootstrapSettings`` (object
+storage only).
 """
 
 from __future__ import annotations
@@ -172,6 +173,18 @@ class MigrateSettings(_BaseSettings):
     def _require_owner_password(self) -> Self:
         if self.db.owner_password is None:
             raise ValueError("db.owner_password is required")
+        return self
+
+
+class AuditVerifySettings(_BaseSettings):
+    """Settings of the one-shot ``audit-verify`` job: runtime DSN only (it only reads the log)."""
+
+    db: DbSettings = Field(default_factory=DbSettings)
+
+    @model_validator(mode="after")
+    def _require_app_password(self) -> Self:
+        if self.db.app_password is None:
+            raise ValueError("db.app_password is required")
         return self
 
 

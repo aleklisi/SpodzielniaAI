@@ -1,0 +1,30 @@
+"""Registry of audit event types. ``AuditService.record`` accepts only these."""
+
+from __future__ import annotations
+
+from enum import StrEnum
+
+
+class EventType(StrEnum):
+    # Identity & sessions (1.5, 1.6)
+    USER_PROVISIONED = "USER_PROVISIONED"
+    USER_LOGIN = "USER_LOGIN"
+    REFRESH_TOKEN_REUSE = "REFRESH_TOKEN_REUSE"  # noqa: S105 - event name, not a secret
+    # Private notebook & uploads (Stage 2)
+    UPLOAD_REJECTED = "UPLOAD_REJECTED"
+    ATTACHMENT_LOCATION_RETAINED = "ATTACHMENT_LOCATION_RETAINED"
+    # Promotion & prompt injection (Stage 3)
+    PROMPT_INJECTION_DETECTED = "PROMPT_INJECTION_DETECTED"
+    NOTE_PROMOTED = "NOTE_PROMOTED"
+    # Governance & consent (Stage 4)
+    ARTICLE_STATUS_CHANGED = "ARTICLE_STATUS_CHANGED"
+    CONSENT_SUSPENDED = "CONSENT_SUSPENDED"
+    CONSENT_RESUMED = "CONSENT_RESUMED"
+    CONSENT_REVOKED = "CONSENT_REVOKED"
+    ARTICLE_DEGRADED = "ARTICLE_DEGRADED"
+    VECTOR_DRIFT_DETECTED = "VECTOR_DRIFT_DETECTED"
+    # Anti-distillation shield (Stage 5)
+    COVERAGE_LOCK = "COVERAGE_LOCK"
+    HONEYPOT_TRIGGERED = "HONEYPOT_TRIGGERED"
+    VERBATIM_BLOCKED = "VERBATIM_BLOCKED"
+    SHIELD_DECISION = "SHIELD_DECISION"

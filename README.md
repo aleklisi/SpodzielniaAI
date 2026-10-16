@@ -68,6 +68,7 @@ Host defaults are compose service names (`postgres`, `redis`, `qdrant`, `minio`,
 |---|---|
 | `spoldzielnia api [--reload]` | Run the FastAPI app (uvicorn, proxy headers) |
 | `spoldzielnia migrate [revision]` | Apply Alembic migrations (default `head`) as the owner role |
+| `spoldzielnia audit-verify` | Re-compute the security audit log hash chain; exit 1 on any break (`docker compose run --rm api audit-verify`) |
 | `spoldzielnia bootstrap` | Provision MinIO buckets / Qdrant collections (chunks 1.2b, 4.1) |
 
 ## Database & migrations
@@ -79,8 +80,17 @@ create, alter or drop anything. Models live in `src/spoldzielnia_ai/db/models/`,
 
 ```bash
 make migrate                                   # upgrade the running stack's DB to head
-make revision REV=0002_rls MSG="row level security"   # autogenerate against the dev DB, then review
+make revision REV=0004_name MSG="what it does"     # autogenerate against the dev DB, then review
 ```
+
+**Row-Level Security.** Private-zone tables (`private_note`, later attachments/derivatives) have
+`ENABLE` + `FORCE ROW LEVEL SECURITY` and an owner policy on `app.current_user_id`. Access them only
+through `db.rls.rls_session(factory, user_id)` or the `RlsSessionDep` FastAPI dependency, which set
+the id transaction-locally. Any other session sees no rows and cannot insert.
+
+**Audit log.** `security_audit_log` is append-only: the app role has no `UPDATE`/`DELETE`/`TRUNCATE`,
+and triggers reject them for every role. A `BEFORE INSERT` trigger chains rows with SHA-256. Write
+entries with `audit.service.AuditService` inside the transaction of the action being audited.
 
 Revision ids are explicit and sortable (`NNNN_name`). `/api/readyz` reports `schema_revision` and
 fails its `migrations` check until the DB is at the image's head.

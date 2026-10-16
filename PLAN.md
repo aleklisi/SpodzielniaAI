@@ -151,7 +151,7 @@ Pełna specyfikacja techniczna i architektura wdrożenia w kontenerach Docker zn
 - [x] 1.2a Konteneryzacja usług pomocniczych w Docker Compose (PostgreSQL, Qdrant TLS, Redis, Keycloak, ClamAV, MinIO, Docker secrets)
 - [x] 1.2b Obraz API backendu, reverse proxy (Caddy HTTPS) i test dymny (smoke test)
 - [x] 1.3 Warstwa bazy danych, role uprawnień (owner vs app) i modele domenowe SQLAlchemy 2.0
-- [ ] 1.4 Izolacja Row-Level Security (Postgres RLS) i niemodyfikowalny audyt (SecurityAuditLog hash chain)
+- [x] 1.4 Izolacja Row-Level Security (Postgres RLS) i niemodyfikowalny audyt (SecurityAuditLog hash chain)
 - [ ] 1.5 Uwierzytelnianie OIDC Authorization Code Flow z PKCE (wzorzec BFF)
 - [ ] 1.6 Sesje ciasteczkowe `__Host-`, rotacja tokenów odświeżających, ochrona CSRF, RBAC i wymuszenie MFA
 

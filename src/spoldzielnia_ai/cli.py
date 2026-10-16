@@ -3,6 +3,7 @@
 Subcommands:
     api        run the FastAPI app with uvicorn
     migrate    apply database migrations (Alembic, owner role)
+    audit-verify  re-compute the security audit log hash chain; exit 1 on any break
     bootstrap  create storage buckets / vector collections — wired up in chunk 1.2b / 4.1
 """
 
@@ -13,7 +14,12 @@ import sys
 from collections.abc import Callable, Sequence
 
 from spoldzielnia_ai.core.logging import configure_logging, get_logger
-from spoldzielnia_ai.core.settings import BootstrapSettings, MigrateSettings, get_settings
+from spoldzielnia_ai.core.settings import (
+    AuditVerifySettings,
+    BootstrapSettings,
+    MigrateSettings,
+    get_settings,
+)
 
 log = get_logger(__name__)
 
@@ -50,6 +56,37 @@ def _cmd_migrate(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_audit_verify(_args: argparse.Namespace) -> int:
+    import asyncio
+
+    from sqlalchemy.ext.asyncio import create_async_engine
+
+    from spoldzielnia_ai.audit.verify import ChainReport, verify_chain
+
+    settings = AuditVerifySettings()  # pyright: ignore[reportCallIssue]  # env/secrets
+    configure_logging(settings.log_level)
+
+    async def run() -> ChainReport:
+        engine = create_async_engine(settings.db.app_url())
+        try:
+            return await verify_chain(engine)
+        finally:
+            await engine.dispose()
+
+    report = asyncio.run(run())
+    for brk in report.breaks:
+        log.error("audit_verify.break", id=brk.id, reason=brk.reason)
+    log.info(
+        "audit_verify.done",
+        ok=report.ok,
+        rows=report.rows,
+        breaks=len(report.breaks),
+        head_id=report.head_id,
+        head_hash=report.head_hash.hex(),
+    )
+    return 0 if report.ok else 1
+
+
 def _cmd_bootstrap(_args: argparse.Namespace) -> int:
     from spoldzielnia_ai.bootstrap import run_bootstrap
 
@@ -71,6 +108,9 @@ def build_parser() -> argparse.ArgumentParser:
     migrate = sub.add_parser("migrate", help="apply database migrations")
     migrate.add_argument("revision", nargs="?", default="head", help="target (default: head)")
     migrate.set_defaults(handler=_cmd_migrate)
+
+    audit_verify = sub.add_parser("audit-verify", help="verify the audit log hash chain")
+    audit_verify.set_defaults(handler=_cmd_audit_verify)
 
     bootstrap = sub.add_parser("bootstrap", help="provision buckets and collections")
     bootstrap.set_defaults(handler=_cmd_bootstrap)

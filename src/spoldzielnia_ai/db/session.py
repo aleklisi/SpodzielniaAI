@@ -1,6 +1,7 @@
 """Session factory and the FastAPI dependency for non-private tables.
 
-Private-zone tables (``private_note`` …) are accessed only through ``rls_session`` (1.4).
+Private-zone tables (``private_note`` …) are accessed only through ``db.rls.rls_session`` /
+``RlsSessionDep``. With a session from here, they return no rows and reject every insert.
 """
 
 from __future__ import annotations

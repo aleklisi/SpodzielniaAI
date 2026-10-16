@@ -58,12 +58,6 @@ def _enum_types(pg: PgInstance) -> set[str]:
     return set(asyncio.run(_fetch(pg.owner_url, sql)))
 
 
-@pytest.fixture
-def migrated(pg: PgInstance) -> PgInstance:
-    upgrade(pg.owner_url)
-    return pg
-
-
 def test_upgrade_downgrade_round_trip(pg: PgInstance) -> None:
     upgrade(pg.owner_url)
     assert _tables(pg) >= APP_TABLES

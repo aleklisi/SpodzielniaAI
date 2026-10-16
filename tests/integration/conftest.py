@@ -106,3 +106,12 @@ def pg(tmp_path_factory: pytest.TempPathFactory) -> Iterator[PgInstance]:
         )
         _wait_for_owner_login(instance)
         yield instance
+
+
+@pytest.fixture
+def migrated(pg: PgInstance) -> PgInstance:
+    """``pg`` upgraded to the head revision."""
+    from spoldzielnia_ai.db.migrate import upgrade
+
+    upgrade(pg.owner_url)
+    return pg

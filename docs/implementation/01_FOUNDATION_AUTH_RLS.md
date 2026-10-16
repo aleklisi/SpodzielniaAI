@@ -224,6 +224,24 @@ async def rls_session(user_id: UUID) -> AsyncIterator[AsyncSession]:
 - `test_audit_immutable.py`: UPDATE/DELETE as the app role fail; tampering with a row (as superuser
   in the test) is detected by the verifier.
 
+
+**As built (decisions made during implementation)**
+- `rls_session(factory, user_id)` takes the session factory explicitly. The app keeps the factory
+  in `app.state`, not in a module global. The repository lives in `db/repositories.py`.
+- `RlsSessionDep = Annotated[RlsSession, Depends(get_rls_session, scope="function")]`: the
+  transaction commits *before* the response is sent, so a failed commit can never return a 2xx.
+- `auth.deps.current_user_id` is a fail-closed placeholder (always 401) until 1.6 replaces it.
+- Hash-chain trigger: after taking the advisory lock it draws a fresh `id` from the identity
+  sequence, so id order equals chain order even when transactions commit in a different order than
+  they started. It also forces `occurred_at = clock_timestamp()` and ignores caller-supplied
+  `prev_hash`/`hash`. Appends outside `READ COMMITTED` are rejected, because an older snapshot
+  could miss the latest committed row and fork the chain.
+- Canonical row text = `jsonb_build_object(id, occurred_at (UTC, µs), actor_id, event_type,
+  target_type, target_id, payload)::text`, rendered by Postgres built-ins
+  (`audit.verify.CANONICAL_ROW_SQL`). Linking and SHA-256 are checked in Python.
+- Limitation: cutting off the newest rows can be detected only against an externally recorded
+  head. `audit-verify` logs `head_id`/`head_hash` for that purpose.
+
 ---
 
 ## Chunk 1.5 — OIDC Authorization Code + PKCE (Backend-for-Frontend)

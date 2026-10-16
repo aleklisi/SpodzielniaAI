@@ -139,10 +139,11 @@ def _revision_module(revision: str) -> ModuleType:
     return script.module
 
 
-def test_single_head_is_core_schema() -> None:
+def test_migrations_form_a_single_linear_history() -> None:
     script = ScriptDirectory.from_config(alembic_config())
-    assert script.get_heads() == ["0001_core_schema"]
-    assert head_revision() == "0001_core_schema"
+    history = [rev.revision for rev in script.walk_revisions()]  # head first
+    assert script.get_heads() == [head_revision()]
+    assert history[::-1] == ["0001_core_schema", "0002_rls", "0003_audit"]
 
 
 def test_migration_enum_types_match_python_enums() -> None:

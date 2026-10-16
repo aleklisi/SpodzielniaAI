@@ -6,6 +6,7 @@ import pytest
 from pydantic import ValidationError
 
 from spoldzielnia_ai.core.settings import (
+    AuditVerifySettings,
     BootstrapSettings,
     MigrateSettings,
     Settings,
@@ -144,3 +145,17 @@ def test_bootstrap_settings_need_only_s3_secret(tmp_path: Path) -> None:
     assert loaded.s3.secret_key.get_secret_value() == "minio-pw"
     with pytest.raises(ValidationError, match="secret_key"):
         BootstrapSettings(_env_file=None, _secrets_dir=tmp_path)  # pyright: ignore[reportCallIssue]
+
+
+def test_audit_verify_settings_need_only_app_password(tmp_path: Path) -> None:
+    secrets_dir = tmp_path / "secrets"
+    secrets_dir.mkdir()
+    (secrets_dir / "db__app_password").write_text("app-pw")
+
+    loaded = AuditVerifySettings(_env_file=None, _secrets_dir=secrets_dir)  # pyright: ignore[reportCallIssue]
+
+    assert loaded.db.app_url().startswith("postgresql+asyncpg://spoldzielnia_app:app-pw@postgres")
+    with pytest.raises(ValueError, match="owner_password"):
+        loaded.db.migration_url()
+    with pytest.raises(ValidationError, match="app_password"):
+        AuditVerifySettings(_env_file=None, _secrets_dir=tmp_path)  # pyright: ignore[reportCallIssue]
