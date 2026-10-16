@@ -8,7 +8,7 @@ help: ## Show targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  %-12s %s\n", $$1, $$2}'
 
 # --- Stack -------------------------------------------------------------------
-.PHONY: secrets build up watch down reset logs ps smoke trust-cert
+.PHONY: secrets build up watch down reset logs ps smoke trust-cert migrate revision
 secrets: ## Generate Docker secrets + dev TLS certs into ./secrets (idempotent)
 	@infra/scripts/init-secrets.sh
 
@@ -20,6 +20,16 @@ up: secrets ## Build and start the dev stack, wait until healthy
 
 watch: ## Rebuild/restart the API on source changes
 	$(COMPOSE) watch
+
+migrate: ## Apply DB migrations in the stack (owner role, one-shot container)
+	$(COMPOSE) run --rm --build migrate
+
+# Autogenerates against the dev DB (loopback port 5432) as the owner role; review the result.
+revision: ## New migration: make revision REV=0002_rls MSG="row level security"
+	@test -n "$(REV)" -a -n "$(MSG)" || { echo "usage: make revision REV=0002_name MSG='...'"; exit 2; }
+	SPOLDZIELNIA_DB__HOST=127.0.0.1 SPOLDZIELNIA_DB__OWNER_PASSWORD="$$(cat secrets/pg_owner_password)" \
+	  uv run alembic revision --autogenerate --rev-id "$(REV)" -m "$(MSG)"
+	uv run ruff format src/spoldzielnia_ai/db/migrations/versions
 
 smoke: ## Stack smoke test (HTTPS, IdP, hardening, ports, isolation)
 	@COMPOSE="$(COMPOSE)" infra/scripts/smoke.sh

@@ -67,8 +67,23 @@ Host defaults are compose service names (`postgres`, `redis`, `qdrant`, `minio`,
 | Command | Purpose |
 |---|---|
 | `spoldzielnia api [--reload]` | Run the FastAPI app (uvicorn, proxy headers) |
-| `spoldzielnia migrate` | Apply Alembic migrations as the owner role (chunk 1.3) |
+| `spoldzielnia migrate [revision]` | Apply Alembic migrations (default `head`) as the owner role |
 | `spoldzielnia bootstrap` | Provision MinIO buckets / Qdrant collections (chunks 1.2b, 4.1) |
+
+## Database & migrations
+
+Two Postgres roles (`infra/postgres/init/10-roles.sh`): `spoldzielnia_owner` owns the schema and
+runs migrations only; `spoldzielnia_app` (API runtime) is `NOBYPASSRLS` with DML only, so it cannot
+create, alter or drop anything. Models live in `src/spoldzielnia_ai/db/models/`, migrations in
+`src/spoldzielnia_ai/db/migrations/versions/` (shipped inside the package).
+
+```bash
+make migrate                                   # upgrade the running stack's DB to head
+make revision REV=0002_rls MSG="row level security"   # autogenerate against the dev DB, then review
+```
+
+Revision ids are explicit and sortable (`NNNN_name`). `/api/readyz` reports `schema_revision` and
+fails its `migrations` check until the DB is at the image's head.
 
 ## Test markers
 

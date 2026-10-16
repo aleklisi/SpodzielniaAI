@@ -11,6 +11,9 @@ from pydantic import BaseModel
 from spoldzielnia_ai.core.logging import configure_logging, get_logger
 from spoldzielnia_ai.core.readiness import ReadinessCheck, default_checks
 from spoldzielnia_ai.core.settings import Settings, get_settings
+from spoldzielnia_ai.db.engine import create_app_engine
+from spoldzielnia_ai.db.migrate import head_revision
+from spoldzielnia_ai.db.session import create_session_factory
 
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator, Awaitable, Callable
@@ -25,6 +28,7 @@ class HealthResponse(BaseModel):
 class ReadinessResponse(BaseModel):
     status: Literal["ok", "unavailable"]
     checks: dict[str, bool]
+    schema_revision: str
 
 
 def create_app(
@@ -33,12 +37,19 @@ def create_app(
 ) -> FastAPI:
     settings = settings or get_settings()
     configure_logging(settings.log_level, json=settings.environment != "dev")
-    checks = readiness_checks if readiness_checks is not None else default_checks(settings)
+    engine = create_app_engine(settings.db)
+    schema_revision = head_revision()
+    checks = (
+        readiness_checks
+        if readiness_checks is not None
+        else default_checks(settings, engine, schema_revision)
+    )
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI) -> AsyncGenerator[None]:
-        log.info("app.startup", environment=settings.environment)
+        log.info("app.startup", environment=settings.environment, schema_revision=schema_revision)
         yield
+        await engine.dispose()
         log.info("app.shutdown")
 
     is_prod = settings.environment == "prod"
@@ -51,6 +62,8 @@ def create_app(
         openapi_url=None if is_prod else "/openapi.json",
     )
     app.state.settings = settings
+    app.state.engine = engine
+    app.state.session_factory = create_session_factory(engine)
 
     @app.get("/healthz", response_model=HealthResponse, tags=["ops"])
     async def healthz() -> HealthResponse:  # pyright: ignore[reportUnusedFunction]
@@ -64,7 +77,9 @@ def create_app(
         ok = all(results.values())
         if not ok:
             response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
-        return ReadinessResponse(status="ok" if ok else "unavailable", checks=results)
+        return ReadinessResponse(
+            status="ok" if ok else "unavailable", checks=results, schema_revision=schema_revision
+        )
 
     @app.middleware("http")
     async def security_headers(  # pyright: ignore[reportUnusedFunction]

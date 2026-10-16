@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import shutil
 import socket
 import subprocess
@@ -12,6 +13,29 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SECRETS_DIR = REPO_ROOT / "secrets"
 DEV_FILES = ("compose.yaml", "compose.dev.yaml")
+
+
+def compose_image(repository: str) -> str:
+    """The pinned ``image:`` reference for ``repository`` in compose.yaml (tests use the same)."""
+    text = (REPO_ROOT / "compose.yaml").read_text()
+    match = re.search(rf"^\s+image:\s*({re.escape(repository)}:\S+)$", text, re.MULTILINE)
+    if match is None:
+        raise LookupError(f"no image {repository!r} in compose.yaml")
+    return match.group(1)
+
+
+def require_docker() -> None:
+    if shutil.which("docker") is None:
+        pytest.skip("docker CLI not available")
+    probe = subprocess.run(
+        ["docker", "info", "--format", "{{.ServerVersion}}"],  # noqa: S607
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=30,
+    )
+    if probe.returncode != 0:
+        pytest.skip("Docker daemon not reachable")
 
 
 def secret(name: str) -> str:

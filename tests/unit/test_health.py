@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING
 
 from httpx import ASGITransport, AsyncClient
 
+from spoldzielnia_ai.db.migrate import head_revision
 from spoldzielnia_ai.main import create_app
 
 if TYPE_CHECKING:
@@ -38,7 +39,11 @@ async def test_readyz_ok_when_all_checks_pass(settings: Settings) -> None:
         response = await client.get("/readyz")
 
     assert response.status_code == 200
-    assert response.json() == {"status": "ok", "checks": {"postgres": True, "redis": True}}
+    assert response.json() == {
+        "status": "ok",
+        "checks": {"postgres": True, "redis": True},
+        "schema_revision": head_revision(),
+    }
 
 
 async def test_readyz_503_when_a_dependency_is_down(settings: Settings) -> None:

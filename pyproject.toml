@@ -52,6 +52,16 @@ select = ["E", "F", "W", "I", "UP", "B", "S", "ASYNC", "SIM", "RUF", "PT", "TC"]
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S101"]
 
+[tool.ruff.lint.flake8-type-checking]
+# SQLAlchemy resolves `Mapped[...]` annotations at runtime, so their imports must stay real.
+runtime-evaluated-base-classes = [
+    "sqlalchemy.orm.DeclarativeBase",
+    "spoldzielnia_ai.db.base.Base",
+    "spoldzielnia_ai.db.base.Entity",
+    "spoldzielnia_ai.db.base.UUIDPrimaryKey",
+    "spoldzielnia_ai.db.base.Timestamps",
+]
+
 [tool.ruff.lint.isort]
 known-first-party = ["spoldzielnia_ai"]
 

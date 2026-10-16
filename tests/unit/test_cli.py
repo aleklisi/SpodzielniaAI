@@ -15,3 +15,8 @@ def test_subcommands_registered(command: str) -> None:
 def test_command_required() -> None:
     with pytest.raises(SystemExit):
         build_parser().parse_args([])
+
+
+def test_migrate_targets_head_by_default() -> None:
+    assert build_parser().parse_args(["migrate"]).revision == "head"
+    assert build_parser().parse_args(["migrate", "0001_core_schema"]).revision == "0001_core_schema"

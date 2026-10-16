@@ -2,7 +2,7 @@
 
 Subcommands:
     api        run the FastAPI app with uvicorn
-    migrate    apply database migrations (Alembic, owner role) — wired up in chunk 1.3
+    migrate    apply database migrations (Alembic, owner role)
     bootstrap  create storage buckets / vector collections — wired up in chunk 1.2b / 4.1
 """
 
@@ -38,10 +38,15 @@ def _cmd_api(args: argparse.Namespace) -> int:
     return 0
 
 
-def _cmd_migrate(_args: argparse.Namespace) -> int:
+def _cmd_migrate(args: argparse.Namespace) -> int:
+    from spoldzielnia_ai.db.migrate import upgrade
+
     settings = MigrateSettings()  # pyright: ignore[reportCallIssue]  # env/secrets
     configure_logging(settings.log_level)
-    log.info("migrate.noop", reason="no migrations defined yet (chunk 1.3)")
+    revision: str = args.revision
+    log.info("migrate.start", target=revision)
+    upgrade(settings.db.migration_url(), revision)
+    log.info("migrate.done", target=revision)
     return 0
 
 
@@ -64,6 +69,7 @@ def build_parser() -> argparse.ArgumentParser:
     api.set_defaults(handler=_cmd_api)
 
     migrate = sub.add_parser("migrate", help="apply database migrations")
+    migrate.add_argument("revision", nargs="?", default="head", help="target (default: head)")
     migrate.set_defaults(handler=_cmd_migrate)
 
     bootstrap = sub.add_parser("bootstrap", help="provision buckets and collections")

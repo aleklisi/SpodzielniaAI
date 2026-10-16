@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Stack smoke test (chunk 1.2b, Docker gate). Run against a running stack: `make smoke`.
+# Stack smoke test (chunks 1.2b, 1.3; Docker gate). Run against a running stack: `make smoke`.
 #   COMPOSE      compose command (default: dev file set)
 #   SITE_DOMAIN  public hostname (default: spoldzielnia.localhost)
 set -euo pipefail
@@ -32,6 +32,27 @@ echo "1. HTTPS single origin"
 expect "GET /api/healthz" "https://$DOMAIN/api/healthz" 200
 expect "GET /api/readyz"  "https://$DOMAIN/api/readyz" 200
 expect "GET / (placeholder)" "https://$DOMAIN/" 200
+# Alembic head of this checkout: the revision no other migration names as its down_revision.
+# Plain python3 (no venv), so the script also runs on servers.
+HEAD="$(python3 - <<'PY'
+import pathlib, re
+revs, downs = set(), set()
+for f in pathlib.Path("src/spoldzielnia_ai/db/migrations/versions").glob("*.py"):
+    src = f.read_text()
+    revs.add(re.search(r'^revision: str = "([^"]+)"', src, re.M).group(1))
+    down = re.search(r'^down_revision: str \| None = "([^"]+)"', src, re.M)
+    if down:
+        downs.add(down.group(1))
+(head,) = revs - downs
+print(head)
+PY
+)"
+readyz="$(curl -sS --max-time 10 "${CA_ARGS[@]}" "https://$DOMAIN/api/readyz" || true)"
+check "readyz: schema at Alembic head ($HEAD)" python3 -c '
+import json, sys
+body = json.loads(sys.argv[1])
+assert body["checks"]["migrations"] is True and body["schema_revision"] == sys.argv[2]
+' "$readyz" "$HEAD"
 check "HSTS header on /api" bash -c "curl -sSI ${CA_ARGS[*]} https://$DOMAIN/api/healthz | grep -qi '^strict-transport-security:'"
 expect "HTTP redirects to HTTPS" "http://$DOMAIN/" 308
 
