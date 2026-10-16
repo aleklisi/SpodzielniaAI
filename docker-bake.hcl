@@ -4,7 +4,7 @@ variable "VERSION" { default = "dev" }
 variable "PLATFORMS" { default = "" } # e.g. "linux/amd64,linux/arm64" in CI; empty = host arch
 
 group "default" {
-  targets = ["api", "worker-media"]
+  targets = ["api", "worker-media", "worker-core"]
 }
 
 target "_backend" {
@@ -27,4 +27,10 @@ target "worker-media" {
   inherits = ["_backend"]
   target   = "worker-media"
   tags     = ["${REGISTRY}/worker-media:${VERSION}"]
+}
+
+target "worker-core" {
+  inherits = ["_backend"]
+  target   = "worker-core"
+  tags     = ["${REGISTRY}/worker-core:${VERSION}"]
 }

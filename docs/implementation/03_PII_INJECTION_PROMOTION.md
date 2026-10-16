@@ -90,6 +90,27 @@ class PiiScrubber:
   **invalid**-checksum PESEL-like number is *not* flagged (precision check). Recall test on a small
   curated corpus with a minimum threshold assertion (e.g. ≥ 0.95 for checksum IDs).
 
+
+**As built (decisions made during implementation)**
+- `privacy/scrubber.py` is engine-agnostic (an `Analyzer` protocol). Overlaps go to the higher
+  score, then the longer span. Checksum-validated IDs score 1.0 and beat NER/phone/WNI matches.
+  Pseudonyms are keyed by the first three letters of each name token, so Polish inflection
+  ("Jan Kowalski" / "Jana Kowalskiego") maps to the same `<OSOBA_n>`, and a bare surname joins a
+  known full name.
+- `privacy/presidio_adapter.py`: `placeName` → LOCATION (a village can locate an apiary).
+  `geogName` (rivers, regions) is ignored: regional knowledge isn't personal. ORGANIZATION is
+  detected but kept by the default policy. **Added beyond the spec:** `PL_ADDRESS` (ul./al./os./pl.
+  + number), `PL_POSTAL_CODE` (with context), and spaced/`+48` phone patterns besides
+  `phonenumbers`. KRS: prefixed `KRS …` is certain, while a bare 10-digit run needs context words
+  (the validator abstains instead of confirming).
+- Thresholds per entity in `DEFAULT_POLICY` (checksum IDs 0.5, context IDs 0.4, NER 0.6).
+- `worker-core` image (`--group core`: Presidio, spaCy, locked `pl_core_news_lg` wheel) and
+  service on `backend` only, consuming `core.scan,promotion`. Smoke test: scrubbing works inside
+  the container offline, and the container has no internet.
+- `ml` tests: the sample note (PESEL, NIP, IBAN, name, address, phone, e-mail) is fully scrubbed.
+  An invalid-checksum PESEL stays. Organisation, river and region stay. Checksum-ID recall ≥ 0.95
+  on a generated corpus (320 IDs in 8 sentence templates).
+
 ---
 
 ## Chunk 3.3 — Prompt-injection detection (LLM01)

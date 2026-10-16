@@ -187,7 +187,7 @@ Each one is resolved (✅ = decision baked into the chunk plans) or needs your i
 
 ### Stage 3 — PII, Prompt Injection, Push-to-Wiki
 - [x] 3.1 Polish PII recognizers (checksums)
-- [ ] 3.2 Presidio + spaCy `pl_core_news_lg` scrubbing service
+- [x] 3.2 Presidio + spaCy `pl_core_news_lg` scrubbing service
 - [ ] 3.3 Prompt-injection detection (LLM-Guard + PL heuristics + hidden text)
 - [ ] 3.4 LLM Gateway (LiteLLM, `force_local_llm`) & safe prompt builder
 - [ ] 3.5 `POST /notes/promote-to-wiki`

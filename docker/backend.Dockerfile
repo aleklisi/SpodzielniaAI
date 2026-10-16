@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1.7
-# Backend images. Targets: api (1.2b; also runs worker-egress), worker-media (2.5).
+# Backend images. Targets: api (1.2b; also runs worker-egress), worker-media (2.5), worker-core (3.2).
 # Build: `make build` (docker buildx bake, see docker-bake.hcl).
 
 ARG PYTHON_IMAGE=python:3.12-slim-bookworm@sha256:34386ef0cb081344d7ec1c103ba398e6e9f64e9ab3a1509accc92a4e24a07258
@@ -35,6 +35,12 @@ COPY src ./src
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --locked --no-default-groups --no-editable
 
+# The same venv plus the `core` group (Presidio, spaCy + the locked pl_core_news_lg wheel,
+# the prompt-injection classifier runtime).
+FROM builder AS builder-core
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --locked --no-default-groups --group core --no-editable
+
 # The same venv plus the `media` group (faster-whisper, Docling, CPU PyTorch on Linux).
 FROM builder AS builder-media
 RUN --mount=type=cache,target=/root/.cache/uv \
@@ -68,3 +74,19 @@ ENV HOME=/tmp \
 USER 10001:10001
 ENTRYPOINT ["tini", "--", "spoldzielnia"]
 CMD ["worker", "--queues", "media.transcribe,media.vision,media.parse"]
+
+# Core worker: PII scrubbing, prompt-injection screening, promotion (Stage 3). No HTTP port.
+# Network: `backend` only. The spaCy model is part of the image (locked wheel), the classifier
+# comes from the read-only `models` volume.
+FROM python-base AS worker-core
+COPY --from=builder-core --chown=root:root /app/.venv /app/.venv
+ENV HOME=/tmp \
+    XDG_CACHE_HOME=/tmp/.cache \
+    HF_HOME=/tmp/hf \
+    HF_HUB_OFFLINE=1 \
+    TRANSFORMERS_OFFLINE=1 \
+    HF_HUB_DISABLE_TELEMETRY=1 \
+    OMP_NUM_THREADS=4
+USER 10001:10001
+ENTRYPOINT ["tini", "--", "spoldzielnia"]
+CMD ["worker", "--queues", "core.scan,promotion"]

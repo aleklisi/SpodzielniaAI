@@ -20,6 +20,8 @@ class Queue(StrEnum):
     VISION = "media.vision"
     PARSE = "media.parse"
     FETCH = "egress.fetch"
+    CORE_SCAN = "core.scan"  # prompt-injection screening of derivatives (3.3)
+    PROMOTION = "promotion"  # push-to-wiki (3.5)
     INDEX = "index"  # Stage 4
 
 

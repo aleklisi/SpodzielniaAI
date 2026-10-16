@@ -343,6 +343,25 @@ services:
     healthcheck:
       disable: true
 
+  # PII scrubbing, prompt-injection screening, promotion (Stage 3): `backend` only.
+  worker-core:
+    <<: *hardening
+    image: ${REGISTRY:-spoldzielnia}/worker-core:${VERSION:-dev}
+    command: ["worker", "--queues", "core.scan,promotion"]
+    restart: unless-stopped
+    networks: [backend]
+    tmpfs: ["/tmp:size=512m"]
+    mem_limit: 3g
+    cpus: 2
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    environment: *app-env
+    volumes:
+      - models:/models:ro
+    secrets: *worker-secrets
+
   # One-shot model download with internet access (`make models`). Not part of `up`.
   models-init:
     <<: *hardening

@@ -98,6 +98,18 @@ services:
         - { action: rebuild, path: ./src }
         - { action: rebuild, path: ./uv.lock }
 
+  worker-core:
+    build:
+      context: .
+      dockerfile: docker/backend.Dockerfile
+      target: worker-core
+    environment:
+      SPOLDZIELNIA_ENVIRONMENT: dev
+    develop:
+      watch:
+        - { action: rebuild, path: ./src }
+        - { action: rebuild, path: ./uv.lock }
+
   models-init:
     build:
       context: .

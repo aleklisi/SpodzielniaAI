@@ -120,6 +120,15 @@ check "worker-egress reaches the internet" "${COMPOSE[@]}" exec -T worker-egress
 echo "6. Media pipeline"
 check "worker-media: model volume matches its manifest" \
   "${COMPOSE[@]}" exec -T worker-media spoldzielnia models verify --root /models
+PII_PY='
+from spoldzielnia_ai.privacy.presidio_adapter import PresidioAnalyzer
+from spoldzielnia_ai.privacy.scrubber import PiiScrubber
+out = PiiScrubber(PresidioAnalyzer.shared()).scrub("Jan Kowalski, PESEL 44051401359, NIP 526-018-15-96").text
+assert out == "<OSOBA_1>, PESEL <PESEL>, NIP <NIP>", out
+'
+check "worker-core: Polish PII scrubbing works offline" \
+  "${COMPOSE[@]}" exec -T worker-core python -c "$PII_PY"
+check_not "worker-core has no internet access" "${COMPOSE[@]}" exec -T worker-core python -c "$OUT"
 check "worker-media: model volume is read-only" bash -c \
   "! ${COMPOSE[*]} exec -T worker-media sh -c 'touch /models/.probe' 2>/dev/null"
 
