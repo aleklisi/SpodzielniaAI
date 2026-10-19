@@ -293,6 +293,9 @@ class ShieldSettings(BaseModel):
     # Watermark (5.5): Docker secret `watermark_key`. Without it answers are not watermarked.
     watermark_key: SecretStr | None = None
     watermark_z_threshold: float = Field(default=4.0, gt=0)
+    # Also watermark canonical Wiki text a member reads (6.3). Off by default: it rewords
+    # expert-approved text (synonyms only), which a cooperative may not want.
+    watermark_wiki: bool = False
 
     # RiskEngine (5.6): risk = incidents + coverage term + semantic term, capped at 1.
     risk_coverage_weight: float = Field(default=0.4, ge=0, le=1)  # * (fraction of limit)^2

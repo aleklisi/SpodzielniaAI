@@ -177,3 +177,30 @@ each OWASP API Top 10 and OWASP LLM Top 10 (2025) item to the implementing chunk
 
 **Tests:**
 - In CI: automated rehearsal of `infra/scripts/backup.sh` followed by test restoration into a fresh container environment, validating data integrity and hash chain validity.
+
+---
+
+## Implementation notes (as built)
+
+- **Next.js 16**: request interception is `src/proxy.ts` (the former `middleware.ts`). Cache
+  Components / partial prerendering stay off: a prerendered shell can't carry the per-request
+  nonce. Unmatched URLs go through a catch-all route to `app/not-found.tsx`, because Next's
+  built-in 404 page uses inline style attributes the CSP blocks.
+- **Trusted Types**: a `default` policy installed from `src/instrumentation-client.ts` (before
+  any chunk loads). Script URLs: only same-origin `/_next/static/`, returned unchanged (Next
+  finds chunks by exact `src`). HTML sinks are sanitised with DOMPurify rather than refused
+  (BlockNote's paste and Markdown conversion use them). Script strings stay blocked. Chrome
+  reports a CSP violation for each inline style or handler attribute DOMPurify meets while
+  parsing in its inert document; nothing is applied, and DOMPurify strips it.
+- **Editor styles**: TipTap/BlockNote inject `<style>` elements; they get the request nonce
+  (`NonceProvider` → `_tiptapOptions.injectNonce`). Ariakit is used instead of Mantine, which
+  injects runtime styles.
+- **Note bodies are Markdown** (BlockNote's lossy export), so the backend's PII scrubbing and
+  promotion keep working on text. "Ask my notebook" searches the private index, which holds
+  processed attachments and links, not typed note bodies.
+- **Safe Markdown** (`SafeMarkdown`) was built in 6.3 for Wiki blocks and is reused by the chat.
+- **Wiki rendering**: no lazy, on-viewport rendering of blocks. The article endpoint returns
+  all visible blocks (and counts them for coverage) in one response, so revealing them lazily
+  in the browser would hide nothing. The per-reader Wiki watermark exists behind
+  `shield.watermark_wiki` (default off: it rewords expert-approved text).
+- **Approving experts** were added to `ArticleOut` (approvals up to `last_verified_at`).

@@ -14,7 +14,7 @@ against their coverage budget (5.2): the Wiki is not a way around the anti-disti
 from __future__ import annotations
 
 from datetime import datetime  # noqa: TC003 - pydantic resolves annotations at runtime
-from typing import Annotated
+from typing import TYPE_CHECKING, Annotated
 from uuid import UUID  # noqa: TC003 - FastAPI/pydantic resolve annotations at runtime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
@@ -24,13 +24,17 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from spoldzielnia_ai.auth.deps import CurrentUser, Principal  # noqa: TC001 - FastAPI resolves it
-from spoldzielnia_ai.db.enums import ArticleStatus, ConsentStatus, Role
-from spoldzielnia_ai.db.models import ArticleBlock, User, WikiArticle
+from spoldzielnia_ai.db.enums import ArticleStatus, ConsentStatus, ReviewDecision, Role
+from spoldzielnia_ai.db.models import ArticleBlock, ExpertReview, User, WikiArticle
 from spoldzielnia_ai.db.session import SessionFactory, get_session
 from spoldzielnia_ai.shield.coverage import CoverageExceeded
 from spoldzielnia_ai.shield.deps import CoverageDep, coverage_refusal
+from spoldzielnia_ai.shield.watermark import Watermarker
 from spoldzielnia_ai.vector.deps import VectorSyncDep  # noqa: TC001 - FastAPI resolves it
 from spoldzielnia_ai.wiki.review import ReviewError, ReviewService
+
+if TYPE_CHECKING:
+    from spoldzielnia_ai.core.settings import ShieldSettings
 
 router = APIRouter(prefix="/wiki", tags=["wiki"])
 
@@ -71,6 +75,7 @@ class ArticleOut(ArticleSummaryOut):
     supersedes_id: UUID | None
     superseded_by_id: UUID | None
     review_alert: str | None
+    approving_experts: list[AuthorOut]
     blocks: list[BlockOut]
 
 
@@ -97,6 +102,24 @@ async def _authors(session: AsyncSession, article_ids: list[UUID]) -> dict[UUID,
     for article_id, user_id, display_name in rows:
         authors[article_id].append(AuthorOut(id=user_id, display_name=display_name))
     return authors
+
+
+async def _approving_experts(session: AsyncSession, article: WikiArticle) -> list[AuthorOut]:
+    """Experts whose approval made the article canonical (approvals up to its verification)."""
+    if article.last_verified_at is None:
+        return []
+    rows = await session.execute(
+        select(User.id, User.display_name)
+        .join(ExpertReview, ExpertReview.reviewer_id == User.id)
+        .where(
+            ExpertReview.article_id == article.id,
+            ExpertReview.decision == ReviewDecision.APPROVE,
+            ExpertReview.created_at <= article.last_verified_at,
+        )
+        .distinct()
+        .order_by(User.id)
+    )
+    return [AuthorOut(id=user_id, display_name=name) for user_id, name in rows]
 
 
 def render_block(block: ArticleBlock, viewer_id: UUID) -> BlockOut:
@@ -147,7 +170,11 @@ async def list_articles(
 
 @router.get("/articles/{article_id}", response_model=ArticleOut)
 async def get_article(
-    article_id: UUID, principal: CurrentUser, session: SessionDep, coverage: CoverageDep
+    article_id: UUID,
+    request: Request,
+    principal: CurrentUser,
+    session: SessionDep,
+    coverage: CoverageDep,
 ) -> ArticleOut:
     article = await session.get(WikiArticle, article_id)
     if article is None or article.is_hidden:  # honeypots (5.4) exist for retrieval only
@@ -163,6 +190,7 @@ async def get_article(
             .order_by(ArticleBlock.position)
         )
     )
+    watermarker: Watermarker | None = None
     if article.status == ArticleStatus.CANONICAL and not is_author and not is_reviewer(principal):
         # Reading canonical text counts against the coverage budget like RAG retrieval (5.2).
         shown = [b.id for b in blocks if b.consent_status == ConsentStatus.ACTIVE and b.content]
@@ -170,6 +198,17 @@ async def get_article(
             await coverage.admit(principal.id, shown, [article.id])
         except CoverageExceeded as exc:
             raise coverage_refusal(exc) from None
+        shield: ShieldSettings = request.app.state.settings.shield
+        if shield.watermark_wiki:
+            watermarker = Watermarker.from_settings(shield)
+    rendered = [render_block(b, principal.id) for b in blocks]
+    if watermarker is not None:
+        rendered = [
+            b.model_copy(update={"content": watermarker.apply(b.content, principal.id)})
+            if b.content
+            else b
+            for b in rendered
+        ]
     return ArticleOut(
         id=article.id,
         title=article.title,
@@ -180,7 +219,8 @@ async def get_article(
         supersedes_id=article.supersedes_id,
         superseded_by_id=article.superseded_by_id,
         review_alert=article.review_alert if is_author or is_reviewer(principal) else None,
-        blocks=[render_block(b, principal.id) for b in blocks],
+        approving_experts=await _approving_experts(session, article),
+        blocks=rendered,
     )
 
 

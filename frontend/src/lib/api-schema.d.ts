@@ -532,6 +532,8 @@ export interface components {
     schemas: {
         /** ArticleOut */
         ArticleOut: {
+            /** Approving Experts */
+            approving_experts: components["schemas"]["AuthorOut"][];
             /** Authors */
             authors: components["schemas"]["AuthorOut"][];
             /** Blocks */

@@ -3,6 +3,13 @@
     "schemas": {
       "ArticleOut": {
         "properties": {
+          "approving_experts": {
+            "items": {
+              "$ref": "#/components/schemas/AuthorOut"
+            },
+            "title": "Approving Experts",
+            "type": "array"
+          },
           "authors": {
             "items": {
               "$ref": "#/components/schemas/AuthorOut"
@@ -91,6 +98,7 @@
           "supersedes_id",
           "superseded_by_id",
           "review_alert",
+          "approving_experts",
           "blocks"
         ],
         "title": "ArticleOut",

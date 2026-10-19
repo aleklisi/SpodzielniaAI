@@ -23,7 +23,12 @@ export function QueryProvider({ children }: { children: ReactNode }) {
   const [client] = useState(
     () =>
       new QueryClient({
-        queryCache: new QueryCache({ onError: redirectToLogin }),
+        // A query with `meta.optionalAuth` (the navigation's /me) only reports "signed out".
+        queryCache: new QueryCache({
+          onError: (error, query) => {
+            if (!query.meta?.optionalAuth) redirectToLogin(error);
+          },
+        }),
         mutationCache: new MutationCache({ onError: redirectToLogin }),
         defaultOptions: {
           queries: {
