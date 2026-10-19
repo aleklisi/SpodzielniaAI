@@ -405,6 +405,22 @@ services:
       - { source: qdrant_api_key, target: qdrant__api_key }
       - internal_ca
 
+  # Celery beat (4.4): schedules the vector-outbox reconciliation (every 30 s) and the nightly
+  # consistency audit, both run by worker-core. Needs the broker and nothing else.
+  beat:
+    <<: [*hardening, *backend-image]
+    command: ["beat"]
+    restart: unless-stopped
+    networks: [backend]
+    mem_limit: 256m
+    depends_on:
+      redis: { condition: service_healthy }
+    environment: *app-env
+    secrets:
+      - { source: redis_password, target: redis__password }
+    healthcheck:
+      disable: true
+
   # One-shot model download with internet access (`make models`). Not part of `up`.
   models-init:
     <<: *hardening

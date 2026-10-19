@@ -8,6 +8,8 @@ from spoldzielnia_ai.db.migrate import head_revision
 from spoldzielnia_ai.main import create_app
 
 if TYPE_CHECKING:
+    import pytest
+
     from spoldzielnia_ai.core.readiness import ReadinessCheck
     from spoldzielnia_ai.core.settings import Settings
 
@@ -65,3 +67,33 @@ async def test_openapi_hidden_in_prod(settings: Settings) -> None:
     async with _client(prod, {}) as client:
         assert (await client.get("/docs")).status_code == 404
         assert (await client.get("/openapi.json")).status_code == 404
+
+
+async def test_metrics_expose_outbox_backlog_and_http_metrics(
+    settings: Settings, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def backlog(_factory: object) -> int:
+        return 3
+
+    monkeypatch.setattr("spoldzielnia_ai.main.outbox_backlog", backlog)
+    async with _client(settings, {}) as client:
+        await client.get("/healthz")
+        response = await client.get("/metrics")
+
+    assert response.status_code == 200
+    assert "vector_outbox_backlog 3.0" in response.text
+    assert "# TYPE consent_propagation_seconds histogram" in response.text
+    assert "http_requests_total" in response.text
+
+
+async def test_metrics_survive_a_database_outage(
+    settings: Settings, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def backlog(_factory: object) -> int:
+        raise ConnectionRefusedError
+
+    monkeypatch.setattr("spoldzielnia_ai.main.outbox_backlog", backlog)
+    async with _client(settings, {}) as client:
+        response = await client.get("/metrics")
+
+    assert response.status_code == 200

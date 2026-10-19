@@ -5,6 +5,8 @@ Subcommands:
     migrate    apply database migrations (Alembic, owner role)
     audit-verify  re-compute the security audit log hash chain; exit 1 on any break
     worker     run a Celery worker for the given queues (2.5)
+    beat       run the Celery beat scheduler (outbox reconciliation, consistency audit, 4.4)
+    reindex    rebuild both Qdrant collections from Postgres (4.4)
     models     download/verify the offline ML models (2.5)
     bootstrap  create the storage bucket (1.2b) and the Qdrant collections (4.1)
 """
@@ -107,6 +109,32 @@ def _cmd_worker(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_beat(_args: argparse.Namespace) -> int:
+    from spoldzielnia_ai.core.settings import BeatSettings
+    from spoldzielnia_ai.workers.celery_adapter import beat_main, make_celery
+
+    settings = BeatSettings()  # pyright: ignore[reportCallIssue]  # env/secrets
+    configure_logging(settings.log_level, json=settings.environment != "dev")
+    log.info("beat.start", schedule_file=settings.schedule_file)
+    beat_main(make_celery(settings.redis.broker_url()), settings.schedule_file, settings.log_level)
+    return 0
+
+
+def _cmd_reindex(args: argparse.Namespace) -> int:
+    import asyncio
+
+    from spoldzielnia_ai.core.settings import WorkerSettings
+    from spoldzielnia_ai.vector.reindex import run_reindex
+
+    if not args.yes:
+        log.error("reindex.not_confirmed", hint="drops and rebuilds both collections: pass --yes")
+        return 2
+    settings = WorkerSettings()  # pyright: ignore[reportCallIssue]  # env/secrets
+    configure_logging(settings.log_level, json=settings.environment != "dev")
+    report = asyncio.run(run_reindex(settings))
+    return 0 if report.failed == 0 else 1
+
+
 def _cmd_models(args: argparse.Namespace) -> int:
     from pathlib import Path
 
@@ -156,6 +184,13 @@ def build_parser() -> argparse.ArgumentParser:
         "--queues", required=True, help="comma-separated, e.g. media.transcribe,media.parse"
     )
     worker.set_defaults(handler=_cmd_worker)
+
+    beat = sub.add_parser("beat", help="run the Celery beat scheduler")
+    beat.set_defaults(handler=_cmd_beat)
+
+    reindex = sub.add_parser("reindex", help="rebuild the Qdrant collections from Postgres")
+    reindex.add_argument("--yes", action="store_true", help="confirm dropping the collections")
+    reindex.set_defaults(handler=_cmd_reindex)
 
     models_cmd = sub.add_parser("models", help="download or verify offline ML models")
     models_cmd.add_argument("action", choices=["download", "verify"])

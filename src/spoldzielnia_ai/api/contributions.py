@@ -6,10 +6,11 @@ of the member's contributions (gap G18).
 
 Order of operations (gap G17):
 1. One transaction: lock the articles and blocks, change consent (wipe text on revoke),
-   cascade to co-authored articles, audit. Commit.
-2. Apply the Qdrant operations synchronously (``wait=True``, bounded timeout).
+   cascade to co-authored articles, audit, write the Qdrant operations to the outbox. Commit.
+2. Apply the outbox synchronously (``wait=True``, bounded timeout).
 3. Respond. If step 2 failed, the response still reports success with ``index_synced=false``:
-   Postgres is the source of truth, and retrieval re-validates every hit against it.
+   Postgres is the source of truth, retrieval re-validates every hit against it, and the
+   reconciler applies the operations once Qdrant is back (4.4).
 
 Revoking is irreversible. It needs ``confirm: "REVOKE"`` and a login at most
 ``governance.revoke_max_auth_age_seconds`` old (otherwise 403 with a step-up link).
@@ -28,6 +29,7 @@ from sqlalchemy import select
 
 from spoldzielnia_ai.auth.deps import CurrentUser, Principal  # noqa: TC001 - FastAPI resolves it
 from spoldzielnia_ai.core.logging import get_logger
+from spoldzielnia_ai.core.metrics import CONSENT_PROPAGATION
 from spoldzielnia_ai.db.enums import ArticleStatus, ConsentStatus  # noqa: TC001 - pydantic
 from spoldzielnia_ai.db.models import ArticleBlock, WikiArticle
 from spoldzielnia_ai.vector.deps import VectorSyncDep  # noqa: TC001 - FastAPI resolves it
@@ -135,14 +137,18 @@ async def _change(
     count = CanonicalVectorRepo(state.qdrant).count
     async with factory() as session, session.begin():
         result = await ConsentService(session, count).change(action, principal.id, article_ids)
-    synced = await sync.apply(result.ops)
+        outbox = await sync.record(session, result.ops)
+    synced = await sync.flush(outbox)
+    elapsed = time.perf_counter() - started
+    if synced and result.ops:
+        CONSENT_PROPAGATION.labels(action=action.value).observe(elapsed)
     log.info(
         "consent.changed",
         action=action.value,
         blocks=result.blocks,
         degraded=len(result.degraded),
         index_synced=synced,
-        propagation_seconds=round(time.perf_counter() - started, 4),
+        propagation_seconds=round(elapsed, 4),
     )
     return ConsentOut(
         action=action,

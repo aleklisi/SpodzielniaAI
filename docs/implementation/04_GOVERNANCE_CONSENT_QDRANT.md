@@ -153,8 +153,10 @@ counts of blocks and points affected.
 **Docker:**
 - Scheduled tasks run via the `beat` container service (`spoldzielnia beat`, using `api` image)
   attached only to `backend` network.
-- `spoldzielnia reindex` CLI command implemented to rebuild all Qdrant collections from scratch
-  from Postgres data (runnable via `docker compose run --rm api reindex`).
+- `spoldzielnia reindex --yes` CLI command implemented to rebuild all Qdrant collections from
+  scratch from Postgres data: `make reindex`, i.e. `docker compose run --rm worker-core reindex
+  --yes`. It runs in `worker-core`, not `api`, because it needs the local embedding model and
+  the KEK (private derivatives are decrypted to embed them).
 
 **Tests**
 - Simulated Qdrant outage during revoke: the API returns 200. Retrieval still excludes the blocks

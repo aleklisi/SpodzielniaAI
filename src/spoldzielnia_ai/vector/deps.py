@@ -28,7 +28,11 @@ def get_vector_sync(request: Request) -> VectorSync:
     queue: ProcessingQueue = state.processing_queue
     settings: Settings = state.settings
     return VectorSync(
-        CanonicalVectorRepo(state.qdrant), queue.article_canonical, settings.qdrant.timeout_seconds
+        state.session_factory,
+        CanonicalVectorRepo(state.qdrant),
+        queue.article_canonical,
+        settings.qdrant.timeout_seconds,
+        settings.governance.outbox_alert_after,
     )
 
 

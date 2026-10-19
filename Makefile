@@ -8,7 +8,7 @@ help: ## Show targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  %-12s %s\n", $$1, $$2}'
 
 # --- Stack -------------------------------------------------------------------
-.PHONY: secrets build up watch down reset logs ps smoke trust-cert migrate revision models models-host
+.PHONY: secrets build up watch down reset logs ps smoke trust-cert migrate revision models models-host reindex
 secrets: ## Generate Docker secrets + dev TLS certs into ./secrets (idempotent)
 	@infra/scripts/init-secrets.sh
 
@@ -36,6 +36,9 @@ models: ## Download the offline ML models into the `models` volume (internet, on
 
 models-host: ## Models for host-side `ml` tests (.models: whisper tiny + Docling)
 	uv run spoldzielnia models download --root .models --whisper tiny
+
+reindex: ## Rebuild both Qdrant collections from Postgres (e.g. after changing LLM_EMBED_DIM)
+	$(COMPOSE) run --rm worker-core reindex --yes
 
 smoke: ## Stack smoke test (HTTPS, IdP, hardening, ports, isolation)
 	@COMPOSE="$(COMPOSE)" infra/scripts/smoke.sh

@@ -16,10 +16,12 @@ from spoldzielnia_ai.db.enums import (
     ConsentStatus,
     DerivativeKind,
     DerivativeStatus,
+    OutboxStatus,
     PromotionStatus,
     ReviewDecision,
     Role,
     ScanStatus,
+    VectorOpKind,
     pg_enum,
 )
 
@@ -47,6 +49,8 @@ class Base(DeclarativeBase):
         DerivativeKind: pg_enum(DerivativeKind),
         DerivativeStatus: pg_enum(DerivativeStatus),
         PromotionStatus: pg_enum(PromotionStatus),
+        VectorOpKind: pg_enum(VectorOpKind),
+        OutboxStatus: pg_enum(OutboxStatus),
     }
 
 

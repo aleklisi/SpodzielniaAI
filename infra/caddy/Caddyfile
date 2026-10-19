@@ -37,6 +37,11 @@ http://127.0.0.1:8081 {
 		max_size 210MB
 	}
 
+	# Prometheus scrapes api:8000/metrics on the internal network; it is not public.
+	handle /api/metrics {
+		respond 404
+	}
+
 	handle_path /api/* {
 		reverse_proxy api:8000 {
 			header_up X-Forwarded-Proto https

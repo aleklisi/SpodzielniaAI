@@ -7,6 +7,8 @@ from contextlib import asynccontextmanager
 from typing import TYPE_CHECKING, Literal
 
 from fastapi import FastAPI, Request, Response, status
+from prometheus_client import CONTENT_TYPE_LATEST, REGISTRY, CollectorRegistry, generate_latest
+from prometheus_fastapi_instrumentator import Instrumentator
 from pydantic import BaseModel
 from redis.asyncio import Redis
 
@@ -26,6 +28,7 @@ from spoldzielnia_ai.auth.deps import DbAuditSink
 from spoldzielnia_ai.auth.oidc_client import OidcClient
 from spoldzielnia_ai.core.crypto import EnvelopeCipher, StaticKeyProvider
 from spoldzielnia_ai.core.logging import configure_logging, get_logger
+from spoldzielnia_ai.core.metrics import OUTBOX_BACKLOG
 from spoldzielnia_ai.core.readiness import ReadinessCheck, default_checks
 from spoldzielnia_ai.core.settings import Settings, get_settings
 from spoldzielnia_ai.db.engine import create_app_engine
@@ -35,6 +38,7 @@ from spoldzielnia_ai.files.antivirus import ClamdScanner
 from spoldzielnia_ai.files.storage import S3ObjectStorage
 from spoldzielnia_ai.notebook.queue import CeleryProcessingQueue
 from spoldzielnia_ai.vector.client import make_qdrant
+from spoldzielnia_ai.vector.sync import outbox_backlog
 from spoldzielnia_ai.workers.celery_adapter import make_celery
 
 if TYPE_CHECKING:
@@ -125,6 +129,23 @@ def create_app(
     async def healthz() -> HealthResponse:  # pyright: ignore[reportUnusedFunction]
         """Liveness: the process is up. Does not touch dependencies."""
         return HealthResponse()
+
+    # HTTP metrics in a registry of this app (tests build many apps in one process); the
+    # domain metrics (core.metrics) live in the process-wide default registry.
+    http_metrics = CollectorRegistry()
+    Instrumentator(
+        excluded_handlers=["/metrics", "/healthz", "/readyz"], registry=http_metrics
+    ).instrument(app)
+
+    @app.get("/metrics", include_in_schema=False)
+    async def metrics() -> Response:  # pyright: ignore[reportUnusedFunction]
+        """Prometheus scrape target on the internal network (the proxy hides it)."""
+        try:
+            OUTBOX_BACKLOG.set(await outbox_backlog(app.state.session_factory))
+        except Exception as exc:
+            log.warning("metrics.backlog_failed", error=type(exc).__name__)
+        body = generate_latest(REGISTRY) + generate_latest(http_metrics)
+        return Response(body, media_type=CONTENT_TYPE_LATEST)
 
     @app.get("/readyz", response_model=ReadinessResponse, tags=["ops"])
     async def readyz(response: Response) -> ReadinessResponse:  # pyright: ignore[reportUnusedFunction]

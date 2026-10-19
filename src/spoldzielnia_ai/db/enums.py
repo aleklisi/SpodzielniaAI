@@ -69,6 +69,17 @@ class PromotionStatus(StrEnum):
     FAILED = "FAILED"
 
 
+class VectorOpKind(StrEnum):
+    UPSERT = "UPSERT"
+    SET_PAYLOAD = "SET_PAYLOAD"
+    DELETE = "DELETE"
+
+
+class OutboxStatus(StrEnum):
+    PENDING = "PENDING"
+    DONE = "DONE"
+
+
 PG_ENUM_NAMES: dict[type[StrEnum], str] = {
     Role: "user_role",
     ConsentStatus: "consent_status",
@@ -78,6 +89,8 @@ PG_ENUM_NAMES: dict[type[StrEnum], str] = {
     DerivativeKind: "derivative_kind",
     DerivativeStatus: "derivative_status",
     PromotionStatus: "promotion_status",
+    VectorOpKind: "vector_op_kind",
+    OutboxStatus: "outbox_status",
 }
 
 

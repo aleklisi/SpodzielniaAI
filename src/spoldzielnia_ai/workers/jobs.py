@@ -34,6 +34,8 @@ class TaskName(StrEnum):
     PROMOTE_NOTES = "promotion.promote_notes"
     INDEX_DERIVATIVE = "index.private_derivative"
     INDEX_ARTICLE = "index.canonical_article"
+    RECONCILE_OUTBOX = "index.reconcile_outbox"  # Celery beat, every 30 s (4.4)
+    CONSISTENCY_AUDIT = "index.consistency_audit"  # Celery beat, nightly (4.4)
 
 
 TASK_QUEUE: dict[TaskName, Queue] = {
@@ -45,6 +47,8 @@ TASK_QUEUE: dict[TaskName, Queue] = {
     TaskName.PROMOTE_NOTES: Queue.PROMOTION,
     TaskName.INDEX_DERIVATIVE: Queue.INDEX,
     TaskName.INDEX_ARTICLE: Queue.INDEX,
+    TaskName.RECONCILE_OUTBOX: Queue.INDEX,
+    TaskName.CONSISTENCY_AUDIT: Queue.INDEX,
 }
 
 KIND_TASK: dict[DerivativeKind, TaskName] = {
@@ -64,6 +68,8 @@ TIME_LIMITS: dict[TaskName, tuple[int, int]] = {
     TaskName.PROMOTE_NOTES: (1800, 1860),  # local LLM generation can be slow on CPU
     TaskName.INDEX_DERIVATIVE: (600, 660),
     TaskName.INDEX_ARTICLE: (600, 660),
+    TaskName.RECONCILE_OUTBOX: (120, 150),
+    TaskName.CONSISTENCY_AUDIT: (3600, 3660),
 }
 
 
@@ -98,16 +104,25 @@ class ArticleJob(BaseModel):
         return {"article_id": str(self.article_id)}
 
 
-type Job = DerivativeJob | PromotionJob | ArticleJob
-type JobModel = type[DerivativeJob] | type[PromotionJob] | type[ArticleJob]
+class MaintenanceJob(BaseModel):
+    """A scheduled task without arguments (outbox reconciliation, consistency audit)."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    def to_message(self) -> dict[str, str]:
+        return {}
+
+
+type Job = DerivativeJob | PromotionJob | ArticleJob | MaintenanceJob
+type JobModel = type[DerivativeJob] | type[PromotionJob] | type[ArticleJob] | type[MaintenanceJob]
+
+_SPECIAL_JOBS: dict[TaskName, JobModel] = {
+    TaskName.PROMOTE_NOTES: PromotionJob,
+    TaskName.INDEX_ARTICLE: ArticleJob,
+    TaskName.RECONCILE_OUTBOX: MaintenanceJob,
+    TaskName.CONSISTENCY_AUDIT: MaintenanceJob,
+}
 
 JOB_MODEL: dict[TaskName, JobModel] = {
-    name: (
-        PromotionJob
-        if name == TaskName.PROMOTE_NOTES
-        else ArticleJob
-        if name == TaskName.INDEX_ARTICLE
-        else DerivativeJob
-    )
-    for name in TaskName
+    name: _SPECIAL_JOBS.get(name, DerivativeJob) for name in TaskName
 }

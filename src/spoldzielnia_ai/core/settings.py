@@ -218,6 +218,8 @@ class GovernanceSettings(BaseModel):
     review_quorum: int = Field(default=1, ge=1, le=10)
     # Revoking contributions needs a login at most this old (step-up otherwise).
     revoke_max_auth_age_seconds: int = Field(default=600, ge=60, le=3600)
+    # A vector-outbox operation failing this many times in a row raises an alert (4.4).
+    outbox_alert_after: int = Field(default=5, ge=1)
 
 
 class LlmSettings(BaseModel):
@@ -365,6 +367,7 @@ class WorkerSettings(_BaseSettings):
     models: ModelSettings = Field(default_factory=ModelSettings)
     llm: LlmSettings = Field(default_factory=LlmSettings)
     qdrant: QdrantSettings = Field(default_factory=QdrantSettings)
+    governance: GovernanceSettings = Field(default_factory=GovernanceSettings)
     concurrency: int = Field(default=1, ge=1)
 
     @model_validator(mode="after")
@@ -372,6 +375,13 @@ class WorkerSettings(_BaseSettings):
         if self.db.app_password is None:
             raise ValueError("db.app_password is required")
         return self
+
+
+class BeatSettings(_BaseSettings):
+    """Celery beat (`spoldzielnia beat`, 4.4): the broker and nothing else."""
+
+    redis: RedisSettings
+    schedule_file: str = "/tmp/celerybeat-schedule"  # noqa: S108 - tmpfs in the container
 
 
 class BootstrapSettings(_BaseSettings):

@@ -1,8 +1,8 @@
 """``/reviews``: the Expert Council's queue and decisions (chunk 4.2). EXPERT role + MFA.
 
-A decision commits first (status, review record, audit), then its index operations are applied
-synchronously: when the response is sent, an article that left CANONICAL is no longer
-retrievable. An article that entered CANONICAL is queued for indexing.
+A decision commits first (status, review record, audit, outbox rows), then its index operations
+are applied synchronously: when the response is sent, an article that left CANONICAL is no
+longer retrievable. An article that entered CANONICAL is queued for indexing.
 """
 
 from __future__ import annotations
@@ -128,9 +128,10 @@ async def review_article(
                 payload.version,
                 payload.supersedes_id,
             )
+            outbox = await sync.record(session, result.ops)
     except ReviewError as exc:
         return JSONResponse({"detail": {"error": exc.code}}, status_code=exc.status)
-    synced = await sync.apply(result.ops)
+    synced = await sync.flush(outbox)
     return ReviewOut(
         article_id=result.article_id,
         previous=result.previous,

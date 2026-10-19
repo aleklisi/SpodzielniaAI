@@ -103,6 +103,11 @@ services:
         - { action: rebuild, path: ./src }
         - { action: rebuild, path: ./uv.lock }
 
+  beat:
+    build: *backend-build
+    environment:
+      SPOLDZIELNIA_ENVIRONMENT: dev
+
   worker-egress:
     build: *backend-build
     environment:

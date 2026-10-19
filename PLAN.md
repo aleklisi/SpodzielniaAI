@@ -176,7 +176,7 @@ Pełna specyfikacja techniczna i architektura wdrożenia w kontenerach Docker zn
 - [x] 4.1 Kolekcje i repozytoria wektorowe Qdrant z twardymi filtrami uprawnień (tenant i active canonical)
 - [x] 4.2 Maszyna stanów recenzji eksperckiej (`DRAFT` -> `IN_REVIEW` -> `CANONICAL` / `SUPERSEDED` / `DISPUTED`)
 - [x] 4.3 Endpointy wycofania zgód Exit Strategy (`suspend`, `resume`, `revoke`) z kaskadą na artykuły
-- [ ] 4.4 Tabela Outbox, zadania uzgadniania Qdrant w Celery Beat i audyt dryfu wektorów
+- [x] 4.4 Tabela Outbox, zadania uzgadniania Qdrant w Celery Beat i audyt dryfu wektorów
 
 ### Etap 5: Tarcza Anty-Destylacyjna (Anti-Distillation Shield) i Bezpieczny RAG
 *Dokumentacja: [docs/implementation/05_ANTI_DISTILLATION_RAG.md](docs/implementation/05_ANTI_DISTILLATION_RAG.md)*

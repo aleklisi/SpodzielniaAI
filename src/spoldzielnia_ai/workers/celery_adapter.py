@@ -78,6 +78,33 @@ def send(app: Any, name: TaskName, job: Job) -> None:
     app.send_task(name.value, kwargs=job.to_message(), queue=TASK_QUEUE[name].value)
 
 
+RECONCILE_EVERY_SECONDS = 30.0
+
+
+def beat_schedule() -> dict[str, dict[str, Any]]:
+    """Periodic tasks (4.4). A reconcile message expires before the next one is due, so a
+    stopped worker doesn't come back to a pile of them."""
+    from celery.schedules import crontab  # pyright: ignore[reportMissingTypeStubs]
+
+    nightly: Any = crontab(hour=3, minute=15)
+    return {
+        "reconcile-vector-outbox": {
+            "task": TaskName.RECONCILE_OUTBOX.value,
+            "schedule": RECONCILE_EVERY_SECONDS,
+            "options": {"expires": RECONCILE_EVERY_SECONDS - 5},
+        },
+        "vector-consistency-audit": {
+            "task": TaskName.CONSISTENCY_AUDIT.value,
+            "schedule": nightly,
+        },
+    }
+
+
+def beat_main(app: Any, schedule_file: str, loglevel: str) -> None:
+    app.conf.beat_schedule = beat_schedule()
+    app.start(["beat", f"--schedule={schedule_file}", f"--loglevel={loglevel}"])
+
+
 def worker_main(app: Any, queues: list[str], concurrency: int, loglevel: str) -> None:
     app.worker_main(
         [

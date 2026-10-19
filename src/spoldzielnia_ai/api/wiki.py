@@ -180,9 +180,10 @@ async def submit_article(
             result = await ReviewService(session).submit(
                 article_id, principal.id, is_reviewer(principal)
             )
+            outbox = await sync.record(session, result.ops)
     except ReviewError as exc:
         return JSONResponse({"detail": {"error": exc.code}}, status_code=exc.status)
-    await sync.apply(result.ops)
+    await sync.flush(outbox)
     return SubmitOut(
         id=result.article_id,
         previous=result.previous,

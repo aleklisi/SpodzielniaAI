@@ -1,4 +1,5 @@
-"""Chunk 4.2: the review state machine (exhaustively) and the vector operations it produces."""
+"""Chunks 4.2/4.4: the review state machine (exhaustively), the vector operations it produces,
+and how they are applied and scheduled."""
 
 from __future__ import annotations
 
@@ -15,6 +16,7 @@ from spoldzielnia_ai.vector.sync import (
     OpKind,
     VectorOp,
     VectorSync,
+    backoff,
     deactivate_articles,
     delete_blocks,
     reindex_articles,
@@ -31,6 +33,8 @@ from spoldzielnia_ai.wiki.governance import (
     touches_canonical,
     transition,
 )
+from spoldzielnia_ai.workers.celery_adapter import beat_schedule
+from spoldzielnia_ai.workers.jobs import JOB_MODEL, MaintenanceJob, TaskName
 
 S = ArticleStatus
 
@@ -136,20 +140,46 @@ class FakeRepo:
         self.calls.append(("delete", scope, None))
 
 
-async def test_vector_sync_applies_in_order_and_reports_failure() -> None:
+async def test_vector_sync_dispatches_each_op_and_raises_on_failure() -> None:
     repo = FakeRepo()
     reindexed: list[UUID] = []
 
     async def reindex(article_id: UUID) -> None:
         reindexed.append(article_id)
 
-    sync = VectorSync(repo, reindex, timeout_seconds=1)  # pyright: ignore[reportArgumentType]
+    sync = VectorSync(None, repo, reindex, timeout_seconds=1)  # pyright: ignore[reportArgumentType]
     author, a, b = uuid4(), uuid4(), uuid4()
 
-    assert await sync.apply([delete_blocks(author, None), reindex_articles((a, b))]) is True
-    assert [c[0] for c in repo.calls] == ["delete"]
+    await sync.apply_one(delete_blocks(author, None))
+    await sync.apply_one(reindex_articles((a, b)))
+    await sync.apply_one(suspend_blocks(author, (a,)))
+    assert [c[0] for c in repo.calls] == ["delete", "set_payload"]
     assert reindexed == [a, b]
 
     repo.fail = True
-    assert await sync.apply([suspend_blocks(author, None), reindex_articles((a,))]) is False
-    assert reindexed == [a, b]  # stopped at the first failure
+    with pytest.raises(ConnectionError):
+        await sync.apply_one(suspend_blocks(author, None))  # the outbox keeps it for a retry
+
+
+def test_outbox_backoff_is_exponential_and_capped() -> None:
+    assert [backoff(n).total_seconds() for n in (1, 2, 3, 4, 5, 6, 10)] == [
+        30,
+        60,
+        120,
+        240,
+        480,
+        600,
+        600,
+    ]
+
+
+def test_beat_schedules_reconciliation_and_nightly_audit() -> None:
+    schedule = beat_schedule()
+
+    reconcile = schedule["reconcile-vector-outbox"]
+    assert reconcile["task"] == TaskName.RECONCILE_OUTBOX.value
+    assert reconcile["schedule"] == 30.0
+    assert reconcile["options"]["expires"] < reconcile["schedule"]
+    assert schedule["vector-consistency-audit"]["task"] == TaskName.CONSISTENCY_AUDIT.value
+    assert JOB_MODEL[TaskName.RECONCILE_OUTBOX] is MaintenanceJob
+    assert MaintenanceJob.model_validate({}).to_message() == {}

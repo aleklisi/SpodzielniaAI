@@ -32,6 +32,7 @@ echo "1. HTTPS single origin"
 expect "GET /api/healthz" "https://$DOMAIN/api/healthz" 200
 expect "GET /api/readyz"  "https://$DOMAIN/api/readyz" 200
 expect "GET / (placeholder)" "https://$DOMAIN/" 200
+expect "GET /api/metrics is not public" "https://$DOMAIN/api/metrics" 404
 # Alembic head of this checkout: the revision no other migration names as its down_revision.
 # Plain python3 (no venv), so the script also runs on servers.
 HEAD="$(python3 - <<'PY'
@@ -196,6 +197,15 @@ except LocalModelUnavailable as exc:
 '
 check "worker-core: embedding size matches qdrant.vector_size" \
   "${COMPOSE[@]}" exec -T worker-core python -c "$EMBED_PY"
+METRICS_PY='
+import urllib.request
+body = urllib.request.urlopen("http://127.0.0.1:8000/metrics", timeout=5).read().decode()
+assert "vector_outbox_backlog" in body and "consent_propagation_seconds" in body
+'
+check "api: /metrics served internally (outbox backlog, consent propagation)" \
+  "${COMPOSE[@]}" exec -T api python -c "$METRICS_PY"
+check "beat: scheduler running" bash -c \
+  "${COMPOSE[*]} logs beat 2>&1 | grep -q 'beat: Starting'"
 check "worker-media: model volume is read-only" bash -c \
   "! ${COMPOSE[*]} exec -T worker-media sh -c 'touch /models/.probe' 2>/dev/null"
 
