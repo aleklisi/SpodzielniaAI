@@ -200,7 +200,7 @@ Each one is resolved (✅ = decision baked into the chunk plans) or needs your i
 
 ### Stage 5 — Anti-Distillation Shield & RAG
 - [x] 5.1 `RAGService` with strict grounding & validated citations
-- [ ] 5.2 `CoverageTracker`
+- [x] 5.2 `CoverageTracker`
 - [ ] 5.3 `SemanticAnomalyDetector`
 - [ ] 5.4 `HoneypotInjector`
 - [ ] 5.5 `OutputVerifier` & `Watermarker`

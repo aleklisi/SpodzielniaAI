@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from sqlalchemy import Text, UniqueConstraint, text
+from datetime import datetime
+
+from sqlalchemy import String, Text, UniqueConstraint, text
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -27,3 +29,6 @@ class User(Entity):
     )
     is_locked: Mapped[bool] = mapped_column(server_default=text("false"), default=False)
     risk_score: Mapped[float] = mapped_column(server_default=text("0"), default=0.0)
+    # Set by the anti-distillation shield (5.2): a reason code, never query content.
+    locked_reason: Mapped[str | None] = mapped_column(String(64))
+    locked_at: Mapped[datetime | None]

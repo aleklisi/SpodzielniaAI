@@ -39,6 +39,7 @@ from spoldzielnia_ai.files.antivirus import ClamdScanner
 from spoldzielnia_ai.files.storage import S3ObjectStorage
 from spoldzielnia_ai.llm.gateway import LiteLLMGateway
 from spoldzielnia_ai.notebook.queue import CeleryProcessingQueue
+from spoldzielnia_ai.shield.alerts import make_notifier
 from spoldzielnia_ai.vector.client import make_qdrant
 from spoldzielnia_ai.vector.sync import outbox_backlog
 from spoldzielnia_ai.workers.celery_adapter import make_celery
@@ -118,6 +119,7 @@ def create_app(
     app.state.upload_slots = asyncio.Semaphore(settings.uploads.max_concurrent)
     # Question embeddings and answer synthesis (Stage 5). The router is built on first use.
     app.state.llm = LiteLLMGateway(settings.llm)
+    app.state.notifier = make_notifier(settings.shield)
     app.include_router(auth_router)
     app.include_router(me_router)
     app.include_router(contributions_router)

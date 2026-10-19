@@ -6,6 +6,9 @@ never a 403 (no existence oracle).
 
 A block's text is shown only while its consent is ACTIVE. SUSPENDED and REVOKED blocks are
 rendered as withheld, except that an author still sees their own suspended text.
+
+Canonical text shown to a member who is neither an author of the article nor a reviewer counts
+against their coverage budget (5.2): the Wiki is not a way around the anti-distillation shield.
 """
 
 from __future__ import annotations
@@ -24,6 +27,8 @@ from spoldzielnia_ai.auth.deps import CurrentUser, Principal  # noqa: TC001 - Fa
 from spoldzielnia_ai.db.enums import ArticleStatus, ConsentStatus, Role
 from spoldzielnia_ai.db.models import ArticleBlock, User, WikiArticle
 from spoldzielnia_ai.db.session import SessionFactory, get_session
+from spoldzielnia_ai.shield.coverage import CoverageExceeded
+from spoldzielnia_ai.shield.deps import CoverageDep, coverage_refusal
 from spoldzielnia_ai.vector.deps import VectorSyncDep  # noqa: TC001 - FastAPI resolves it
 from spoldzielnia_ai.wiki.review import ReviewError, ReviewService
 
@@ -141,7 +146,9 @@ async def list_articles(
 
 
 @router.get("/articles/{article_id}", response_model=ArticleOut)
-async def get_article(article_id: UUID, principal: CurrentUser, session: SessionDep) -> ArticleOut:
+async def get_article(
+    article_id: UUID, principal: CurrentUser, session: SessionDep, coverage: CoverageDep
+) -> ArticleOut:
     article = await session.get(WikiArticle, article_id)
     if article is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Article not found")
@@ -149,11 +156,20 @@ async def get_article(article_id: UUID, principal: CurrentUser, session: Session
     is_author = principal.id in {a.id for a in authors}
     if article.status not in PUBLIC_STATUSES and not is_author and not is_reviewer(principal):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Article not found")
-    blocks = await session.scalars(
-        select(ArticleBlock)
-        .where(ArticleBlock.article_id == article_id)
-        .order_by(ArticleBlock.position)
+    blocks = list(
+        await session.scalars(
+            select(ArticleBlock)
+            .where(ArticleBlock.article_id == article_id)
+            .order_by(ArticleBlock.position)
+        )
     )
+    if article.status == ArticleStatus.CANONICAL and not is_author and not is_reviewer(principal):
+        # Reading canonical text counts against the coverage budget like RAG retrieval (5.2).
+        shown = [b.id for b in blocks if b.consent_status == ConsentStatus.ACTIVE and b.content]
+        try:
+            await coverage.admit(principal.id, shown, [article.id])
+        except CoverageExceeded as exc:
+            raise coverage_refusal(exc) from None
     return ArticleOut(
         id=article.id,
         title=article.title,

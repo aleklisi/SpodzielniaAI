@@ -167,3 +167,15 @@ def migrated(pg: PgInstance) -> PgInstance:
 
     upgrade(pg.owner_url)
     return pg
+
+
+@pytest.fixture(scope="session")
+def redis_url() -> Iterator[str]:
+    """Real Redis (compose image): HyperLogLog accuracy can't be tested on fakeredis."""
+    require_docker()
+    from testcontainers.community.redis import RedisContainer
+
+    with RedisContainer(compose_image("redis")) as container:
+        host = container.get_container_host_ip()
+        port = int(container.get_exposed_port(6379))
+        yield f"redis://{host}:{port}/0"

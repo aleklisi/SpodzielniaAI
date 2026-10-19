@@ -241,6 +241,29 @@ class RagSettings(BaseModel):
         return value
 
 
+class ShieldSettings(BaseModel):
+    """Anti-distillation shield (Stage 5, docs/SECURITY.md)."""
+
+    # Coverage budget (5.2): share of retrievable canonical blocks one account may touch.
+    coverage_24h_max: float = Field(default=0.05, gt=0, le=1)
+    coverage_7d_max: float = Field(default=0.15, gt=0, le=1)
+    coverage_30d_max: float = Field(default=0.25, gt=0, le=1)
+    # WARN once a window reaches this fraction of its limit.
+    coverage_warn_fraction: float = Field(default=0.6, gt=0, lt=1)
+    # No lock below this many unique blocks, whatever the ratio (gap G14: small corpora).
+    min_blocks_before_lock: int = Field(default=50, ge=0)
+    # How long the corpus size (the denominator) is cached in Redis.
+    corpus_size_ttl_seconds: int = Field(default=60, ge=1, le=3600)
+    # Admin alerts: POSTed as JSON when set (an internal relay; the API has no internet).
+    alert_webhook_url: str | None = None
+
+    @model_validator(mode="after")
+    def _windows_widen(self) -> Self:
+        if not self.coverage_24h_max <= self.coverage_7d_max <= self.coverage_30d_max:
+            raise ValueError("coverage limits must not shrink as the window widens")
+        return self
+
+
 class LlmSettings(BaseModel):
     """LLM endpoints over the standard OpenAI API (LM Studio, Ollama, vLLM, …).
 
@@ -341,6 +364,7 @@ class Settings(_BaseSettings):
     promotion: PromotionSettings = Field(default_factory=PromotionSettings)
     governance: GovernanceSettings = Field(default_factory=GovernanceSettings)
     rag: RagSettings = Field(default_factory=RagSettings)
+    shield: ShieldSettings = Field(default_factory=ShieldSettings)
 
     @model_validator(mode="after")
     def _require_runtime_secrets(self) -> Self:
