@@ -15,7 +15,15 @@ Routing policy (AGENTS.md §3.4):
   ``ALWAYS_LOCAL`` and without ``force_local_llm``.
 
 Structured output: ``response_model`` (pydantic) is sent as a JSON schema, and the reply is
-validated. An invalid reply gets one corrective retry, then ``LLMOutputInvalid``.
+validated. An invalid reply gets one corrective retry, then ``LLMOutputInvalid``. With
+``llm.structured_output = "prompt"`` the schema goes into the system prompt instead of
+``response_format``: some local servers can't constrain output for some models (LM Studio's
+grammar sampler fails on Bielik's chat template with a 400), and the validation and retry stay
+the same.
+
+Failures: connection errors, timeouts, 5xx and 408/429 are ``LocalModelUnavailable`` (worth
+retrying later). Any other 4xx from a local server is ``LocalModelRejected``: the same request
+would fail again.
 No prompt or completion is logged, and LiteLLM's callbacks, telemetry and cost-map download are
 off.
 """
@@ -24,6 +32,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import TYPE_CHECKING, Any, Literal, Protocol, TypedDict, cast, overload
@@ -74,6 +83,10 @@ class LLMError(Exception):
 
 class LocalModelUnavailable(LLMError):
     """No local deployment for a purpose that must stay on the server (or it failed)."""
+
+
+class LocalModelRejected(LLMError):
+    """The local server refused the request (4xx): retrying the same request won't help."""
 
 
 class LLMOutputInvalid(LLMError):
@@ -209,13 +222,39 @@ def _json_schema(model: type[BaseModel]) -> dict[str, Any]:
     }
 
 
-def _strip_fences(text: str) -> str:
-    """Some local models wrap JSON in ```json fences despite the schema."""
+_FENCED = re.compile(r"```(?:json)?[ \t]*\n(.*?)\n?```", re.DOTALL)
+
+
+def _extract_json(text: str) -> str:
+    """Local models often wrap JSON in ```json fences or add a sentence around it (always
+    without a schema constraint). Take the fenced block, else the outermost ``{…}``."""
     stripped = text.strip()
-    if stripped.startswith("```"):
-        stripped = stripped.split("\n", 1)[1] if "\n" in stripped else ""
-        stripped = stripped.removesuffix("```").strip()
+    if fenced := _FENCED.search(stripped):
+        return fenced.group(1).strip()
+    start, end = stripped.find("{"), stripped.rfind("}")
+    if start > 0 and end > start:
+        return stripped[start : end + 1]
     return stripped
+
+
+def _schema_in_prompt(messages: list[ChatMessage], model: type[BaseModel]) -> list[ChatMessage]:
+    """``structured_output = "prompt"``: append the schema to the (first) system message.
+    One system message only, as some chat templates reject a second one."""
+    schema = json.dumps(model.model_json_schema(), ensure_ascii=False)
+    note = f"\n\nSchemat JSON odpowiedzi (zwróć wyłącznie obiekt JSON zgodny z nim):\n{schema}"
+    out = list(messages)
+    first = out[0] if out else None
+    if first is not None and first["role"] == "system" and isinstance(first["content"], str):
+        out[0] = {"role": "system", "content": first["content"] + note}
+    else:
+        out.insert(0, {"role": "system", "content": note.strip()})
+    return out
+
+
+def _rejected(exc: Exception) -> bool:
+    """A 4xx other than 408/429: the server understood and refused the request."""
+    code = getattr(exc, "status_code", None)
+    return isinstance(code, int) and 400 <= code < 500 and code not in (408, 429)
 
 
 class LiteLLMGateway:
@@ -279,14 +318,27 @@ class LiteLLMGateway:
             "max_tokens": self._settings.max_tokens,
             "temperature": self._settings.temperature,
         }
-        if response_model is not None:
+        if response_model is not None and self._settings.structured_output == "prompt":
+            messages = _schema_in_prompt(messages, response_model)
+        elif response_model is not None:
             kwargs["response_format"] = _json_schema(response_model)
         conversation: list[Any] = list(messages)
         for attempt in (1, 2):
             try:
                 response = await self._router().acompletion(deployment.name, conversation, **kwargs)
             except Exception as exc:  # connection refused, timeout, 5xx …
-                log.warning("llm.call_failed", deployment=deployment.name, error=type(exc).__name__)
+                rejected = _rejected(exc)
+                log.warning(
+                    "llm.call_failed",
+                    deployment=deployment.name,
+                    error=type(exc).__name__,
+                    status=getattr(exc, "status_code", None),
+                    hint="try llm.structured_output=prompt"
+                    if rejected and "response_format" in kwargs
+                    else None,
+                )
+                if deployment.local and rejected:
+                    raise LocalModelRejected(f"{deployment.name}: {type(exc).__name__}") from exc
                 if deployment.local:
                     raise LocalModelUnavailable(f"{deployment.name}: {type(exc).__name__}") from exc
                 raise LLMError(f"{deployment.name}: {type(exc).__name__}") from exc
@@ -295,7 +347,7 @@ class LiteLLMGateway:
             if response_model is None:
                 return LLMResult(content, None, deployment.name, deployment.model, attempt, usage)
             try:
-                parsed = response_model.model_validate_json(_strip_fences(content))
+                parsed = response_model.model_validate_json(_extract_json(content))
             except ValidationError as exc:
                 log.warning("llm.invalid_output", deployment=deployment.name, attempt=attempt)
                 conversation = [

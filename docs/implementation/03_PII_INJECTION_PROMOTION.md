@@ -326,6 +326,24 @@ completes asynchronously in `worker-core` without outbound internet access, crea
   retries as `FAILED local_model_unavailable` (221 s), with no cloud attempt. The successful
   live run (`test_promotion_through_the_stack`) needs a chat model in LM Studio/Ollama
   (`LLM_CHAT_MODEL`, token in `secrets/llm_api_key`), and it skips with that reason otherwise.
+- **Live run (2026-10-19, LM Studio, `bielik-11b-v3.0-instruct`): green, ~17 s per promotion.**
+  It needed two gateway fixes:
+  - LM Studio's grammar sampler answers **400** to *any* `response_format: json_schema` for
+    Bielik ("Failed to initialize samplers: Unexpected empty grammar stack after accepting
+    piece: assistant"). It also rejects `json_object`. Gemma 4 accepts the schema. New setting
+    `llm.structured_output` (`LLM_STRUCTURED_OUTPUT`): `json_schema` (default) or `prompt`.
+    `prompt` appends the schema to the single system message. The reply is validated with the
+    same corrective retry, and JSON is extracted from ```json fences or surrounding prose.
+  - A 4xx other than 408/429 from a local server is now `LocalModelRejected`: the promotion
+    fails immediately as `local_model_rejected` (vision: `vision_rejected`) instead of four
+    minutes of retries reported as `local_model_unavailable`.
+  - The live test now also reads the blocks from Postgres: no PESEL or surname, and every
+    block `ACTIVE` with an author.
+  - Observed quality: Bielik dropped the angle brackets (`OSOBA_1`, `PESEL: PESEL`) and kept a
+    private "owner" sentence despite the instruction. No PII leaked, but prompt tuning on real
+    notes belongs with the classifier calibration TODO.
+  - Gemma 4 (`LLM_VLM_MODEL`) reasons first (~560 tokens) and returns empty content under a
+    small `max_tokens`. The default 4096 is enough.
 
 **Stage 3 exit criteria:** PLAN Stage 3 verification test green (`ml` variant run in CI nightly)
 and Docker stack smoke test confirms end-to-end promotion pipeline.

@@ -135,6 +135,7 @@ LLM_HOST_PORT=1234                                # LM Studio (Ollama: 11434)
 LLM_CHAT_MODEL=speakleash/bielik-11b-v2.3-instruct # as listed by GET /v1/models
 LLM_VLM_MODEL=qwen2.5-vl-7b-instruct               # optional: image descriptions
 LLM_EMBED_MODEL=text-embedding-embeddinggemma      # Stage 4
+LLM_STRUCTURED_OUTPUT=prompt                      # if the server 400s on JSON-schema output (LM Studio + Bielik)
 ```
 
 If the server requires a token (LM Studio), paste it into `secrets/llm_api_key`. Private data

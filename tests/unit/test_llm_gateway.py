@@ -20,6 +20,7 @@ from spoldzielnia_ai.llm.gateway import (
     LLMError,
     LLMOutputInvalid,
     LLMPurpose,
+    LocalModelRejected,
     LocalModelUnavailable,
 )
 from spoldzielnia_ai.llm.prompts import PROMOTION, escape_untrusted, wrap_untrusted
@@ -151,6 +152,55 @@ async def test_retry_can_recover_and_fenced_json_is_accepted() -> None:
     )
     assert result.attempts == 2
     assert result.parsed == Draft(title="T", blocks=[])
+
+
+class _HttpError(Exception):
+    def __init__(self, status_code: int) -> None:
+        super().__init__(f"HTTP {status_code}")
+        self.status_code = status_code
+
+
+async def test_chatty_reply_around_json_is_accepted() -> None:
+    reply = 'Oto artykuł w formacie JSON:\n```json\n{"title": "T", "blocks": ["a"]}\n```\nGotowe.'
+    for content in (reply, 'Proszę: {"title": "T", "blocks": ["a"]} — koniec.'):
+        transport = FakeTransport([content])
+        result = await _gateway(transport=transport, **LOCAL).complete(
+            MESSAGES, purpose=LLMPurpose.PROMOTION, force_local_llm=True, response_model=Draft
+        )
+        assert result.parsed == Draft(title="T", blocks=["a"])
+
+
+async def test_prompt_mode_puts_the_schema_into_the_system_message() -> None:
+    transport = FakeTransport(['{"title": "T", "blocks": []}'])
+    messages: list[Any] = [{"role": "system", "content": "Zasady."}, *MESSAGES]
+    await _gateway(transport=transport, structured_output="prompt", **LOCAL).complete(
+        messages, purpose=LLMPurpose.PROMOTION, force_local_llm=True, response_model=Draft
+    )
+    (_, sent, kwargs) = transport.calls[0]
+    assert "response_format" not in kwargs
+    assert [m["role"] for m in sent] == ["system", "user"]  # still one system message
+    assert sent[0]["content"].startswith("Zasady.")
+    assert '"blocks"' in sent[0]["content"]
+    assert messages[0]["content"] == "Zasady."  # the caller's list is not mutated
+
+
+@pytest.mark.parametrize(
+    ("code", "error"),
+    [
+        (400, LocalModelRejected),
+        (401, LocalModelRejected),
+        (429, LocalModelUnavailable),
+        (503, LocalModelUnavailable),
+    ],
+)
+async def test_client_errors_are_rejections_not_outages(code: int, error: type[Exception]) -> None:
+    """A 400 (e.g. LM Studio's grammar sampler on Bielik) won't heal by retrying."""
+    transport = FakeTransport([_HttpError(code)])
+    with pytest.raises(error):
+        await _gateway(transport=transport, **LOCAL, **CLOUD).complete(
+            MESSAGES, purpose=LLMPurpose.PROMOTION, force_local_llm=True, response_model=Draft
+        )
+    assert [model for model, _, _ in transport.calls] == [LOCAL_CHAT]
 
 
 # --- The real LiteLLM router against an OpenAI-compatible endpoint (mocked HTTP) ----------

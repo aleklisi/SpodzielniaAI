@@ -10,7 +10,12 @@ import re
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
-from spoldzielnia_ai.llm.gateway import ALWAYS_LOCAL, LLMResult, LocalModelUnavailable
+from spoldzielnia_ai.llm.gateway import (
+    ALWAYS_LOCAL,
+    LLMResult,
+    LocalModelRejected,
+    LocalModelUnavailable,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -58,6 +63,7 @@ def echo_article(call: Call) -> str:
 class FakeLLMGateway:
     reply: Callable[[Call], str] = echo_article
     local_available: bool = True
+    rejects: bool = False  # the server answers 4xx (LocalModelRejected)
     calls: list[Call] = field(default_factory=list[Call])
 
     async def complete(
@@ -74,6 +80,8 @@ class FakeLLMGateway:
         self.calls.append(call)
         if not self.local_available:
             raise LocalModelUnavailable("fake: no local model")
+        if self.rejects:
+            raise LocalModelRejected("fake: 400")
         content = self.reply(call)
         parsed = response_model.model_validate_json(content) if response_model else None
         return LLMResult(content, parsed, "local-chat", "fake-model")

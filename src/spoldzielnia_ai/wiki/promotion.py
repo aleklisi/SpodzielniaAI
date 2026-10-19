@@ -55,6 +55,7 @@ from spoldzielnia_ai.llm.gateway import (
     LLMError,
     LLMOutputInvalid,
     LLMPurpose,
+    LocalModelRejected,
     LocalModelUnavailable,
 )
 from spoldzielnia_ai.llm.injection_guard import document_flags
@@ -250,6 +251,9 @@ class PromotionProcessor:
                 await self._fail(job, "local_model_unavailable", injection)
                 return False
             return True
+        except LocalModelRejected:  # e.g. the server can't do JSON-schema output for this model
+            await self._fail(job, "local_model_rejected", injection)
+            return False
         except LLMOutputInvalid:
             await self._fail(job, "llm_output_invalid", injection)
             return False

@@ -223,6 +223,9 @@ class LlmSettings(BaseModel):
     timeout_seconds: float = Field(default=180.0, gt=0)
     max_tokens: int = Field(default=4096, gt=0)
     temperature: float = Field(default=0.2, ge=0, le=2)
+    # How a JSON schema reaches the model: ``response_format`` (constrained decoding) or, for
+    # servers/models that can't do that, the system prompt (output is validated either way).
+    structured_output: Literal["json_schema", "prompt"] = "json_schema"
     # Optional cloud deployment, only for purposes that may leave the server (none in Stage 3).
     allow_cloud: bool = False
     cloud_base_url: str | None = None

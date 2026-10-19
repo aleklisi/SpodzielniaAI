@@ -300,6 +300,16 @@ async def test_no_local_model_fails_after_retries(h: Harness, llm: FakeLLMGatewa
     assert len(llm.calls) == 4  # first attempt + 3 retries, never a cloud call
 
 
+async def test_a_rejected_request_fails_without_retrying(h: Harness, llm: FakeLLMGateway) -> None:
+    llm.rejects = True
+    alice = await h.login()
+    note_id = await _note(alice, "Notatka", "Ramki, odkład, matka.")
+    accepted = (await _promote(alice, note_ids=[note_id])).json()
+    promotion = (await alice.client.get(f"/promotions/{accepted['promotion_id']}")).json()
+    assert (promotion["status"], promotion["error"]) == ("FAILED", "local_model_rejected")
+    assert len(llm.calls) == 1
+
+
 async def test_daily_limit(h: Harness, settings: Settings) -> None:
     h.app.state.settings = settings.model_copy(
         update={"promotion": settings.promotion.model_copy(update={"daily_limit": 1})}

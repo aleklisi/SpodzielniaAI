@@ -12,7 +12,12 @@ import base64
 import io
 from typing import TYPE_CHECKING
 
-from spoldzielnia_ai.llm.gateway import LLMError, LLMPurpose, LocalModelUnavailable
+from spoldzielnia_ai.llm.gateway import (
+    LLMError,
+    LLMPurpose,
+    LocalModelRejected,
+    LocalModelUnavailable,
+)
 from spoldzielnia_ai.llm.prompts import IMAGE_DESCRIPTION
 from spoldzielnia_ai.workers.engines.base import PermanentError, TransientError
 
@@ -65,6 +70,8 @@ class GatewayVisionEngine:
             )
         except LocalModelUnavailable as exc:
             raise PermanentError("vision_unavailable") from exc
+        except LocalModelRejected as exc:
+            raise PermanentError("vision_rejected") from exc
         except LLMError as exc:
             raise TransientError(str(exc)) from exc
         text = result.content.strip()

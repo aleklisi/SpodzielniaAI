@@ -15,6 +15,7 @@ import ssl
 import struct
 import time
 from pathlib import Path
+from uuid import UUID
 
 import httpx
 import pytest
@@ -316,5 +317,22 @@ def test_promotion_through_the_stack(caddy_ca: Path) -> None:
                 assert time.monotonic() < deadline, promotion
                 time.sleep(2)
             assert promotion["status"] == "DONE", promotion
+            # What the real model wrote: no identifier or surname survived, provenance is set.
+            article_id = UUID(promotion["article_id"])  # validated: safe to inline
+            where = f"where article_id = '{article_id}'"
+            sql = (
+                "select replace(content, E'\\n', ' ') || '|' || consent_status || '|' || "  # noqa: S608
+                "(author_id is not null)::text from article_block " + where
+            )
+            blocks = compose(
+                "exec", "-T", "-u", "postgres", "postgres",
+                "psql", "-d", "spoldzielnia", "-At", "-c", sql,
+            )  # fmt: skip
+            assert blocks.returncode == 0, blocks.stderr
+            assert blocks.stdout.strip(), "no article blocks"
+            for secret in ("44051401359", "Kowalsk"):
+                assert secret not in blocks.stdout
+            for line in blocks.stdout.strip().splitlines():
+                assert line.endswith("|ACTIVE|true"), line
         finally:
             client.delete(f"{SITE}/api/notes/{note['id']}", headers=headers)
