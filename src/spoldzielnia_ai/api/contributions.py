@@ -19,19 +19,21 @@ Revoking is irreversible. It needs ``confirm: "REVOKE"`` and a login at most
 from __future__ import annotations
 
 import time
+from datetime import datetime  # noqa: TC003 - pydantic resolves annotations at runtime
 from typing import TYPE_CHECKING, Literal
-from uuid import UUID  # noqa: TC003 - FastAPI/pydantic resolve annotations at runtime
+from uuid import UUID
 
 from fastapi import APIRouter, Request, status
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 
+from spoldzielnia_ai.audit.events import EventType
 from spoldzielnia_ai.auth.deps import CurrentUser, Principal  # noqa: TC001 - FastAPI resolves it
 from spoldzielnia_ai.core.logging import get_logger
 from spoldzielnia_ai.core.metrics import CONSENT_PROPAGATION
 from spoldzielnia_ai.db.enums import ArticleStatus, ConsentStatus  # noqa: TC001 - pydantic
-from spoldzielnia_ai.db.models import ArticleBlock, WikiArticle
+from spoldzielnia_ai.db.models import ArticleBlock, SecurityAuditLog, WikiArticle
 from spoldzielnia_ai.vector.deps import VectorSyncDep  # noqa: TC001 - FastAPI resolves it
 from spoldzielnia_ai.vector.repositories import CanonicalVectorRepo
 from spoldzielnia_ai.wiki.consent import ConsentAction, ConsentService
@@ -78,6 +80,31 @@ class ContributionOut(BaseModel):
     blocks: list[ContributionBlockOut]
 
 
+type HistoryEvent = Literal["SUSPEND", "RESUME", "REVOKE", "ARTICLE_DEGRADED"]
+HISTORY_EVENTS: dict[EventType, HistoryEvent] = {
+    EventType.CONSENT_SUSPENDED: "SUSPEND",
+    EventType.CONSENT_RESUMED: "RESUME",
+    EventType.CONSENT_REVOKED: "REVOKE",
+    EventType.ARTICLE_DEGRADED: "ARTICLE_DEGRADED",
+}
+HISTORY_LIMIT = 200
+
+
+class HistoryEntryOut(BaseModel):
+    occurred_at: datetime
+    event: HistoryEvent
+    article_id: UUID | None = None  # ARTICLE_DEGRADED: the article sent back to review
+    blocks: int | None = None
+    articles: int | None = None
+    degraded: int | None = None
+    withdrawn: int | None = None
+    scope: Literal["all", "selected"] | None = None
+
+
+def _int(value: object) -> int | None:
+    return value if isinstance(value, int) and not isinstance(value, bool) else None
+
+
 @router.get("", response_model=list[ContributionOut])
 async def list_contributions(request: Request, principal: CurrentUser) -> list[ContributionOut]:
     """Every article the member wrote a block of, with each of their blocks' consent."""
@@ -121,6 +148,45 @@ async def list_contributions(request: Request, principal: CurrentUser) -> list[C
         )
         for article_id in article_ids
     ]
+
+
+@router.get("/history", response_model=list[HistoryEntryOut])
+async def contribution_history(request: Request, principal: CurrentUser) -> list[HistoryEntryOut]:
+    """The member's own consent changes (from the audit log), newest first. Only the counts
+    each entry recorded, never anyone else's events."""
+    factory: SessionFactory = request.app.state.session_factory
+    async with factory() as session:
+        rows = await session.scalars(
+            select(SecurityAuditLog)
+            .where(
+                SecurityAuditLog.actor_id == principal.id,
+                SecurityAuditLog.event_type.in_([e.value for e in HISTORY_EVENTS]),
+            )
+            .order_by(SecurityAuditLog.id.desc())
+            .limit(HISTORY_LIMIT)
+        )
+        entries: list[HistoryEntryOut] = []
+        for row in rows:
+            payload = dict(row.payload)
+            degraded = row.event_type == EventType.ARTICLE_DEGRADED.value
+            scope: Literal["all", "selected"] | None = None
+            if payload.get("scope") == "all":
+                scope = "all"
+            elif payload.get("scope") == "selected":
+                scope = "selected"
+            entries.append(
+                HistoryEntryOut(
+                    occurred_at=row.occurred_at,
+                    event=HISTORY_EVENTS[EventType(row.event_type)],
+                    article_id=UUID(row.target_id) if degraded and row.target_id else None,
+                    blocks=_int(payload.get("blocks", payload.get("blocks_withdrawn"))),
+                    articles=_int(payload.get("articles")),
+                    degraded=_int(payload.get("degraded")),
+                    withdrawn=_int(payload.get("withdrawn")),
+                    scope=scope,
+                )
+            )
+    return entries
 
 
 async def _change(

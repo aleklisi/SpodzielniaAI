@@ -192,7 +192,7 @@ Pełna specyfikacja techniczna i architektura wdrożenia w kontenerach Docker zn
 - [x] 6.1 Rusztowanie Next.js (App Router, Tailwind v4), kontener frontendowy i restrykcyjne nagłówki CSP
 - [x] 6.2 Interfejs prywatnego notatnika (BlockNote, obsługa uploadu i kwarantanny)
 - [x] 6.3 Interfejs bazy wiedzy Wiki, widok autorstwa bloków i panel recenzji eksperckiej
-- [ ] 6.4 Panel praw autorskich twórcy (zarządzanie kontrybucjami, suspend / revoke)
+- [x] 6.4 Panel praw autorskich twórcy (zarządzanie kontrybucjami, suspend / revoke)
 - [ ] 6.5 Interfejs czatu spółdzielczego RAG ze sprawdzonym renderowaniem Markdown
 - [ ] 6.6 Panel bezpieczeństwa i monitoringu dla Administratora Spółdzielni
 - [ ] 6.7 Automatyczne skanowanie podatności (`pip-audit`, `bandit`, `trivy`) i testy E2E Playwright

@@ -156,6 +156,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/me/contributions/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Contribution History
+         * @description The member's own consent changes (from the audit log), newest first. Only the counts
+         *     each entry recorded, never anyone else's events.
+         */
+        get: operations["contribution_history_me_contributions_history_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/me/contributions/resume": {
         parameters: {
             query?: never;
@@ -785,6 +806,29 @@ export interface components {
              */
             status: "ok";
         };
+        /** HistoryEntryOut */
+        HistoryEntryOut: {
+            /** Article Id */
+            article_id?: string | null;
+            /** Articles */
+            articles?: number | null;
+            /** Blocks */
+            blocks?: number | null;
+            /** Degraded */
+            degraded?: number | null;
+            event: components["schemas"]["HistoryEvent"];
+            /**
+             * Occurred At
+             * Format: date-time
+             */
+            occurred_at: string;
+            /** Scope */
+            scope?: ("all" | "selected") | null;
+            /** Withdrawn */
+            withdrawn?: number | null;
+        };
+        /** @enum {string} */
+        HistoryEvent: "SUSPEND" | "RESUME" | "REVOKE" | "ARTICLE_DEGRADED";
         /** InjectIn */
         InjectIn: {
             /**
@@ -1410,6 +1454,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ContributionOut"][];
+                };
+            };
+        };
+    };
+    contribution_history_me_contributions_history_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HistoryEntryOut"][];
                 };
             };
         };

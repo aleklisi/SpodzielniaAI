@@ -681,6 +681,104 @@
         "title": "HealthResponse",
         "type": "object"
       },
+      "HistoryEntryOut": {
+        "properties": {
+          "article_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Article Id"
+          },
+          "articles": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Articles"
+          },
+          "blocks": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Blocks"
+          },
+          "degraded": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Degraded"
+          },
+          "event": {
+            "$ref": "#/components/schemas/HistoryEvent"
+          },
+          "occurred_at": {
+            "format": "date-time",
+            "title": "Occurred At",
+            "type": "string"
+          },
+          "scope": {
+            "anyOf": [
+              {
+                "enum": [
+                  "all",
+                  "selected"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scope"
+          },
+          "withdrawn": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Withdrawn"
+          }
+        },
+        "required": [
+          "occurred_at",
+          "event"
+        ],
+        "title": "HistoryEntryOut",
+        "type": "object"
+      },
+      "HistoryEvent": {
+        "enum": [
+          "SUSPEND",
+          "RESUME",
+          "REVOKE",
+          "ARTICLE_DEGRADED"
+        ],
+        "type": "string"
+      },
       "InjectIn": {
         "properties": {
           "count": {
@@ -1997,6 +2095,32 @@
           }
         },
         "summary": "List Contributions",
+        "tags": [
+          "contributions"
+        ]
+      }
+    },
+    "/me/contributions/history": {
+      "get": {
+        "description": "The member's own consent changes (from the audit log), newest first. Only the counts\neach entry recorded, never anyone else's events.",
+        "operationId": "contribution_history_me_contributions_history_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/HistoryEntryOut"
+                  },
+                  "title": "Response Contribution History Me Contributions History Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Contribution History",
         "tags": [
           "contributions"
         ]

@@ -283,3 +283,32 @@ async def test_database_keeps_revocation_final_and_contentless(
                     text("UPDATE article_block SET consent_status = 'REVOKED' WHERE id = :id"),
                     {"id": other},
                 )
+
+
+async def test_history_lists_only_the_members_own_consent_changes(
+    h: Harness, factory: SessionFactory
+) -> None:
+    alice, bob = await h.login(), await h.login()
+    article_id, _ = await _canonical(h, factory, [(alice, TEXT_A), (bob, TEXT_B)])
+    await _post(bob, "suspend")
+    await _post(bob, "resume")
+    await _post(bob, "revoke", **REVOKE)
+    await _post(alice, "suspend", article_ids=[str(article_id)])
+
+    mine = (await bob.client.get("/me/contributions/history")).json()
+    theirs = (await alice.client.get("/me/contributions/history")).json()
+
+    # Bob's suspension already sent the co-authored article back to review (recorded just
+    # before the suspension itself); by the time he revokes, it is no longer canonical.
+    assert [e["event"] for e in mine] == ["REVOKE", "RESUME", "SUSPEND", "ARTICLE_DEGRADED"]
+    revoke, degraded = mine[0], mine[3]
+    assert (revoke["blocks"], revoke["articles"], revoke["degraded"], revoke["scope"]) == (
+        1,
+        1,
+        0,
+        "all",
+    )
+    assert degraded["article_id"] == str(article_id)
+    assert degraded["blocks"] == 1
+    assert [e["event"] for e in theirs] == ["SUSPEND"]
+    assert theirs[0]["scope"] == "selected"
