@@ -16,6 +16,15 @@
   --warn: #b45309;
   --danger: #b42318;
   --focus: #2563eb;
+  /* Charts (6.6): validated series hue, recessive chrome, fixed status palette. */
+  --viz-series: #2a78d6;
+  --viz-grid: #e1e0d9;
+  --viz-axis: #c3c2b7;
+  --viz-muted: #898781;
+  --status-good: #0ca30c;
+  --status-warning: #fab219;
+  --status-serious: #ec835a;
+  --status-critical: #d03b3b;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -34,6 +43,9 @@
     --warn: #f0a050;
     --danger: #f97066;
     --focus: #7aa2ff;
+    --viz-series: #3987e5;
+    --viz-grid: #2c2c2a;
+    --viz-axis: #383835;
   }
 }
 
@@ -52,6 +64,14 @@
   --color-warn: var(--warn);
   --color-danger: var(--danger);
   --color-focus: var(--focus);
+  --color-viz-series: var(--viz-series);
+  --color-viz-grid: var(--viz-grid);
+  --color-viz-axis: var(--viz-axis);
+  --color-viz-muted: var(--viz-muted);
+  --color-status-good: var(--status-good);
+  --color-status-warning: var(--status-warning);
+  --color-status-serious: var(--status-serious);
+  --color-status-critical: var(--status-critical);
   --font-sans: var(--font-inter);
   --font-display: var(--font-outfit);
 }

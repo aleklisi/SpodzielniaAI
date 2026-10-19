@@ -212,7 +212,7 @@ Each one is resolved (✅ = decision baked into the chunk plans) or needs your i
 - [x] 6.3 Wiki & expert review panel
 - [x] 6.4 Creator IP (contributions) panel
 - [x] 6.5 Cooperative chat (RAG) UI with safe Markdown
-- [ ] 6.6 Admin security dashboard (+ backend endpoints)
+- [x] 6.6 Admin security dashboard (+ backend endpoints)
 - [ ] 6.7 Security scanning & Playwright E2E suite
 - [ ] 6.8 Production deployment on Linux server (registry, deploy, backup/restore)
 

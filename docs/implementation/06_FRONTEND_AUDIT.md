@@ -211,3 +211,12 @@ each OWASP API Top 10 and OWASP LLM Top 10 (2025) item to the implementing chunk
   never finished. Verified in the stack: 401 challenge → 18-bit puzzle solved in the browser →
   answer, no CSP violations.
 - The conversation is kept in page memory only; nothing of it is stored by the frontend.
+- **Admin charts are hand-written SVG**, not Recharts: two small charts didn't justify the
+  dependency, and Recharts draws with inline styles that would need loosening the CSP. The
+  series hue was validated (contrast, band) against the app's light and dark surfaces; risk
+  levels use the fixed status palette and always carry a label beside the coloured mark.
+- **Risk in the console** is incidents + coverage pressure, the parts that persist. The
+  semantic score exists per request only, so it shows up in the per-account history of
+  shield decisions rather than in the table.
+- **Every console read is audited** (`SECURITY_DASHBOARD_ACCESSED`, view + filters), and
+  unlocking records the admin's reason and the previous lock reason (`ACCOUNT_UNLOCKED`).

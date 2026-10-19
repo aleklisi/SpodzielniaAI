@@ -4,6 +4,77 @@
  */
 
 export interface paths {
+    "/admin/alerts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Alerts */
+        get: operations["get_alerts_admin_alerts_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/audit-log": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Audit Log */
+        get: operations["audit_log_admin_audit_log_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/audit-log/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Audit Log Verify
+         * @description Re-compute the hash chain (1.4). Anchor ``head_id``/``head_hash`` outside the system.
+         */
+        get: operations["audit_log_verify_admin_audit_log_verify_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/coverage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Coverage */
+        get: operations["coverage_admin_coverage_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/honeypots": {
         parameters: {
             query?: never;
@@ -36,6 +107,23 @@ export interface paths {
          * @description Forensics: which canaries does this (leaked) text contain?
          */
         post: operations["scan_text_admin_honeypots_scan_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/users/{user_id}/unlock": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Unlock User */
+        post: operations["unlock_user_admin_users__user_id__unlock_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -638,6 +726,35 @@ export interface components {
             /** Derivatives */
             derivatives: components["schemas"]["DerivativeOut"][];
         };
+        /** AuditEntryOut */
+        AuditEntryOut: {
+            /** Actor Id */
+            actor_id: string | null;
+            /** Event Type */
+            event_type: string;
+            /** Id */
+            id: number;
+            /**
+             * Occurred At
+             * Format: date-time
+             */
+            occurred_at: string;
+            /** Payload */
+            payload: {
+                [key: string]: unknown;
+            };
+            /** Target Id */
+            target_id: string | null;
+            /** Target Type */
+            target_type: string | null;
+        };
+        /** AuditPageOut */
+        AuditPageOut: {
+            /** Items */
+            items: components["schemas"]["AuditEntryOut"][];
+            /** Next Cursor */
+            next_cursor: number | null;
+        };
         /** AuthorOut */
         AuthorOut: {
             /** Display Name */
@@ -679,6 +796,26 @@ export interface components {
             block_id: string;
             /** Signature */
             signature: string;
+        };
+        /** ChainBreakOut */
+        ChainBreakOut: {
+            /** Id */
+            id: number;
+            /** Reason */
+            reason: string;
+        };
+        /** ChainOut */
+        ChainOut: {
+            /** Breaks */
+            breaks: components["schemas"]["ChainBreakOut"][];
+            /** Head Hash */
+            head_hash: string;
+            /** Head Id */
+            head_id: number | null;
+            /** Ok */
+            ok: boolean;
+            /** Rows */
+            rows: number;
         };
         /** Citation */
         Citation: {
@@ -747,6 +884,19 @@ export interface components {
             status: components["schemas"]["ArticleStatus"];
             /** Title */
             title: string;
+        };
+        /** CoverageOut */
+        CoverageOut: {
+            /** Corpus Blocks */
+            corpus_blocks: number;
+            /** Limits */
+            limits: {
+                [key: string]: number;
+            };
+            /** Min Blocks Before Lock */
+            min_blocks_before_lock: number;
+            /** Users */
+            users: components["schemas"]["UserCoverageOut"][];
         };
         /**
          * DerivativeKind
@@ -1189,6 +1339,64 @@ export interface components {
             /** Version */
             version: number;
         };
+        /** UnlockIn */
+        UnlockIn: {
+            /** Reason */
+            reason: string;
+            /**
+             * Reset Risk
+             * @default true
+             */
+            reset_risk: boolean;
+        };
+        /** UnlockOut */
+        UnlockOut: {
+            /** Is Locked */
+            is_locked: boolean;
+            /**
+             * User Id
+             * Format: uuid
+             */
+            user_id: string;
+        };
+        /** UserCoverageOut */
+        UserCoverageOut: {
+            /** Blocks */
+            blocks: {
+                [key: string]: number;
+            };
+            /** Display Name */
+            display_name: string | null;
+            /** Email */
+            email: string | null;
+            /** Fraction Of Limit */
+            fraction_of_limit: number;
+            /** Incidents */
+            incidents: number;
+            /** Is Locked */
+            is_locked: boolean;
+            /** Level */
+            level: string;
+            /** Locked At */
+            locked_at: string | null;
+            /** Locked Reason */
+            locked_reason: string | null;
+            /** Pressure */
+            pressure: number;
+            /** Ratios */
+            ratios: {
+                [key: string]: number;
+            };
+            /** Risk */
+            risk: number;
+            /** Roles */
+            roles: string[];
+            /**
+             * User Id
+             * Format: uuid
+             */
+            user_id: string;
+        };
         /** ValidationError */
         ValidationError: {
             /** Context */
@@ -1211,6 +1419,125 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    get_alerts_admin_alerts_get: {
+        parameters: {
+            query?: {
+                since?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuditEntryOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    audit_log_admin_audit_log_get: {
+        parameters: {
+            query?: {
+                event_type?: string[] | null;
+                actor?: string | null;
+                since?: string | null;
+                until?: string | null;
+                cursor?: number | null;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuditPageOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    audit_log_verify_admin_audit_log_verify_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChainOut"];
+                };
+            };
+        };
+    };
+    coverage_admin_coverage_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CoverageOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_honeypots_admin_honeypots_get: {
         parameters: {
             query?: never;
@@ -1284,6 +1611,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ScanOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    unlock_user_admin_users__user_id__unlock_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UnlockIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnlockOut"];
                 };
             };
             /** @description Validation Error */
