@@ -336,3 +336,60 @@ def test_promotion_through_the_stack(caddy_ca: Path) -> None:
                 assert line.endswith("|ACTIVE|true"), line
         finally:
             client.delete(f"{SITE}/api/notes/{note['id']}", headers=headers)
+
+
+API_LLM_READY_PY = """
+import sys, urllib.request
+from spoldzielnia_ai.core.settings import Settings
+s = Settings()
+for name in ("chat_model", "embed_model"):
+    if not getattr(s.llm, name):
+        sys.exit(f"llm.{name} is not set")
+request = urllib.request.Request(s.llm.local_base_url.rstrip("/") + "/models")
+key = s.llm.api_key.get_secret_value().strip() if s.llm.api_key else ""
+if key:
+    request.add_header("Authorization", "Bearer " + key)
+try:
+    body = urllib.request.urlopen(request, timeout=5).read().decode()
+except Exception as exc:
+    sys.exit(f"local LLM endpoint not usable: {exc}")
+for model in (s.llm.chat_model, s.llm.embed_model):
+    if model not in body:
+        sys.exit(f"model {model!r} not served by the local endpoint")
+"""
+
+
+def test_rag_ask_through_the_stack(caddy_ca: Path) -> None:
+    """Chunk 5.6 Docker gate: proxy → api → AntiDistillationGuard → local embeddings, Qdrant
+    (TLS), Postgres, Redis → a RagAnswer with citations only."""
+    ready = compose("exec", "-T", "api", "python", "-c", API_LLM_READY_PY)
+    if ready.returncode != 0:
+        reason = (ready.stderr.strip().splitlines() or ["unknown"])[-1]
+        pytest.skip(f"no local chat/embedding model for RAG: {reason}")
+    with _client(caddy_ca) as client:
+        assert _login(client, "member1").status_code == 303
+        headers = {"Origin": SITE, "X-CSRF-Token": client.cookies.get("__Host-csrf") or ""}
+        response = client.post(
+            f"{SITE}/api/rag/ask",
+            json={"question": "Jak leczyć warrozę zimą kwasem szczawiowym?"},
+            headers=headers,
+            timeout=300,
+        )
+        anonymous = httpx.post(
+            f"{SITE}/api/rag/ask",
+            json={"question": "Jak leczyć warrozę?"},
+            verify=ssl.create_default_context(cafile=caddy_ca),
+        )
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert set(body) == {"answer_markdown", "citations", "no_official_position", "request_id"}
+    for citation in body["citations"]:
+        assert set(citation) == {
+            "article_id",
+            "article_title",
+            "wiki_url",
+            "last_verified_at",
+            "authors",
+            "approving_experts",
+        }
+    assert anonymous.status_code in (401, 403)

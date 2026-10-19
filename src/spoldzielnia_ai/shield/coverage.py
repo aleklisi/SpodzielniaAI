@@ -29,7 +29,7 @@ import secrets
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from enum import StrEnum
-from typing import TYPE_CHECKING, Protocol
+from typing import TYPE_CHECKING, NoReturn, Protocol
 
 from sqlalchemy import func, select
 
@@ -98,8 +98,19 @@ class CoverageStatus:
 
     @property
     def max_fraction_of_limit(self) -> float:
-        """How close the closest window is to its limit (1.0 = at the limit). Risk input."""
+        """How close the closest window is to its limit (1.0 = at the limit)."""
         return max((u.ratio / u.limit for u in self.usage.values()), default=0.0)
+
+    def pressure(self, min_blocks: int) -> float:
+        """How close the account is to a coverage lock, in [0, 1]: a window needs both its
+        ratio and the absolute floor (gap G14) to lock, so it is as close as the farther of
+        the two. Risk input (5.6)."""
+
+        def closeness(u: WindowUsage) -> float:
+            floor = u.blocks / min_blocks if min_blocks else 1.0
+            return min(u.ratio / u.limit, floor, 1.0)
+
+        return max((closeness(u) for u in self.usage.values()), default=0.0)
 
 
 class CoverageExceeded(Exception):
@@ -265,6 +276,10 @@ class CoverageTracker:
         if status.level != CoverageLevel.LOCK:
             await self.record(user_id, block_ids, article_ids)
             return status
+        await self.refuse(user_id, status)
+
+    async def refuse(self, user_id: UUID, status: CoverageStatus) -> NoReturn:
+        """Act on a LOCK status (lock or throttle the account), then raise."""
         await self._on_lock(user_id, status)
         retry_after = None
         if status.tripped == Window.H24:

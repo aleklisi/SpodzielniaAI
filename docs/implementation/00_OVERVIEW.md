@@ -204,7 +204,7 @@ Each one is resolved (✅ = decision baked into the chunk plans) or needs your i
 - [x] 5.3 `SemanticAnomalyDetector`
 - [x] 5.4 `HoneypotInjector`
 - [x] 5.5 `OutputVerifier` & `Watermarker`
-- [ ] 5.6 `AntiDistillationGuard`, RiskEngine & progressive degradation
+- [x] 5.6 `AntiDistillationGuard`, RiskEngine & progressive degradation
 
 ### Stage 6 — Frontend & Final Audit
 - [ ] 6.1 Next.js scaffold, BFF proxy, security headers & CSP

@@ -179,3 +179,53 @@ def redis_url() -> Iterator[str]:
         host = container.get_container_host_ip()
         port = int(container.get_exposed_port(6379))
         yield f"redis://{host}:{port}/0"
+
+
+# The schema setup infra/postgres/init/10-roles.sh applies to `spoldzielnia`.
+_DB_SETUP = (
+    "ALTER SCHEMA public OWNER TO spoldzielnia_owner",
+    "REVOKE ALL ON SCHEMA public FROM PUBLIC",
+    "GRANT USAGE ON SCHEMA public TO spoldzielnia_app",
+    "ALTER DEFAULT PRIVILEGES FOR ROLE spoldzielnia_owner IN SCHEMA public "
+    "GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO spoldzielnia_app",
+    "ALTER DEFAULT PRIVILEGES FOR ROLE spoldzielnia_owner IN SCHEMA public "
+    "GRANT USAGE, SELECT ON SEQUENCES TO spoldzielnia_app",
+    "ALTER DEFAULT PRIVILEGES FOR ROLE spoldzielnia_owner IN SCHEMA public "
+    "GRANT EXECUTE ON FUNCTIONS TO spoldzielnia_app",
+)
+
+
+@pytest.fixture
+async def fresh_db(pg: PgInstance) -> AsyncIterator[str]:
+    """A new, migrated database with the production role setup, dropped afterwards. For tests
+    whose assertions depend on everything in the database (e.g. corpus-wide ratios). Yields
+    the runtime (app role) URL."""
+    import asyncio
+
+    from sqlalchemy import text
+    from sqlalchemy.ext.asyncio import create_async_engine
+
+    from spoldzielnia_ai.db.migrate import upgrade
+
+    name = f"t_{secrets.token_hex(6)}"
+    autocommit = {"isolation_level": "AUTOCOMMIT"}
+    admin = create_async_engine(pg.url("postgres", "superuser", "postgres"), **autocommit)
+    async with admin.connect() as conn:
+        for statement in (
+            f'CREATE DATABASE "{name}" OWNER spoldzielnia_owner',
+            f'REVOKE ALL ON DATABASE "{name}" FROM PUBLIC',
+            f'GRANT CONNECT, TEMPORARY ON DATABASE "{name}" TO spoldzielnia_app',
+        ):
+            await conn.execute(text(statement))
+    setup = create_async_engine(pg.url("postgres", "superuser", name), **autocommit)
+    async with setup.connect() as conn:
+        for statement in _DB_SETUP:
+            await conn.execute(text(statement))
+    await setup.dispose()
+    await asyncio.to_thread(upgrade, pg.url("spoldzielnia_owner", "pg_owner_password", name))
+    try:
+        yield pg.url("spoldzielnia_app", "pg_app_password", name)
+    finally:
+        async with admin.connect() as conn:
+            await conn.execute(text(f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)'))
+        await admin.dispose()

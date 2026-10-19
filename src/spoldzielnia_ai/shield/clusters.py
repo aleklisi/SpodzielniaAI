@@ -70,8 +70,11 @@ def kmeans(
 ) -> Matrix:
     """Spherical k-means: unit centroids maximising cosine similarity. The best of
     ``restarts`` runs (one run can merge two clusters and split another). ``k`` is capped at
-    the number of vectors."""
+    the number of vectors. Deterministic for a given set of vectors, in any order."""
     points = normalize(vectors)
+    # Rows in a canonical order: the same corpus gives the same clusters, whatever order the
+    # index returned its points in (point ids are uuid7, random within one millisecond).
+    points = points[np.lexsort(points.T[::-1])]
     k = min(k, len(points))
     rng = np.random.default_rng(seed)
     best, best_fit = None, -np.inf

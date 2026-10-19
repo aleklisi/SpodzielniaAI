@@ -195,6 +195,12 @@ def test_kmeans_recovers_separated_clusters() -> None:
     assert pure / len(truth) >= 0.95
 
 
+def test_kmeans_does_not_depend_on_input_order() -> None:
+    points, _ = _clustered(Space(), per_cluster=5)
+    shuffled = np.random.default_rng(1).permutation(points)
+    np.testing.assert_array_equal(kmeans(points, CLUSTERS), kmeans(shuffled, CLUSTERS))
+
+
 def test_kmeans_caps_k_at_the_number_of_points() -> None:
     points = np.asarray(Space().rng.normal(size=(3, DIM)), dtype=np.float32)
     assert kmeans(points, 10).shape == (3, DIM)

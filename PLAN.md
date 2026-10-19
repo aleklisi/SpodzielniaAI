@@ -185,7 +185,7 @@ Pełna specyfikacja techniczna i architektura wdrożenia w kontenerach Docker zn
 - [x] 5.3 Moduł `SemanticAnomalyDetector` (analiza anomalii odległości w przestrzeni embeddingów)
 - [x] 5.4 Moduł `HoneypotInjector` (bloki-kanarki, usuwanie przed syntezą, natychmiastowe alerty)
 - [x] 5.5 Moduł `OutputVerifier` (blokada dosłownej ekstrakcji) i deterministyczny `Watermarker`
-- [ ] 5.6 Middleware `AntiDistillationGuard`, silnik ryzyka i progresywna degradacja (step-up auth / PoW)
+- [x] 5.6 Middleware `AntiDistillationGuard`, silnik ryzyka i progresywna degradacja (step-up auth / PoW)
 
 ### Etap 6: Frontend, Nagłówki Bezpieczeństwa (OWASP Web) i Audyt Końcowy
 *Dokumentacja: [docs/implementation/06_FRONTEND_AUDIT.md](docs/implementation/06_FRONTEND_AUDIT.md)*

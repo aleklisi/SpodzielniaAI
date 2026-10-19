@@ -1,15 +1,30 @@
-"""Per-account risk from shield incidents (5.4, 5.6).
+"""Per-account risk (5.4, 5.6, SECURITY.md layer 5).
 
-Incidents (a honeypot hit, a blocked verbatim answer, an extraction-style question …) add
-points to ``risk:{user}`` in Redis. The points decay exponentially (half-life
-``risk_half_life_days``): an account that stops misbehaving recovers on its own. The score is
-kept in [0, 1] and a snapshot goes to ``app_user.risk_score`` for the admin panel (best
-effort: Redis is authoritative).
+``RiskStore``: incidents (a honeypot hit, a blocked verbatim answer, an extraction-style
+question …) add points to ``risk:{user}`` in Redis. The points decay exponentially
+(half-life ``risk_half_life_days``): an account that stops misbehaving recovers on its own.
+Kept in [0, 1]; a snapshot goes to ``app_user.risk_score`` for the admin panel (best effort:
+Redis is authoritative).
+
+``RiskEngine``: the score for one request = incidents + ``risk_coverage_weight`` * (how close
+the account is to a coverage lock, ratio and absolute floor alike)^2 + ``risk_semantic_weight``
+* semantic score, capped at 1. Levels and what the guard does with them:
+
+=========  ===========  ======================================================
+NORMAL     < 0.3        top_k 8
+ELEVATED   0.3 to 0.5   top_k 4, shorter answers, extra jittered latency
+HIGH       0.5 to 0.7   top_k 2 + step-up: fresh MFA login or proof-of-work
+CRITICAL   >= 0.7       account locked (403 security_lock), admin alert
+=========  ===========  ======================================================
+
+A semantic score at ``semantic_hard_threshold`` is CRITICAL on its own.
 """
 
 from __future__ import annotations
 
 import time
+from dataclasses import dataclass
+from enum import StrEnum
 from typing import TYPE_CHECKING
 
 from sqlalchemy import update
@@ -25,6 +40,8 @@ if TYPE_CHECKING:
 
     from spoldzielnia_ai.core.settings import ShieldSettings
     from spoldzielnia_ai.db.session import SessionFactory
+    from spoldzielnia_ai.shield.coverage import CoverageStatus
+    from spoldzielnia_ai.shield.semantic import SemanticVerdict
 
 log = get_logger(__name__)
 
@@ -84,3 +101,55 @@ class RiskStore:
                 )
         except Exception as exc:
             log.warning("shield.risk_snapshot_failed", error=type(exc).__name__)
+
+
+class RiskLevel(StrEnum):
+    NORMAL = "NORMAL"
+    ELEVATED = "ELEVATED"
+    HIGH = "HIGH"
+    CRITICAL = "CRITICAL"
+
+
+@dataclass(frozen=True, slots=True)
+class Assessment:
+    score: float
+    level: RiskLevel
+    incidents: float
+    coverage: float  # the coverage term
+    semantic: float  # the semantic term
+
+    def to_json(self) -> dict[str, float | str]:
+        return {
+            "level": self.level.value,
+            "score": round(self.score, 4),
+            "incidents": round(self.incidents, 4),
+            "coverage_term": round(self.coverage, 4),
+            "semantic_term": round(self.semantic, 4),
+        }
+
+
+class RiskEngine:
+    def __init__(self, store: RiskStore, settings: ShieldSettings) -> None:
+        self._store = store
+        self._settings = settings
+
+    def level(self, score: float) -> RiskLevel:
+        s = self._settings
+        if score >= s.risk_critical:
+            return RiskLevel.CRITICAL
+        if score >= s.risk_high:
+            return RiskLevel.HIGH
+        if score >= s.risk_elevated:
+            return RiskLevel.ELEVATED
+        return RiskLevel.NORMAL
+
+    async def assess(
+        self, user_id: UUID, coverage: CoverageStatus, semantic: SemanticVerdict
+    ) -> Assessment:
+        s = self._settings
+        incidents = await self._store.incidents(user_id)
+        coverage_term = s.risk_coverage_weight * coverage.pressure(s.min_blocks_before_lock) ** 2
+        semantic_term = s.risk_semantic_weight * semantic.score
+        score = min(incidents + coverage_term + semantic_term, 1.0)
+        level = RiskLevel.CRITICAL if semantic.hard else self.level(score)
+        return Assessment(score, level, incidents, coverage_term, semantic_term)

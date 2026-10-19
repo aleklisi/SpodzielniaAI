@@ -186,6 +186,15 @@ def _step_up_challenge(acr: str) -> str:
     return f'Bearer error="insufficient_user_authentication", acr_values="{acr}"'
 
 
+def step_up_url(settings: Settings) -> str:
+    """A forced re-login asking the IdP for MFA."""
+    acr = " ".join(settings.security.mfa_acr_values)
+    step_up = f"{settings.root_path}/auth/login?prompt=login"
+    if acr:
+        step_up += f"&acr_values={acr}"
+    return step_up
+
+
 async def require_mfa(request: Request, principal: CurrentUser) -> Principal:
     """The session was established with a second factor. If not, 403 with a step-up hint. The
     frontend sends the user through ``step_up`` (a forced re-login asking for MFA)."""
@@ -193,9 +202,7 @@ async def require_mfa(request: Request, principal: CurrentUser) -> Principal:
         return principal
     settings = _settings(request)
     acr = " ".join(settings.security.mfa_acr_values)
-    step_up = f"{settings.root_path}/auth/login?prompt=login"
-    if acr:
-        step_up += f"&acr_values={acr}"
+    step_up = step_up_url(settings)
     raise HTTPException(
         status_code=status.HTTP_403_FORBIDDEN,
         detail={"error": "mfa_required", "step_up": step_up},

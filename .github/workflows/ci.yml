@@ -20,6 +20,7 @@ jobs:
       - run: uv run ruff check .
       - run: uv run ruff format --check .
       - run: uv run pyright
+      - run: uv run lint-imports
       - run: uv run pytest -m "not integration and not ml and not e2e" --cov=spoldzielnia_ai
 
   integration:

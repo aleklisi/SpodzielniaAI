@@ -218,3 +218,43 @@ caller of `RAGService` from the API layer. `POST /rag/ask` depends on it, and th
 **Stage 5 exit criteria:** the three PLAN Stage 5 tests (distillation simulation, verbatim extraction,
 canary) are green, plus the false-positive guard. In Docker compose, `POST https://spoldzielnia.localhost/api/rag/ask`
 is fully operational with strict citations and anti-distillation enforcement.
+
+---
+
+## Implementation notes (as built)
+
+Decisions taken while implementing, beyond or different from the plan above:
+
+- **Citations are article-level.** The model cites `[S1]…[Sn]` (passages); before the
+  answer leaves the server the markers are renumbered to `[1]…[k]` over the cited
+  *articles*, so the client never learns how many passages an article contributed.
+- **Retrieval gate.** `RAGService.ask(…, gate=…)` hands the re-validated retrieval to the
+  guard before synthesis (honeypots, coverage). Honeypots are stripped in `RAGService`
+  as well, gate or no gate.
+- **Stale hits** found at read time are repaired through the outbox (`repair_ops`, under
+  `FOR SHARE` locks), applied by the reconciler; the request itself never waits for Qdrant.
+- **Wiki views count.** Canonical text shown to a member who is neither an author nor a
+  reviewer goes through `CoverageTracker.admit`, so the Wiki is no way around the budget.
+- **Coverage pressure respects the floor.** The RiskEngine's coverage term uses
+  `min(ratio / limit, blocks / min_blocks_before_lock)`: gap G14 applies to escalation, not
+  only to the lock.
+- **Ignoring step-up is a signal.** Each challenge issued while `step_up_unresolved_max`
+  are still unsolved adds `unresolved_challenge_penalty`; a bot that never solves them ends
+  at CRITICAL (locked, audited, alert).
+- **PoW escalates.** Each puzzle solved within 24h makes the next one `pow_escalation_bits`
+  harder (×4 per 2 bits). Known limit, pinned by
+  `test_bot_paying_the_proof_of_work_ends_locked`: a bot paying every puzzle is locked by
+  coverage pressure, which on a corpus below ~334 blocks only builds up near the absolute
+  floor (default 50 blocks), i.e. above 15% of such a small corpus.
+- **Deterministic clusters.** k-means sorts its input rows, so an unchanged corpus gives the
+  same clusters whatever order Qdrant returns points in (uuid7 ids are random within one ms).
+- **Watermark dictionary**: 172 slots plus 2 structural ones (the plan said ≈200). Pairs that
+  could shift meaning in beekeeping advice (dosages, `w celu`, cross-gender nouns) are left
+  out on purpose; a test enforces that no form is ambiguous.
+- **Simulation embeddings.** The distillation simulation uses a toy *topic* embedding
+  (`tests/fixtures/corpus.py`): hashed bag-of-words puts two questions on one topic far
+  apart when they share few exact words, which no real embedding model does, and made a
+  narrow member look like a scanner.
+- **Import rule**: `[tool.importlinter]` in `pyproject.toml` (`uv run lint-imports`, also in
+  CI and in `tests/unit/test_guard.py`), plus AST tests that only `shield.guard` calls
+  `rag.ask`.

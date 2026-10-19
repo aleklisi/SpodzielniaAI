@@ -57,6 +57,7 @@ dev = [
     "fakeredis[lua]>=2.40.0",
     "freezegun>=1.5.5",
     "hypothesis>=6.170.0",
+    "import-linter>=2.15",
     "pyright>=1.1.414",
     "pytest>=9.1.1",
     "pytest-asyncio>=1.4.0",
@@ -135,3 +136,15 @@ markers = [
     "ml: requires heavy ML models (Presidio, spaCy, LLM-Guard)",
     "e2e: end-to-end tests against the running compose stack",
 ]
+
+[tool.importlinter]
+root_package = "spoldzielnia_ai"
+
+# AGENTS.md §3.3 / chunk 5.6: the API reaches cooperative RAG only through the
+# AntiDistillationGuard. Wiring it up (shield.deps) is the only indirect path.
+[[tool.importlinter.contracts]]
+name = "API never imports RAGService directly"
+type = "forbidden"
+source_modules = ["spoldzielnia_ai.api"]
+forbidden_modules = ["spoldzielnia_ai.rag.service"]
+allow_indirect_imports = true

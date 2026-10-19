@@ -45,6 +45,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable
     from uuid import UUID
 
+    from pydantic import JsonValue
     from redis.asyncio import Redis
 
     from spoldzielnia_ai.core.settings import ShieldSettings
@@ -88,7 +89,7 @@ class Features:
     template: float = 0.0
     rate: float = 0.0
 
-    def to_json(self) -> dict[str, float | int]:
+    def to_json(self) -> dict[str, JsonValue]:
         return {k: round(v, 4) if isinstance(v, float) else v for k, v in asdict(self).items()}
 
 

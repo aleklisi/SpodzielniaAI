@@ -100,6 +100,7 @@ async def canonical(
     title: str = "Leczenie warrozy",
     expert_id: UUID | None = None,
     honeypot: list[bool] | None = None,
+    llm: FakeLLMGateway | None = None,
 ) -> tuple[UUID, list[UUID]]:
     """A CANONICAL, verified article (approved by ``expert_id`` if given), indexed in Qdrant."""
     article_id, block_ids = await make_article(factory, blocks, title=title)
@@ -117,7 +118,8 @@ async def canonical(
                     article_id=article_id, reviewer_id=expert_id, decision=ReviewDecision.APPROVE
                 )
             )
-    indexer = Indexer(factory, _NO_CIPHER, Embedder(FakeLLMGateway(), EMBED_DIM), qdrant)
+    embedder = Embedder(llm or FakeLLMGateway(), EMBED_DIM)
+    indexer = Indexer(factory, _NO_CIPHER, embedder, qdrant)
     await indexer.index_canonical_article(ArticleJob(article_id=article_id), True)
     return article_id, block_ids
 

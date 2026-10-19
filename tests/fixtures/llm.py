@@ -83,6 +83,7 @@ class FakeLLMGateway:
     rejects: bool = False  # the server answers 4xx (LocalModelRejected)
     calls: list[Call] = field(default_factory=list[Call])
     embed_dim: int = EMBED_DIM
+    embedding: Callable[[str], list[float]] | None = None  # default: hash_embedding
     embedded: list[str] = field(default_factory=list[str])
 
     async def complete(
@@ -110,4 +111,6 @@ class FakeLLMGateway:
         self.embedded.extend(texts)
         if not self.local_available:
             raise LocalModelUnavailable("fake: no local model")
+        if self.embedding is not None:
+            return [self.embedding(t) for t in texts]
         return [hash_embedding(t, self.embed_dim) for t in texts]

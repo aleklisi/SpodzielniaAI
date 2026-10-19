@@ -294,6 +294,38 @@ class ShieldSettings(BaseModel):
     watermark_key: SecretStr | None = None
     watermark_z_threshold: float = Field(default=4.0, gt=0)
 
+    # RiskEngine (5.6): risk = incidents + coverage term + semantic term, capped at 1.
+    risk_coverage_weight: float = Field(default=0.4, ge=0, le=1)  # * (fraction of limit)^2
+    risk_semantic_weight: float = Field(default=0.6, ge=0, le=1)  # * semantic score
+    risk_elevated: float = Field(default=0.3, gt=0, lt=1)
+    risk_high: float = Field(default=0.5, gt=0, lt=1)
+    risk_critical: float = Field(default=0.7, gt=0, le=1)
+    # Progressive degradation (SECURITY.md layer 5), never announced as detection.
+    elevated_top_k: int = Field(default=4, ge=1)
+    elevated_max_words: int = Field(default=150, ge=20)
+    elevated_delay_ms: tuple[int, int] = (300, 1200)  # jittered extra latency
+    high_top_k: int = Field(default=2, ge=1)
+    # HIGH: a login with MFA at most this old, or a solved proof-of-work, per request.
+    step_up_max_auth_age_seconds: int = Field(default=300, ge=60, le=3600)
+    pow_difficulty_bits: int = Field(default=18, ge=1, le=28)
+    # Each puzzle solved within 24h makes the next one this much harder (x4 per 2 bits).
+    pow_escalation_bits: int = Field(default=2, ge=0, le=8)
+    pow_max_bits: int = Field(default=28, ge=1, le=32)
+    pow_ttl_seconds: int = Field(default=300, ge=30, le=3600)
+    # Ignoring step-up is a signal too: each challenge issued while this many are still
+    # unsolved adds risk, so a bot that never solves them ends at CRITICAL (locked).
+    step_up_unresolved_max: int = Field(default=3, ge=1)
+    unresolved_challenge_penalty: float = Field(default=0.1, ge=0, le=1)
+
+    @model_validator(mode="after")
+    def _risk_levels_ascend(self) -> Self:
+        if not self.risk_elevated < self.risk_high < self.risk_critical:
+            raise ValueError("risk levels must ascend: elevated < high < critical")
+        low, high = self.elevated_delay_ms
+        if not 0 <= low <= high <= 10_000:
+            raise ValueError("shield.elevated_delay_ms must be 0 <= min <= max <= 10000")
+        return self
+
     @model_validator(mode="after")
     def _windows_widen(self) -> Self:
         if not self.coverage_24h_max <= self.coverage_7d_max <= self.coverage_30d_max:
