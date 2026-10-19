@@ -10,6 +10,7 @@ Subcommands:
     models     download/verify the offline ML models (2.5)
     bootstrap  create the storage bucket (1.2b) and the Qdrant collections (4.1)
     honeypot   inject, list or trace canary blocks (5.4): `docker compose run --rm api honeypot …`
+    openapi    write the API's OpenAPI schema (frontend type generation, 6.1)
 """
 
 from __future__ import annotations
@@ -187,6 +188,45 @@ def _cmd_honeypot(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_openapi(args: argparse.Namespace) -> int:
+    """No service is contacted: the app is built with placeholder settings and only its route
+    table is read."""
+    import json
+    from pathlib import Path
+
+    from pydantic import SecretStr
+
+    from spoldzielnia_ai.core.settings import (
+        DbSettings,
+        OidcSettings,
+        RedisSettings,
+        SecuritySettings,
+        Settings,
+    )
+    from spoldzielnia_ai.main import create_app
+
+    placeholder = SecretStr("openapi-export")
+    settings = Settings(
+        _env_file=None,  # pyright: ignore[reportCallIssue]
+        _secrets_dir="/nonexistent",  # pyright: ignore[reportCallIssue]
+        environment="dev",
+        db=DbSettings(app_password=placeholder),
+        redis=RedisSettings(password=placeholder),
+        oidc=OidcSettings(client_secret=placeholder),
+        security=SecuritySettings(
+            session_secret=placeholder,
+            kek=SecretStr("MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="),
+        ),
+    )
+    schema = create_app(settings, readiness_checks={}).openapi()
+    text = json.dumps(schema, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
+    if args.out == "-":
+        sys.stdout.write(text)
+    else:
+        Path(args.out).write_text(text)
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="spoldzielnia", description="Spółdzielnia AI backend")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -233,6 +273,10 @@ def build_parser() -> argparse.ArgumentParser:
     honeypot.add_argument("--count", default=5, type=int, help="canaries to inject (1-20)")
     honeypot.add_argument("--file", default="-", help="text to scan (default: stdin)")
     honeypot.set_defaults(handler=_cmd_honeypot)
+
+    openapi = sub.add_parser("openapi", help="write the OpenAPI schema (JSON)")
+    openapi.add_argument("--out", default="-", help="file to write (default: stdout)")
+    openapi.set_defaults(handler=_cmd_openapi)
 
     return parser
 

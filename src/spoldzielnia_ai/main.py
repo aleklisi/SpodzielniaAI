@@ -6,7 +6,7 @@ import asyncio
 from contextlib import asynccontextmanager
 from typing import TYPE_CHECKING, Literal
 
-from fastapi import FastAPI, Request, Response, status
+from fastapi import FastAPI, Response, status
 from prometheus_client import CONTENT_TYPE_LATEST, REGISTRY, CollectorRegistry, generate_latest
 from prometheus_fastapi_instrumentator import Instrumentator
 from pydantic import BaseModel
@@ -29,6 +29,7 @@ from spoldzielnia_ai.auth.csrf import csrf_middleware
 from spoldzielnia_ai.auth.deps import DbAuditSink
 from spoldzielnia_ai.auth.oidc_client import OidcClient
 from spoldzielnia_ai.core.crypto import EnvelopeCipher, StaticKeyProvider
+from spoldzielnia_ai.core.headers import security_headers_middleware
 from spoldzielnia_ai.core.logging import configure_logging, get_logger
 from spoldzielnia_ai.core.metrics import OUTBOX_BACKLOG
 from spoldzielnia_ai.core.readiness import ReadinessCheck, default_checks
@@ -46,7 +47,7 @@ from spoldzielnia_ai.vector.sync import outbox_backlog
 from spoldzielnia_ai.workers.celery_adapter import make_celery
 
 if TYPE_CHECKING:
-    from collections.abc import AsyncGenerator, Awaitable, Callable
+    from collections.abc import AsyncGenerator
 
 log = get_logger(__name__)
 
@@ -170,13 +171,6 @@ def create_app(
     # Registered before `security_headers`, so its 403s still get the security headers.
     app.middleware("http")(csrf_middleware(settings.security.allowed_origins, csrf_tokens))
 
-    @app.middleware("http")
-    async def security_headers(  # pyright: ignore[reportUnusedFunction]
-        request: Request, call_next: Callable[[Request], Awaitable[Response]]
-    ) -> Response:
-        response = await call_next(request)
-        response.headers.setdefault("X-Content-Type-Options", "nosniff")
-        response.headers.setdefault("Cache-Control", "no-store")
-        return response
+    app.middleware("http")(security_headers_middleware(app.docs_url))
 
     return app

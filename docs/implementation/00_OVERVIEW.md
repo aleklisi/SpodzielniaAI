@@ -207,7 +207,7 @@ Each one is resolved (✅ = decision baked into the chunk plans) or needs your i
 - [x] 5.6 `AntiDistillationGuard`, RiskEngine & progressive degradation
 
 ### Stage 6 — Frontend & Final Audit
-- [ ] 6.1 Next.js scaffold, BFF proxy, security headers & CSP
+- [x] 6.1 Next.js scaffold, BFF proxy, security headers & CSP
 - [ ] 6.2 Private notebook UI
 - [ ] 6.3 Wiki & expert review panel
 - [ ] 6.4 Creator IP (contributions) panel

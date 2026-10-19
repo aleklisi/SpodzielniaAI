@@ -31,7 +31,7 @@ expect() { local desc="$1" url="$2" code="$3" got; got="$(status "$url" || true)
 echo "1. HTTPS single origin"
 expect "GET /api/healthz" "https://$DOMAIN/api/healthz" 200
 expect "GET /api/readyz"  "https://$DOMAIN/api/readyz" 200
-expect "GET / (placeholder)" "https://$DOMAIN/" 200
+expect "GET / (Next.js frontend)" "https://$DOMAIN/" 200
 expect "GET /api/metrics is not public" "https://$DOMAIN/api/metrics" 404
 # Alembic head of this checkout: the revision no other migration names as its down_revision.
 # Plain python3 (no venv), so the script also runs on servers.
@@ -55,6 +55,15 @@ body = json.loads(sys.argv[1])
 assert body["checks"]["migrations"] is True and body["schema_revision"] == sys.argv[2]
 ' "$readyz" "$HEAD"
 check "HSTS header on /api" bash -c "curl -sSI ${CA_ARGS[*]} https://$DOMAIN/api/healthz | grep -qi '^strict-transport-security:'"
+# Frontend (6.1): nonce CSP with Trusted Types, framing denied; a fresh nonce per request.
+FRONT_HEADERS="$(curl -sSI --max-time 10 "${CA_ARGS[@]}" "https://$DOMAIN/" || true)"
+check "frontend: CSP with nonce and Trusted Types" bash -c "grep -qiE \"^content-security-policy:.*'nonce-[^']+'.*require-trusted-types-for 'script'\" <<<\"\$1\"" _ "$FRONT_HEADERS"
+check "frontend: X-Frame-Options DENY" bash -c "grep -qi '^x-frame-options: DENY' <<<\"\$1\"" _ "$FRONT_HEADERS"
+check "frontend: nonce differs per request" bash -c "
+  a=\$(curl -sSI ${CA_ARGS[*]} https://$DOMAIN/ | grep -i '^content-security-policy' | grep -o \"nonce-[^']*\")
+  b=\$(curl -sSI ${CA_ARGS[*]} https://$DOMAIN/ | grep -i '^content-security-policy' | grep -o \"nonce-[^']*\")
+  [[ -n \$a && \$a != \$b ]]"
+check "api: deny-all CSP on JSON responses" bash -c "curl -sSI ${CA_ARGS[*]} https://$DOMAIN/api/healthz | grep -qi \"^content-security-policy: default-src 'none'\""
 expect "HTTP redirects to HTTPS" "http://$DOMAIN/" 308
 
 echo "2. Identity provider"

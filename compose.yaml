@@ -443,6 +443,24 @@ services:
     volumes:
       - models:/models
 
+  # Next.js UI (6.1): `edge` only, behind Caddy on the same origin as /api.
+  frontend:
+    <<: *hardening
+    image: ${REGISTRY:-spoldzielnia}/frontend:${VERSION:-dev}
+    restart: unless-stopped
+    networks: [edge]
+    # The server writes its fetch/image cache under .next/cache.
+    tmpfs: ["/tmp:size=64m", "/app/.next/cache:size=128m,uid=65532,gid=65532"]
+    mem_limit: 512m
+    environment:
+      NODE_ENV: production
+    healthcheck:
+      test: ["CMD", "/nodejs/bin/node", "-e", "fetch('http://127.0.0.1:3000/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
   proxy:
     <<: *infra
     image: caddy:2.11.7@sha256:685ae3d7c34d9b5f8caeddc5d14051db7bbd88ff1f5a2fa0c16bd8ca328fb7af
@@ -465,10 +483,10 @@ services:
       KC_ADMIN_ALLOW: ${KC_ADMIN_ALLOW:-127.0.0.1/8}
     depends_on:
       api: { condition: service_healthy }
+      frontend: { condition: service_healthy }
       keycloak: { condition: service_healthy }
     volumes:
       - ./infra/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
-      - ./infra/caddy/site:/srv/site:ro
       - caddy_data:/data
       - caddy_config:/config
     healthcheck:

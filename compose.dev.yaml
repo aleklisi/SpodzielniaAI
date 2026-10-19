@@ -65,6 +65,14 @@ services:
     environment:
       SPOLDZIELNIA_ENVIRONMENT: dev
 
+  frontend:
+    build:
+      context: ./frontend
+    develop:
+      watch:
+        - { action: rebuild, path: ./frontend/src }
+        - { action: rebuild, path: ./frontend/package.json }
+
   api:
     build: *backend-build
     environment:

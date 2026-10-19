@@ -189,7 +189,7 @@ Pełna specyfikacja techniczna i architektura wdrożenia w kontenerach Docker zn
 
 ### Etap 6: Frontend, Nagłówki Bezpieczeństwa (OWASP Web) i Audyt Końcowy
 *Dokumentacja: [docs/implementation/06_FRONTEND_AUDIT.md](docs/implementation/06_FRONTEND_AUDIT.md)*
-- [ ] 6.1 Rusztowanie Next.js (App Router, Tailwind v4), kontener frontendowy i restrykcyjne nagłówki CSP
+- [x] 6.1 Rusztowanie Next.js (App Router, Tailwind v4), kontener frontendowy i restrykcyjne nagłówki CSP
 - [ ] 6.2 Interfejs prywatnego notatnika (BlockNote, obsługa uploadu i kwarantanny)
 - [ ] 6.3 Interfejs bazy wiedzy Wiki, widok autorstwa bloków i panel recenzji eksperckiej
 - [ ] 6.4 Panel praw autorskich twórcy (zarządzanie kontrybucjami, suspend / revoke)

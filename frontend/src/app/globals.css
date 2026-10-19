@@ -1,0 +1,67 @@
+@import "tailwindcss";
+
+/* Cooperative palette: honey (primary), heather (accent), meadow (ok), ember (danger). */
+:root {
+  --bg: #fbf8f1;
+  --surface: #ffffff;
+  --surface-muted: #f3eee2;
+  --text: #241f16;
+  --text-muted: #6b6354;
+  --border: #e3dccb;
+  --primary: #b7791f;
+  --primary-strong: #8f5b10;
+  --primary-contrast: #ffffff;
+  --accent: #7b5ea7;
+  --ok: #2f7d4f;
+  --warn: #b45309;
+  --danger: #b42318;
+  --focus: #2563eb;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #15130f;
+    --surface: #1f1c16;
+    --surface-muted: #29251d;
+    --text: #f2ede2;
+    --text-muted: #b3aa98;
+    --border: #3a342a;
+    --primary: #e0a43a;
+    --primary-strong: #f0bd5e;
+    --primary-contrast: #1a1405;
+    --accent: #b49ae0;
+    --ok: #5cc28a;
+    --warn: #f0a050;
+    --danger: #f97066;
+    --focus: #7aa2ff;
+  }
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-muted: var(--surface-muted);
+  --color-text: var(--text);
+  --color-text-muted: var(--text-muted);
+  --color-border: var(--border);
+  --color-primary: var(--primary);
+  --color-primary-strong: var(--primary-strong);
+  --color-primary-contrast: var(--primary-contrast);
+  --color-accent: var(--accent);
+  --color-ok: var(--ok);
+  --color-warn: var(--warn);
+  --color-danger: var(--danger);
+  --color-focus: var(--focus);
+  --font-sans: var(--font-inter);
+  --font-display: var(--font-outfit);
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}

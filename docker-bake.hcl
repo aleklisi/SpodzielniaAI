@@ -4,7 +4,7 @@ variable "VERSION" { default = "dev" }
 variable "PLATFORMS" { default = "" } # e.g. "linux/amd64,linux/arm64" in CI; empty = host arch
 
 group "default" {
-  targets = ["api", "worker-media", "worker-core"]
+  targets = ["api", "worker-media", "worker-core", "frontend"]
 }
 
 target "_backend" {
@@ -33,4 +33,15 @@ target "worker-core" {
   inherits = ["_backend"]
   target   = "worker-core"
   tags     = ["${REGISTRY}/worker-core:${VERSION}"]
+}
+
+target "frontend" {
+  context    = "frontend"
+  dockerfile = "Dockerfile"
+  platforms  = PLATFORMS == "" ? [] : split(",", PLATFORMS)
+  tags       = ["${REGISTRY}/frontend:${VERSION}"]
+  labels = {
+    "org.opencontainers.image.source" = "local"
+    "org.opencontainers.image.version" = VERSION
+  }
 }

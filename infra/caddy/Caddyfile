@@ -14,13 +14,15 @@ http://127.0.0.1:8081 {
 	respond "ok" 200
 }
 
+# Defaults (`?`: only where the upstream set none). The frontend and the API send their own,
+# stricter headers (the frontend's CSP carries a per-request nonce, 6.1); Keycloak gets these.
 (security_headers) {
 	header {
-		Strict-Transport-Security "max-age=31536000; includeSubDomains"
-		X-Content-Type-Options "nosniff"
-		X-Frame-Options "DENY"
-		Referrer-Policy "no-referrer"
-		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+		?Strict-Transport-Security "max-age=63072000; includeSubDomains"
+		?X-Content-Type-Options "nosniff"
+		?X-Frame-Options "DENY"
+		?Referrer-Policy "strict-origin-when-cross-origin"
+		?Permissions-Policy "camera=(), microphone=(), geolocation=()"
 		-Server
 		-Via
 	}
@@ -48,10 +50,11 @@ http://127.0.0.1:8081 {
 		}
 	}
 
-	# Placeholder until the Next.js frontend exists (6.1).
+	# Everything else is the Next.js UI (same origin: __Host- cookies, SameSite=Strict).
 	handle {
-		root * /srv/site
-		file_server
+		reverse_proxy frontend:3000 {
+			header_up X-Forwarded-Proto https
+		}
 	}
 }
 
