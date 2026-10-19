@@ -20,6 +20,7 @@ from spoldzielnia_ai.api.me import router as me_router
 from spoldzielnia_ai.api.notes import router as notes_router
 from spoldzielnia_ai.api.promotion import notes_router as promote_router
 from spoldzielnia_ai.api.promotion import router as promotions_router
+from spoldzielnia_ai.api.rag import router as rag_router
 from spoldzielnia_ai.api.reviews import router as reviews_router
 from spoldzielnia_ai.api.wiki import router as wiki_router
 from spoldzielnia_ai.auth.crypto import CsrfTokens, TokenSealer, derive_key
@@ -36,6 +37,7 @@ from spoldzielnia_ai.db.migrate import head_revision
 from spoldzielnia_ai.db.session import create_session_factory
 from spoldzielnia_ai.files.antivirus import ClamdScanner
 from spoldzielnia_ai.files.storage import S3ObjectStorage
+from spoldzielnia_ai.llm.gateway import LiteLLMGateway
 from spoldzielnia_ai.notebook.queue import CeleryProcessingQueue
 from spoldzielnia_ai.vector.client import make_qdrant
 from spoldzielnia_ai.vector.sync import outbox_backlog
@@ -114,10 +116,13 @@ def create_app(
         app.state.session_factory, app.state.cipher, app.state.celery
     )
     app.state.upload_slots = asyncio.Semaphore(settings.uploads.max_concurrent)
+    # Question embeddings and answer synthesis (Stage 5). The router is built on first use.
+    app.state.llm = LiteLLMGateway(settings.llm)
     app.include_router(auth_router)
     app.include_router(me_router)
     app.include_router(contributions_router)
     app.include_router(promote_router)  # before /notes/{note_id}
+    app.include_router(rag_router)  # /notes/ask, before /notes/{note_id}
     app.include_router(notes_router)
     app.include_router(promotions_router)
     app.include_router(attachments_router)

@@ -199,7 +199,7 @@ Each one is resolved (✅ = decision baked into the chunk plans) or needs your i
 - [x] 4.4 Outbox, reconciliation & propagation guarantees
 
 ### Stage 5 — Anti-Distillation Shield & RAG
-- [ ] 5.1 `RAGService` with strict grounding & validated citations
+- [x] 5.1 `RAGService` with strict grounding & validated citations
 - [ ] 5.2 `CoverageTracker`
 - [ ] 5.3 `SemanticAnomalyDetector`
 - [ ] 5.4 `HoneypotInjector`

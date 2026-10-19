@@ -169,6 +169,8 @@ except urllib.error.HTTPError:
 check "worker-core reaches the local LLM endpoint (llm:11434)" \
   "${COMPOSE[@]}" exec -T worker-core python -c "$LLM_PY"
 check_not "worker-core has no internet access" "${COMPOSE[@]}" exec -T worker-core python -c "$OUT"
+check "api reaches the local LLM endpoint (RAG, Stage 5)" \
+  "${COMPOSE[@]}" exec -T api python -c "$LLM_PY"
 QDRANT_PY='
 import asyncio
 from spoldzielnia_ai.core.settings import WorkerSettings

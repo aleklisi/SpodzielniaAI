@@ -1,0 +1,52 @@
+"""Questions answered from knowledge: the member's notebook (5.1) and the cooperative (5.6).
+
+Answers are syntheses with citations only (AGENTS.md §3.3). Notebook Q&A runs in the member's
+RLS session on the local model.
+"""
+
+from __future__ import annotations
+
+from fastapi import APIRouter, HTTPException, Request, status
+
+from spoldzielnia_ai.auth.deps import CurrentUser  # noqa: TC001 - FastAPI resolves it
+from spoldzielnia_ai.llm.gateway import LocalModelRejected, LocalModelUnavailable
+from spoldzielnia_ai.notebook.deps import NotebookDep  # noqa: TC001 - FastAPI resolves it
+from spoldzielnia_ai.rag.deps import NotebookQADep  # noqa: TC001 - FastAPI resolves it
+from spoldzielnia_ai.rag.schemas import AskIn, NoteAnswer
+
+router = APIRouter(tags=["rag"])
+
+
+def check_question(request: Request, payload: AskIn) -> str:
+    question = payload.question.strip()
+    limit = request.app.state.settings.rag.question_max_chars
+    if len(question) < 3 or len(question) > limit:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail={"error": "question_length", "max_chars": limit},
+        )
+    return question
+
+
+def model_unavailable() -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        detail={"error": "model_unavailable"},
+        headers={"Retry-After": "30"},
+    )
+
+
+@router.post("/notes/ask", response_model=NoteAnswer)
+async def ask_notes(
+    payload: AskIn,
+    request: Request,
+    user: CurrentUser,
+    notebook: NotebookDep,
+    qa: NotebookQADep,
+) -> NoteAnswer:
+    """Ask the member's own notebook."""
+    question = check_question(request, payload)
+    try:
+        return await qa.ask(notebook, user.id, question)
+    except (LocalModelUnavailable, LocalModelRejected):
+        raise model_unavailable() from None

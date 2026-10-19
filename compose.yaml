@@ -298,7 +298,8 @@ services:
       qdrant: { condition: service_healthy }
       minio: { condition: service_healthy }
     environment:
-      <<: [*app-env, *qdrant-env]
+      # LLM: question embeddings and answer synthesis (Stage 5).
+      <<: [*app-env, *qdrant-env, *llm-env]
       # Trust X-Forwarded-* only from the proxy's network.
       SPOLDZIELNIA_FORWARDED_ALLOW_IPS: 172.30.1.0/24
       SPOLDZIELNIA_SECURITY__ALLOWED_ORIGINS: '["https://${SITE_DOMAIN:-spoldzielnia.localhost}"]'
@@ -313,6 +314,7 @@ services:
       - { source: kek, target: security__kek }
       - { source: qdrant_api_key, target: qdrant__api_key }
       - { source: minio_root_password, target: s3__secret_key }
+      - { source: llm_api_key, target: llm__api_key }
       - internal_ca
 
   # --- Workers (2.5) ----------------------------------------------------------

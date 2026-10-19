@@ -171,6 +171,21 @@ class NotebookService:
             )
         return summaries
 
+    async def titles(self, note_ids: Sequence[UUID]) -> dict[UUID, str]:
+        notes = await self._session.scalars(select(PrivateNote).where(PrivateNote.id.in_(note_ids)))
+        return {note.id: self._note_fields(note)[0] for note in notes}
+
+    async def derivative_texts(self, derivative_ids: Sequence[UUID]) -> dict[UUID, DerivativeView]:
+        """Indexed derivatives (DONE, so never quarantined) with their decrypted content."""
+        rows = await self._session.scalars(
+            select(NoteDerivative).where(
+                NoteDerivative.id.in_(derivative_ids),
+                NoteDerivative.status == DerivativeStatus.DONE,
+                NoteDerivative.content_ciphertext.is_not(None),
+            )
+        )
+        return {row.id: self.derivative_view(row) for row in rows}
+
     async def get(self, note_id: UUID) -> NoteView | None:
         note = await self._note(note_id)
         if note is None:

@@ -222,6 +222,25 @@ class GovernanceSettings(BaseModel):
     outbox_alert_after: int = Field(default=5, ge=1)
 
 
+class RagSettings(BaseModel):
+    """Cooperative RAG (5.1)."""
+
+    top_k: int = Field(default=8, ge=1, le=50)
+    # Cosine similarity a hit needs. Below it nothing counts as an answer (strict grounding).
+    score_threshold: float = Field(default=0.45, ge=-1, le=1)
+    question_max_chars: int = Field(default=1000, ge=10, le=10_000)
+    answer_max_words: int = Field(default=350, ge=20, le=2000)
+    # Link to an article in the frontend (Stage 6 routes).
+    wiki_url_template: str = "https://spoldzielnia.localhost/wiki/{article_id}"
+
+    @field_validator("wiki_url_template")
+    @classmethod
+    def _has_placeholder(cls, value: str) -> str:
+        if "{article_id}" not in value:
+            raise ValueError("rag.wiki_url_template must contain {article_id}")
+        return value
+
+
 class LlmSettings(BaseModel):
     """LLM endpoints over the standard OpenAI API (LM Studio, Ollama, vLLM, …).
 
@@ -321,6 +340,7 @@ class Settings(_BaseSettings):
     fetch: FetchSettings = Field(default_factory=FetchSettings)
     promotion: PromotionSettings = Field(default_factory=PromotionSettings)
     governance: GovernanceSettings = Field(default_factory=GovernanceSettings)
+    rag: RagSettings = Field(default_factory=RagSettings)
 
     @model_validator(mode="after")
     def _require_runtime_secrets(self) -> Self:

@@ -180,7 +180,7 @@ Pełna specyfikacja techniczna i architektura wdrożenia w kontenerach Docker zn
 
 ### Etap 5: Tarcza Anty-Destylacyjna (Anti-Distillation Shield) i Bezpieczny RAG
 *Dokumentacja: [docs/implementation/05_ANTI_DISTILLATION_RAG.md](docs/implementation/05_ANTI_DISTILLATION_RAG.md)*
-- [ ] 5.1 Usługa `RAGService` ze ścisłym uziemieniem (strict grounding) i schematami bez surowych chunków
+- [x] 5.1 Usługa `RAGService` ze ścisłym uziemieniem (strict grounding) i schematami bez surowych chunków
 - [ ] 5.2 Moduł `CoverageTracker` (budżet pokrycia bazy w oknach 24h, 7d, 30d w Redis HLL)
 - [ ] 5.3 Moduł `SemanticAnomalyDetector` (analiza anomalii odległości w przestrzeni embeddingów)
 - [ ] 5.4 Moduł `HoneypotInjector` (bloki-kanarki, usuwanie przed syntezą, natychmiastowe alerty)
