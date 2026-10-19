@@ -4,6 +4,8 @@ import { headers } from "next/headers";
 import Link from "next/link";
 
 import { ToastProvider } from "@/components/ui/Toast";
+import { NonceProvider } from "@/lib/nonce";
+import { QueryProvider } from "@/lib/query";
 
 import "./globals.css";
 
@@ -27,10 +29,12 @@ const NAV = [
 export default async function RootLayout({ children }: LayoutProps<"/">) {
   // Reading the request headers makes every page render per request: the CSP nonce from
   // src/proxy.ts differs on each one (Next.js applies it to its scripts automatically).
-  await headers();
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
   return (
     <html lang="pl" className={`${inter.variable} ${outfit.variable} h-full antialiased`}>
       <body className="flex min-h-full flex-col font-sans">
+        <NonceProvider nonce={nonce}>
+        <QueryProvider>
         <ToastProvider>
           <header className="border-b border-border bg-surface">
             <nav aria-label="Główna" className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3">
@@ -46,6 +50,8 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
           </header>
           <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">{children}</main>
         </ToastProvider>
+        </QueryProvider>
+        </NonceProvider>
       </body>
     </html>
   );

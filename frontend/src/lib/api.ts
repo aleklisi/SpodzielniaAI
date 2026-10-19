@@ -143,9 +143,12 @@ export interface ClientOptions {
 }
 
 export function makeClient(options: ClientOptions = {}) {
+  // Same origin, as an absolute URL where there is a window (Node's Request needs one).
+  const origin = typeof window === "undefined" ? "" : window.location.origin;
   const client = createClient<paths>({
-    baseUrl: options.baseUrl ?? API_BASE,
-    fetch: options.fetch,
+    baseUrl: options.baseUrl ?? `${origin}${API_BASE}`,
+    // Looked up per call, not captured at import: test doubles (MSW) patch it later.
+    fetch: options.fetch ?? ((request: Request) => globalThis.fetch(request)),
     credentials: "same-origin",
   });
   const cookies = options.cookies ?? (() => (typeof document === "undefined" ? "" : document.cookie));

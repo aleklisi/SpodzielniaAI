@@ -18,8 +18,14 @@ export function Dialog({
   useEffect(() => {
     const dialog = ref.current;
     if (!dialog) return;
-    if (open && !dialog.open) dialog.showModal?.();
-    if (!open && dialog.open) dialog.close?.();
+    if (open && !dialog.open) {
+      if (typeof dialog.showModal === "function") dialog.showModal();
+      else dialog.setAttribute("open", ""); // environments without <dialog> support (jsdom)
+    }
+    if (!open && dialog.open) {
+      if (typeof dialog.close === "function") dialog.close();
+      else dialog.removeAttribute("open");
+    }
   }, [open]);
   return (
     <dialog
