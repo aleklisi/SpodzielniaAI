@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState, type FormEvent } from "react";
 
+import { SafeMarkdown } from "@/components/markdown/SafeMarkdown";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { useAskNotebook } from "@/lib/notebook";
@@ -40,12 +41,15 @@ export function AskPanel() {
       {ask.isError && <p role="alert" className="text-sm text-danger">Nie udało się uzyskać odpowiedzi.</p>}
       {ask.data && (
         <div className="flex flex-col gap-2 text-sm" aria-live="polite">
-          {/* Plain text until the safe Markdown renderer (6.5) is shared here. */}
-          <p className={ask.data.no_answer ? "italic text-text-muted" : "whitespace-pre-wrap"}>{ask.data.answer_markdown}</p>
+          {ask.data.no_answer ? (
+            <p className="italic text-text-muted">{ask.data.answer_markdown}</p>
+          ) : (
+            <SafeMarkdown markdown={ask.data.answer_markdown} citations />
+          )}
           {ask.data.citations.length > 0 && (
             <ol className="list-decimal pl-5">
-              {ask.data.citations.map((c) => (
-                <li key={c.note_id}>
+              {ask.data.citations.map((c, i) => (
+                <li key={c.note_id} id={`cite-${i + 1}`}>
                   <Link href={`/notebook/${c.note_id}`} className="text-primary-strong underline">
                     {c.note_title}
                   </Link>

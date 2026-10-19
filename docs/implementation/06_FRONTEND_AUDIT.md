@@ -204,3 +204,10 @@ each OWASP API Top 10 and OWASP LLM Top 10 (2025) item to the implementing chunk
   in the browser would hide nothing. The per-reader Wiki watermark exists behind
   `shield.watermark_wiki` (default off: it rewords expert-approved text).
 - **Approving experts** were added to `ArticleOut` (approvals up to `last_verified_at`).
+- **Chat proof-of-work** runs in a module Web Worker (`new Worker(new URL(...))`). Turbopack
+  emits it under `/_next/static/`, so the Trusted Types policy allows its URL and the CSP's
+  `worker-src 'self' blob:` its execution. The solver lives in `pow-core.ts`, imported by the
+  worker and by `pow.ts`: when the worker imported the module that creates it, `next build`
+  never finished. Verified in the stack: 401 challenge → 18-bit puzzle solved in the browser →
+  answer, no CSP violations.
+- The conversation is kept in page memory only; nothing of it is stored by the frontend.
