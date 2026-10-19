@@ -171,6 +171,15 @@ check "worker-core reaches the local LLM endpoint (llm:11434)" \
 check_not "worker-core has no internet access" "${COMPOSE[@]}" exec -T worker-core python -c "$OUT"
 check "api reaches the local LLM endpoint (RAG, Stage 5)" \
   "${COMPOSE[@]}" exec -T api python -c "$LLM_PY"
+SHIELD_PY='
+from spoldzielnia_ai.core.settings import Settings
+from spoldzielnia_ai.shield.honeypot import signing_key
+from spoldzielnia_ai.shield.watermark import Watermarker
+s = Settings()
+assert signing_key(s.shield) and Watermarker.from_settings(s.shield) is not None
+'
+check "api: shield keys mounted (honeypot, watermark)" \
+  "${COMPOSE[@]}" exec -T api python -c "$SHIELD_PY"
 QDRANT_PY='
 import asyncio
 from spoldzielnia_ai.core.settings import WorkerSettings

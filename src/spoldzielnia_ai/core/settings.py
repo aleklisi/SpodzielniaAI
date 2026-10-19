@@ -284,6 +284,16 @@ class ShieldSettings(BaseModel):
     # Risk score (5.4, 5.6): incident points decay with this half-life.
     risk_half_life_days: float = Field(default=7.0, gt=0)
 
+    # Verbatim-output guard (5.5): block when any is exceeded.
+    verbatim_overlap_max: float = Field(default=0.70, gt=0, le=1)  # word 5-grams of a source
+    verbatim_rouge_l_max: float = Field(default=0.70, gt=0, le=1)  # vs. all sources
+    verbatim_span_max_words: int = Field(default=40, ge=5)
+    verbatim_penalty: float = Field(default=0.3, ge=0, le=1)
+    extraction_intent_penalty: float = Field(default=0.1, ge=0, le=1)
+    # Watermark (5.5): Docker secret `watermark_key`. Without it answers are not watermarked.
+    watermark_key: SecretStr | None = None
+    watermark_z_threshold: float = Field(default=4.0, gt=0)
+
     @model_validator(mode="after")
     def _windows_widen(self) -> Self:
         if not self.coverage_24h_max <= self.coverage_7d_max <= self.coverage_30d_max:

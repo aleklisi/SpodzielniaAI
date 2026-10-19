@@ -101,6 +101,7 @@ secrets:
   kek: { file: ./secrets/kek }
   # Anti-distillation shield (Stage 5): canary signatures, answer watermarks.
   honeypot_key: { file: ./secrets/honeypot_key }
+  watermark_key: { file: ./secrets/watermark_key }
 
 services:
   postgres:
@@ -318,6 +319,7 @@ services:
       - { source: minio_root_password, target: s3__secret_key }
       - { source: llm_api_key, target: llm__api_key }
       - { source: honeypot_key, target: shield__honeypot_key }
+      - { source: watermark_key, target: shield__watermark_key }
       - internal_ca
 
   # --- Workers (2.5) ----------------------------------------------------------
