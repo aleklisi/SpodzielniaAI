@@ -32,6 +32,8 @@ class TaskName(StrEnum):
     FETCH_LINK = "egress.fetch_link"
     SCAN_DERIVATIVE = "core.scan_derivative"
     PROMOTE_NOTES = "promotion.promote_notes"
+    INDEX_DERIVATIVE = "index.private_derivative"
+    INDEX_ARTICLE = "index.canonical_article"
 
 
 TASK_QUEUE: dict[TaskName, Queue] = {
@@ -41,6 +43,8 @@ TASK_QUEUE: dict[TaskName, Queue] = {
     TaskName.FETCH_LINK: Queue.FETCH,
     TaskName.SCAN_DERIVATIVE: Queue.CORE_SCAN,
     TaskName.PROMOTE_NOTES: Queue.PROMOTION,
+    TaskName.INDEX_DERIVATIVE: Queue.INDEX,
+    TaskName.INDEX_ARTICLE: Queue.INDEX,
 }
 
 KIND_TASK: dict[DerivativeKind, TaskName] = {
@@ -58,6 +62,8 @@ TIME_LIMITS: dict[TaskName, tuple[int, int]] = {
     TaskName.FETCH_LINK: (60, 90),
     TaskName.SCAN_DERIVATIVE: (300, 330),
     TaskName.PROMOTE_NOTES: (1800, 1860),  # local LLM generation can be slow on CPU
+    TaskName.INDEX_DERIVATIVE: (600, 660),
+    TaskName.INDEX_ARTICLE: (600, 660),
 }
 
 
@@ -81,8 +87,27 @@ class PromotionJob(BaseModel):
         return {"promotion_id": str(self.promotion_id), "owner_id": str(self.owner_id)}
 
 
-type Job = DerivativeJob | PromotionJob
+class ArticleJob(BaseModel):
+    """(Re)index a canonical article (4.1). Wiki articles are public: no owner, no RLS."""
 
-JOB_MODEL: dict[TaskName, type[DerivativeJob] | type[PromotionJob]] = {
-    name: PromotionJob if name == TaskName.PROMOTE_NOTES else DerivativeJob for name in TaskName
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    article_id: UUID
+
+    def to_message(self) -> dict[str, str]:
+        return {"article_id": str(self.article_id)}
+
+
+type Job = DerivativeJob | PromotionJob | ArticleJob
+type JobModel = type[DerivativeJob] | type[PromotionJob] | type[ArticleJob]
+
+JOB_MODEL: dict[TaskName, JobModel] = {
+    name: (
+        PromotionJob
+        if name == TaskName.PROMOTE_NOTES
+        else ArticleJob
+        if name == TaskName.INDEX_ARTICLE
+        else DerivativeJob
+    )
+    for name in TaskName
 }

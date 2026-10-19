@@ -3,7 +3,8 @@
 Reads and decrypts in one short RLS transaction, scans outside any transaction (the classifier
 can take seconds on long documents), then writes the verdict. Above the threshold the
 derivative becomes QUARANTINED (excluded from promotion until its owner confirms it) and
-``PROMPT_INJECTION_DETECTED`` is audited, with metadata only.
+``PROMPT_INJECTION_DETECTED`` is audited, with metadata only. Below it, ``on_clean`` hands the
+derivative to the private index (4.1).
 """
 
 from __future__ import annotations
@@ -24,6 +25,8 @@ from spoldzielnia_ai.llm.injection_guard import document_flags
 from spoldzielnia_ai.notebook.service import DERIVATIVE
 
 if TYPE_CHECKING:
+    from collections.abc import Awaitable, Callable
+
     from spoldzielnia_ai.core.crypto import EnvelopeCipher
     from spoldzielnia_ai.db.session import SessionFactory
     from spoldzielnia_ai.llm.injection_guard import InjectionGuard
@@ -39,11 +42,13 @@ class DerivativeScanner:
         cipher: EnvelopeCipher,
         guard: InjectionGuard,
         classifier_available: bool,
+        on_clean: Callable[[DerivativeJob], Awaitable[None]] | None = None,
     ) -> None:
         self._factory = factory
         self._cipher = cipher
         self._guard = guard
         self._classifier_available = classifier_available
+        self._on_clean = on_clean
 
     async def handle(self, job: DerivativeJob, final_attempt: bool) -> bool:
         async with rls_session(self._factory, job.owner_id) as session:
@@ -89,4 +94,6 @@ class DerivativeScanner:
             score=flags["score"],
             quarantined=verdict.quarantine,
         )
+        if not verdict.quarantine and self._on_clean is not None:
+            await self._on_clean(job)  # private index (4.1)
         return False

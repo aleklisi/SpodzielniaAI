@@ -6,7 +6,7 @@ Subcommands:
     audit-verify  re-compute the security audit log hash chain; exit 1 on any break
     worker     run a Celery worker for the given queues (2.5)
     models     download/verify the offline ML models (2.5)
-    bootstrap  create storage buckets / vector collections — wired up in chunk 1.2b / 4.1
+    bootstrap  create the storage bucket (1.2b) and the Qdrant collections (4.1)
 """
 
 from __future__ import annotations

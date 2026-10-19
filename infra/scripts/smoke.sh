@@ -168,6 +168,34 @@ except urllib.error.HTTPError:
 check "worker-core reaches the local LLM endpoint (llm:11434)" \
   "${COMPOSE[@]}" exec -T worker-core python -c "$LLM_PY"
 check_not "worker-core has no internet access" "${COMPOSE[@]}" exec -T worker-core python -c "$OUT"
+QDRANT_PY='
+import asyncio
+from spoldzielnia_ai.core.settings import WorkerSettings
+from spoldzielnia_ai.vector.client import make_qdrant
+from spoldzielnia_ai.vector.collections import COLLECTIONS, ensure_collection
+async def main():
+    s = WorkerSettings()
+    client = make_qdrant(s.qdrant)
+    for name in COLLECTIONS:  # exists, right size and indexes (no-op when bootstrapped)
+        assert not await ensure_collection(client, name, s.qdrant.vector_size), name
+    await client.close()
+asyncio.run(main())
+'
+check "worker-core: Qdrant over internal TLS, collections bootstrapped" \
+  "${COMPOSE[@]}" exec -T worker-core python -c "$QDRANT_PY"
+EMBED_PY='
+import asyncio
+from spoldzielnia_ai.core.settings import WorkerSettings
+from spoldzielnia_ai.llm.gateway import LiteLLMGateway, LocalModelUnavailable
+from spoldzielnia_ai.vector.embedding import Embedder
+s = WorkerSettings()
+try:  # EmbeddingMismatch (wrong LLM_EMBED_DIM) fails the check; a model that is down does not
+    asyncio.run(Embedder(LiteLLMGateway(s.llm), s.qdrant.vector_size).embed(["pszczoły"]))
+except LocalModelUnavailable as exc:
+    print("embedding model unavailable, size not checked:", exc)
+'
+check "worker-core: embedding size matches qdrant.vector_size" \
+  "${COMPOSE[@]}" exec -T worker-core python -c "$EMBED_PY"
 check "worker-media: model volume is read-only" bash -c \
   "! ${COMPOSE[*]} exec -T worker-media sh -c 'touch /models/.probe' 2>/dev/null"
 

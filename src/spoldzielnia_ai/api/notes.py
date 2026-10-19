@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field, model_validator
 from spoldzielnia_ai.audit.events import EventType
 from spoldzielnia_ai.audit.service import AuditService, AuditTarget
 from spoldzielnia_ai.auth.deps import CurrentUser  # noqa: TC001 - FastAPI resolves it
+from spoldzielnia_ai.core.logging import get_logger
 from spoldzielnia_ai.db.enums import (
     DerivativeKind,
     DerivativeStatus,
@@ -22,14 +23,19 @@ from spoldzielnia_ai.db.enums import (
 )
 from spoldzielnia_ai.db.rls import RlsSessionDep  # noqa: TC001 - FastAPI resolves it
 from spoldzielnia_ai.notebook.deps import NotebookDep, StorageDep  # noqa: TC001
+from spoldzielnia_ai.vector.deps import QdrantDep  # noqa: TC001 - FastAPI resolves it
+from spoldzielnia_ai.vector.repositories import PrivateVectorRepo
 
 if TYPE_CHECKING:
     from typing import Self
+
+    from qdrant_client import AsyncQdrantClient
 
     from spoldzielnia_ai.files.storage import ObjectStorage
     from spoldzielnia_ai.notebook.service import NoteView
 
 router = APIRouter(prefix="/notes", tags=["notes"])
+log = get_logger(__name__)
 
 TITLE_MAX = 200
 BODY_MAX = 200_000
@@ -122,6 +128,16 @@ async def delete_objects(storage: ObjectStorage, keys: list[str]) -> None:
         await storage.delete(key)
 
 
+async def delete_vectors(client: AsyncQdrantClient, owner_id: UUID, note_id: UUID) -> None:
+    """The note's points in the owner's partition of the private index (4.1)."""
+    try:
+        await PrivateVectorRepo(client, owner_id).delete_note(note_id)
+    except Exception as exc:
+        # Orphaned points name a note that no longer exists: notebook search re-reads notes
+        # through RLS, so they can't surface. `reindex` drops them.
+        log.warning("notes.vector_delete_failed", note=str(note_id), error=type(exc).__name__)
+
+
 @router.post("", status_code=status.HTTP_201_CREATED, response_model=NoteOut)
 async def create_note(payload: NoteCreate, user: CurrentUser, notebook: NotebookDep) -> NoteOut:
     return NoteOut.of(await notebook.create(user.id, payload.title, payload.body))
@@ -175,11 +191,17 @@ async def confirm_quarantine(
 
 @router.delete("/{note_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_note(
-    note_id: UUID, notebook: NotebookDep, storage: StorageDep, background: BackgroundTasks
+    note_id: UUID,
+    user: CurrentUser,
+    notebook: NotebookDep,
+    storage: StorageDep,
+    qdrant: QdrantDep,
+    background: BackgroundTasks,
 ) -> Response:
     keys = await notebook.delete(note_id)
     if keys is None:
         raise not_found()
     # Runs after the response, i.e. after the RLS transaction has committed the row deletion.
     background.add_task(delete_objects, storage, keys)
+    background.add_task(delete_vectors, qdrant, user.id, note_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

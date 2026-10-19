@@ -13,7 +13,13 @@ from spoldzielnia_ai.db.enums import DerivativeKind
 from spoldzielnia_ai.db.rls import rls_session
 from spoldzielnia_ai.notebook.service import NotebookService
 from spoldzielnia_ai.workers.celery_adapter import send
-from spoldzielnia_ai.workers.jobs import KIND_TASK, DerivativeJob, PromotionJob, TaskName
+from spoldzielnia_ai.workers.jobs import (
+    KIND_TASK,
+    ArticleJob,
+    DerivativeJob,
+    PromotionJob,
+    TaskName,
+)
 
 if TYPE_CHECKING:
     from uuid import UUID
@@ -62,9 +68,18 @@ class CeleryProcessingQueue:
         """A derivative has content: screen it for prompt injection (worker-core)."""
         await self._send(TaskName.SCAN_DERIVATIVE, job)
 
+    async def derivative_clean(self, job: DerivativeJob) -> None:
+        """Screened and not quarantined: index it for "ask my notebook" (4.1)."""
+        await self._send(TaskName.INDEX_DERIVATIVE, job)
+
     async def promotion_requested(self, promotion_id: UUID, owner_id: UUID) -> None:
         job = PromotionJob(promotion_id=promotion_id, owner_id=owner_id)
         await asyncio.to_thread(send, self._celery, TaskName.PROMOTE_NOTES, job)
+
+    async def article_canonical(self, article_id: UUID) -> None:
+        """An article became CANONICAL: (re)index it (4.2)."""
+        job = ArticleJob(article_id=article_id)
+        await asyncio.to_thread(send, self._celery, TaskName.INDEX_ARTICLE, job)
 
     async def link_added(self, derivative_id: UUID, owner_id: UUID) -> None:
         job = DerivativeJob(derivative_id=derivative_id, owner_id=owner_id)

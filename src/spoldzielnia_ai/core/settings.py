@@ -9,7 +9,7 @@ mounted under ``/run/secrets``. Each file name is the nested field path, e.g.
 Each process gets only the secrets it needs (least privilege): the API loads ``Settings``,
 the one-shot ``migrate`` job loads ``MigrateSettings`` (owner DSN only), ``audit-verify`` loads
 ``AuditVerifySettings`` (app DSN only) and ``bootstrap`` loads ``BootstrapSettings`` (object
-storage only).
+storage and Qdrant only).
 """
 
 from __future__ import annotations
@@ -119,7 +119,13 @@ class OidcSettings(BaseModel):
 class QdrantSettings(BaseModel):
     url: str = "https://qdrant:6333"
     api_key: SecretStr | None = None
+    # Internal CA (compose secret `internal_ca`): Qdrant serves TLS with a dev/internal cert.
     ca_bundle: str | None = None
+    # Dimension of `llm.embed_model`. Bootstrap refuses an existing collection of another size,
+    # and the embedder refuses vectors of another size (4.1).
+    vector_size: int = Field(default=1024, ge=8, le=8192)
+    # Bounded wait for synchronous index operations (consent propagation, 4.3).
+    timeout_seconds: int = Field(default=10, ge=1, le=120)
 
 
 class S3Settings(BaseModel):
@@ -348,6 +354,7 @@ class WorkerSettings(_BaseSettings):
     fetch: FetchSettings = Field(default_factory=FetchSettings)
     models: ModelSettings = Field(default_factory=ModelSettings)
     llm: LlmSettings = Field(default_factory=LlmSettings)
+    qdrant: QdrantSettings = Field(default_factory=QdrantSettings)
     concurrency: int = Field(default=1, ge=1)
 
     @model_validator(mode="after")
@@ -358,14 +365,17 @@ class WorkerSettings(_BaseSettings):
 
 
 class BootstrapSettings(_BaseSettings):
-    """Settings of the one-shot ``bootstrap`` job: object storage (and Qdrant from 4.1)."""
+    """Settings of the one-shot ``bootstrap`` job: object storage and Qdrant collections."""
 
     s3: S3Settings = Field(default_factory=S3Settings)
+    qdrant: QdrantSettings = Field(default_factory=QdrantSettings)
 
     @model_validator(mode="after")
-    def _require_s3_secret(self) -> Self:
+    def _require_secrets(self) -> Self:
         if self.s3.secret_key is None:
             raise ValueError("s3.secret_key is required")
+        if self.qdrant.api_key is None:
+            raise ValueError("qdrant.api_key is required")
         return self
 
 

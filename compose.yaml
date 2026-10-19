@@ -36,6 +36,11 @@ x-llm-env: &llm-env
   SPOLDZIELNIA_LLM__EMBED_MODEL: ${LLM_EMBED_MODEL:-}
   SPOLDZIELNIA_LLM__STRUCTURED_OUTPUT: ${LLM_STRUCTURED_OUTPUT:-json_schema}
 
+# Qdrant over internal TLS (4.1). The vector size must match LLM_EMBED_MODEL's dimension.
+x-qdrant-env: &qdrant-env
+  SPOLDZIELNIA_QDRANT__CA_BUNDLE: /run/secrets/internal_ca
+  SPOLDZIELNIA_QDRANT__VECTOR_SIZE: ${LLM_EMBED_DIM:-1024}
+
 x-infra: &infra
   restart: unless-stopped
   init: true
@@ -269,10 +274,14 @@ services:
     depends_on:
       migrate: { condition: service_completed_successfully }
       minio: { condition: service_healthy }
-    environment: *app-env
+      qdrant: { condition: service_healthy }
+    environment:
+      <<: [*app-env, *qdrant-env]
     secrets:
       # TODO(2.1): replace root credentials with a scoped MinIO service account.
       - { source: minio_root_password, target: s3__secret_key }
+      - { source: qdrant_api_key, target: qdrant__api_key }
+      - internal_ca
 
   api:
     <<: [*hardening, *backend-image]
@@ -289,14 +298,13 @@ services:
       qdrant: { condition: service_healthy }
       minio: { condition: service_healthy }
     environment:
-      <<: *app-env
+      <<: [*app-env, *qdrant-env]
       # Trust X-Forwarded-* only from the proxy's network.
       SPOLDZIELNIA_FORWARDED_ALLOW_IPS: 172.30.1.0/24
       SPOLDZIELNIA_SECURITY__ALLOWED_ORIGINS: '["https://${SITE_DOMAIN:-spoldzielnia.localhost}"]'
       SPOLDZIELNIA_OIDC__ISSUER: https://auth.${SITE_DOMAIN:-spoldzielnia.localhost}/realms/spoldzielnia
       SPOLDZIELNIA_OIDC__REDIRECT_URI: https://${SITE_DOMAIN:-spoldzielnia.localhost}/api/auth/callback
       SPOLDZIELNIA_OIDC__POST_LOGOUT_REDIRECT_URI: https://${SITE_DOMAIN:-spoldzielnia.localhost}/
-      SPOLDZIELNIA_QDRANT__CA_BUNDLE: /run/secrets/internal_ca
     secrets:
       - { source: pg_app_password, target: db__app_password }
       - { source: redis_password, target: redis__password }
@@ -369,11 +377,12 @@ services:
       OLLAMA_HOST: 0.0.0.0:11434
       OLLAMA_NOPRUNE: "1"
 
-  # PII scrubbing, prompt-injection screening, promotion (Stage 3): `backend` only.
+  # PII scrubbing, prompt-injection screening, promotion (Stage 3), indexing (Stage 4):
+  # `backend` only.
   worker-core:
     <<: *hardening
     image: ${REGISTRY:-spoldzielnia}/worker-core:${VERSION:-dev}
-    command: ["worker", "--queues", "core.scan,promotion"]
+    command: ["worker", "--queues", "core.scan,promotion,index"]
     restart: unless-stopped
     networks: [backend]
     tmpfs: ["/tmp:size=512m"]
@@ -383,11 +392,18 @@ services:
       migrate: { condition: service_completed_successfully }
       postgres: { condition: service_healthy }
       redis: { condition: service_healthy }
+      qdrant: { condition: service_healthy }
     environment:
-      <<: [*app-env, *llm-env]
+      <<: [*app-env, *llm-env, *qdrant-env]
     volumes:
       - models:/models:ro
-    secrets: *worker-secrets
+    secrets:
+      - { source: pg_app_password, target: db__app_password }
+      - { source: redis_password, target: redis__password }
+      - { source: kek, target: security__kek }
+      - { source: llm_api_key, target: llm__api_key }
+      - { source: qdrant_api_key, target: qdrant__api_key }
+      - internal_ca
 
   # One-shot model download with internet access (`make models`). Not part of `up`.
   models-init:

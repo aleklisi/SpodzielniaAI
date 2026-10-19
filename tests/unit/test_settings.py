@@ -136,15 +136,19 @@ def test_migrate_settings_fail_without_owner_password(tmp_path: Path) -> None:
         MigrateSettings(_env_file=None, _secrets_dir=tmp_path)  # pyright: ignore[reportCallIssue]
 
 
-def test_bootstrap_settings_need_only_s3_secret(tmp_path: Path) -> None:
+def test_bootstrap_settings_need_s3_secret_and_qdrant_key(tmp_path: Path) -> None:
     secrets_dir = tmp_path / "secrets"
     secrets_dir.mkdir()
     (secrets_dir / "s3__secret_key").write_text("minio-pw")
+    with pytest.raises(ValidationError, match=r"qdrant\.api_key"):
+        BootstrapSettings(_env_file=None, _secrets_dir=secrets_dir)  # pyright: ignore[reportCallIssue]
+    (secrets_dir / "qdrant__api_key").write_text("qdrant-key")
 
     loaded = BootstrapSettings(_env_file=None, _secrets_dir=secrets_dir)  # pyright: ignore[reportCallIssue]
 
     assert loaded.s3.secret_key is not None
     assert loaded.s3.secret_key.get_secret_value() == "minio-pw"
+    assert loaded.qdrant.api_key is not None
     with pytest.raises(ValidationError, match="secret_key"):
         BootstrapSettings(_env_file=None, _secrets_dir=tmp_path)  # pyright: ignore[reportCallIssue]
 

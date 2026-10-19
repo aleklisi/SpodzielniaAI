@@ -24,6 +24,9 @@ from spoldzielnia_ai.net.safe_fetch import SafeFetcher
 from spoldzielnia_ai.notebook.queue import CeleryProcessingQueue
 from spoldzielnia_ai.notebook.uploads import UploadPipeline
 from spoldzielnia_ai.privacy.scrubber import ChecksumAnalyzer, CombinedAnalyzer, PiiScrubber
+from spoldzielnia_ai.vector.client import make_qdrant
+from spoldzielnia_ai.vector.embedding import Embedder
+from spoldzielnia_ai.vector.indexing import Indexer
 from spoldzielnia_ai.wiki.promotion import PromotionProcessor
 from spoldzielnia_ai.workers.celery_adapter import make_celery, register
 from spoldzielnia_ai.workers.engines.text import TextEngine
@@ -39,7 +42,7 @@ if TYPE_CHECKING:
     from spoldzielnia_ai.db.session import SessionFactory
     from spoldzielnia_ai.llm.injection_guard import Classifier
     from spoldzielnia_ai.workers.engines.base import Engine
-    from spoldzielnia_ai.workers.jobs import DerivativeJob, PromotionJob
+    from spoldzielnia_ai.workers.jobs import ArticleJob, DerivativeJob, PromotionJob
 
 log = get_logger(__name__)
 
@@ -62,6 +65,7 @@ class WorkerRuntime:
         self._processor: DerivativeProcessor | None = None
         self._scanner: DerivativeScanner | None = None
         self._promoter: PromotionProcessor | None = None
+        self._indexer: Indexer | None = None
         self._guard: tuple[InjectionGuard, bool] | None = None
         self._factory: SessionFactory | None = None
         self._cipher: EnvelopeCipher | None = None
@@ -108,7 +112,10 @@ class WorkerRuntime:
         the scan still runs and records ``classifier: unavailable``."""
         factory, cipher = self._shared()
         guard, has_classifier = self._injection_guard()
-        return DerivativeScanner(factory, cipher, guard, has_classifier)
+        queue = CeleryProcessingQueue(factory, cipher, self._celery)
+        return DerivativeScanner(
+            factory, cipher, guard, has_classifier, on_clean=queue.derivative_clean
+        )
 
     def _injection_guard(self) -> tuple[InjectionGuard, bool]:
         """One classifier per process, shared by screening and promotion."""
@@ -133,6 +140,13 @@ class WorkerRuntime:
         guard, _ = self._injection_guard()
         gateway = LiteLLMGateway(self._settings.llm)
         return PromotionProcessor(factory, cipher, scrubber, guard, gateway)
+
+    def _build_indexer(self) -> Indexer:
+        """worker-core: local embeddings and Qdrant over internal TLS (4.1)."""
+        factory, cipher = self._shared()
+        settings = self._settings
+        embedder = Embedder(LiteLLMGateway(settings.llm), settings.qdrant.vector_size)
+        return Indexer(factory, cipher, embedder, make_qdrant(settings.qdrant))
 
     def _build(self) -> DerivativeProcessor:
         settings = self._settings
@@ -187,10 +201,27 @@ class WorkerRuntime:
             self._promoter = runner.run(_construct(self._build_promoter))
         return runner.run(self._promoter.handle(job, final_attempt=attempt >= MAX_RETRIES))
 
+    def _index(self) -> Indexer:
+        if self._indexer is None:
+            self._indexer = self._loop().run(_construct(self._build_indexer))
+        return self._indexer
+
+    def index_derivative(self, job: DerivativeJob, attempt: int) -> bool:
+        final = attempt >= MAX_RETRIES
+        return self._loop().run(self._index().index_private_derivative(job, final_attempt=final))
+
+    def index_article(self, job: ArticleJob, attempt: int) -> bool:
+        final = attempt >= MAX_RETRIES
+        return self._loop().run(self._index().index_canonical_article(job, final_attempt=final))
+
     def handler(self, name: TaskName) -> Callable[[Any, int], bool]:
-        if name == TaskName.PROMOTE_NOTES:
-            return self.promote
-        return self.scan if name == TaskName.SCAN_DERIVATIVE else self.run
+        handlers: dict[TaskName, Callable[[Any, int], bool]] = {
+            TaskName.PROMOTE_NOTES: self.promote,
+            TaskName.SCAN_DERIVATIVE: self.scan,
+            TaskName.INDEX_DERIVATIVE: self.index_derivative,
+            TaskName.INDEX_ARTICLE: self.index_article,
+        }
+        return handlers.get(name, self.run)
 
 
 async def _construct[T](build: Callable[[], T]) -> T:

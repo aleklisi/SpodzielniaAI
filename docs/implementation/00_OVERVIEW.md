@@ -193,7 +193,7 @@ Each one is resolved (✅ = decision baked into the chunk plans) or needs your i
 - [x] 3.5 `POST /notes/promote-to-wiki`
 
 ### Stage 4 — Governance, Consent, Qdrant
-- [ ] 4.1 Qdrant collections, embeddings & vector repositories
+- [x] 4.1 Qdrant collections, embeddings & vector repositories
 - [ ] 4.2 Expert review state machine & index synchronisation
 - [ ] 4.3 Exit Strategy endpoints (suspend / resume / revoke)
 - [ ] 4.4 Outbox, reconciliation & propagation guarantees

@@ -31,6 +31,7 @@ from spoldzielnia_ai.db.session import create_session_factory
 from spoldzielnia_ai.files.antivirus import ClamdScanner
 from spoldzielnia_ai.files.storage import S3ObjectStorage
 from spoldzielnia_ai.notebook.queue import CeleryProcessingQueue
+from spoldzielnia_ai.vector.client import make_qdrant
 from spoldzielnia_ai.workers.celery_adapter import make_celery
 
 if TYPE_CHECKING:
@@ -56,9 +57,10 @@ def create_app(
     settings = settings or get_settings()
     configure_logging(settings.log_level, json=settings.environment != "dev")
     engine = create_app_engine(settings.db)
-    # Neither client connects until first use.
+    # None of the clients connects until first use.
     redis: Redis = Redis.from_url(settings.redis.url())  # pyright: ignore[reportUnknownMemberType]
     oidc_client = OidcClient(settings.oidc)
+    qdrant = make_qdrant(settings.qdrant)
     schema_revision = head_revision()
     checks = (
         readiness_checks
@@ -71,6 +73,7 @@ def create_app(
         log.info("app.startup", environment=settings.environment, schema_revision=schema_revision)
         yield
         await oidc_client.aclose()
+        await qdrant.close()
         await redis.aclose()
         await engine.dispose()
         log.info("app.shutdown")
@@ -89,6 +92,7 @@ def create_app(
     app.state.session_factory = create_session_factory(engine)
     app.state.redis = redis
     app.state.oidc_client = oidc_client
+    app.state.qdrant = qdrant
     session_secret = settings.security.session_secret.get_secret_value()
     app.state.token_sealer = TokenSealer(derive_key(session_secret, "redis-tokens"))
     csrf_tokens = CsrfTokens(derive_key(session_secret, "csrf"))

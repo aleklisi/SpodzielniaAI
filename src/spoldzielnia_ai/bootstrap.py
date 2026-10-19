@@ -1,11 +1,13 @@
 """Idempotent provisioning of external resources, run by the one-shot ``bootstrap`` job.
 
 1.2b: the private object-storage bucket with default server-side encryption (SSE-S3 via
-MinIO KMS), versioning off, and no anonymous access. Qdrant collections are added in 4.1.
+MinIO KMS), versioning off, and no anonymous access.
+4.1: the Qdrant collections and payload indexes (``vector.collections``), over internal TLS.
 """
 
 from __future__ import annotations
 
+import asyncio
 from typing import TYPE_CHECKING, Protocol
 from urllib.parse import urlsplit
 
@@ -13,8 +15,12 @@ from minio import Minio
 from minio.sseconfig import Rule, SSEConfig
 
 from spoldzielnia_ai.core.logging import get_logger
+from spoldzielnia_ai.vector.client import make_qdrant
+from spoldzielnia_ai.vector.collections import ensure_collections
 
 if TYPE_CHECKING:
+    from qdrant_client import AsyncQdrantClient
+
     from spoldzielnia_ai.core.settings import BootstrapSettings, S3Settings
 
 log = get_logger(__name__)
@@ -61,6 +67,20 @@ def ensure_bucket(client: BucketClient, bucket: str, region: str) -> bool:
     return created
 
 
-def run_bootstrap(settings: BootstrapSettings, client: BucketClient | None = None) -> None:
+async def _collections(settings: BootstrapSettings, qdrant: AsyncQdrantClient | None) -> None:
+    client = qdrant or make_qdrant(settings.qdrant)
+    try:
+        await ensure_collections(client, settings.qdrant.vector_size)
+    finally:
+        if qdrant is None:
+            await client.close()
+
+
+def run_bootstrap(
+    settings: BootstrapSettings,
+    client: BucketClient | None = None,
+    qdrant: AsyncQdrantClient | None = None,
+) -> None:
     client = client or make_s3_client(settings.s3)
     ensure_bucket(client, settings.s3.bucket, settings.s3.region)
+    asyncio.run(_collections(settings, qdrant))

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import secrets
 import time
+import warnings
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -13,7 +14,9 @@ from sqlalchemy.engine import URL
 from tests.integration.stack import REPO_ROOT, compose_image, require_docker
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator
+    from collections.abc import AsyncIterator, Iterator
+
+    from qdrant_client import AsyncQdrantClient
 
 POSTGRES_INIT_DIR = REPO_ROOT / "infra" / "postgres" / "init"
 PG_SECRET_NAMES = ("pg_owner_password", "pg_app_password", "pg_keycloak_password")
@@ -106,6 +109,55 @@ def pg(tmp_path_factory: pytest.TempPathFactory) -> Iterator[PgInstance]:
         )
         _wait_for_owner_login(instance)
         yield instance
+
+
+@dataclass(frozen=True)
+class QdrantInstance:
+    url: str
+    api_key: str
+
+
+@pytest.fixture(scope="session")
+def qdrant_server() -> Iterator[QdrantInstance]:
+    """Qdrant (compose image) over plain HTTP with an API key. The TLS setup is covered by the
+    stack smoke test; here only the data plane matters."""
+    require_docker()
+    from testcontainers.core.container import DockerContainer
+    from testcontainers.core.wait_strategies import HttpWaitStrategy
+
+    api_key = secrets.token_urlsafe(24)
+    container = (
+        DockerContainer(compose_image("qdrant/qdrant"))
+        .with_env("QDRANT__SERVICE__API_KEY", api_key)
+        .with_env("QDRANT__TELEMETRY_DISABLED", "true")
+        .with_exposed_ports(6333)
+        .waiting_for(HttpWaitStrategy(6333, "/readyz").for_status_code(200))
+    )
+    with container:
+        host = container.get_container_host_ip()
+        port = int(container.get_exposed_port(6333))
+        yield QdrantInstance(f"http://{host}:{port}", api_key)
+
+
+@pytest.fixture
+async def qdrant(qdrant_server: QdrantInstance) -> AsyncIterator[AsyncQdrantClient]:
+    """A client on freshly recreated collections (vector size ``EMBED_DIM``)."""
+    from pydantic import SecretStr
+
+    from spoldzielnia_ai.core.settings import QdrantSettings
+    from spoldzielnia_ai.vector.client import make_qdrant
+    from spoldzielnia_ai.vector.collections import recreate_collections
+    from tests.fixtures.llm import EMBED_DIM
+
+    settings = QdrantSettings(
+        url=qdrant_server.url, api_key=SecretStr(qdrant_server.api_key), vector_size=EMBED_DIM
+    )
+    with warnings.catch_warnings():  # "Api key is used with an insecure connection"
+        warnings.simplefilter("ignore", UserWarning)
+        client = make_qdrant(settings)
+    await recreate_collections(client, EMBED_DIM)
+    yield client
+    await client.close()
 
 
 @pytest.fixture

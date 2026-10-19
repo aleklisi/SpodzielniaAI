@@ -6,6 +6,8 @@ callers pass ``force_local_llm=True`` explicitly for sensitive purposes (AGENTS.
 
 from __future__ import annotations
 
+import hashlib
+import math
 import re
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
@@ -59,12 +61,29 @@ def echo_article(call: Call) -> str:
     return json.dumps({"title": "Szkic artykułu", "blocks": blocks}, ensure_ascii=False)
 
 
+EMBED_DIM = 32
+_WORD = re.compile(r"\w+")
+
+
+def hash_embedding(text: str, dim: int = EMBED_DIM) -> list[float]:
+    """Bag of words hashed into ``dim`` buckets, L2-normalised: texts sharing words are close
+    under cosine distance, which is all retrieval tests need."""
+    vector = [0.0] * dim
+    for word in _WORD.findall(text.lower()):
+        digest = hashlib.blake2b(word.encode(), digest_size=4).digest()
+        vector[int.from_bytes(digest) % dim] += 1.0
+    norm = math.sqrt(sum(v * v for v in vector)) or 1.0
+    return [v / norm for v in vector] if any(vector) else [1.0 / math.sqrt(dim)] * dim
+
+
 @dataclass
 class FakeLLMGateway:
     reply: Callable[[Call], str] = echo_article
     local_available: bool = True
     rejects: bool = False  # the server answers 4xx (LocalModelRejected)
     calls: list[Call] = field(default_factory=list[Call])
+    embed_dim: int = EMBED_DIM
+    embedded: list[str] = field(default_factory=list[str])
 
     async def complete(
         self,
@@ -87,4 +106,8 @@ class FakeLLMGateway:
         return LLMResult(content, parsed, "local-chat", "fake-model")
 
     async def embed(self, texts: list[str], *, force_local_llm: bool = True) -> list[list[float]]:
-        return [[float(len(t))] for t in texts]
+        assert force_local_llm, "embeddings must be called with force_local_llm=True"
+        self.embedded.extend(texts)
+        if not self.local_available:
+            raise LocalModelUnavailable("fake: no local model")
+        return [hash_embedding(t, self.embed_dim) for t in texts]
