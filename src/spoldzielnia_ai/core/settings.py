@@ -257,6 +257,23 @@ class ShieldSettings(BaseModel):
     # Admin alerts: POSTed as JSON when set (an internal relay; the API has no internet).
     alert_webhook_url: str | None = None
 
+    # Semantic traversal detector (5.3). A rule-based logistic model: the weights are a
+    # starting point, to be calibrated on real query logs.
+    semantic_history: int = Field(default=50, ge=5, le=500)
+    semantic_min_queries: int = Field(default=5, ge=2)
+    semantic_threshold: float = Field(default=0.7, gt=0, lt=1)  # anomalous (risk input)
+    semantic_hard_threshold: float = Field(default=0.97, gt=0, le=1)  # blocks on its own
+    semantic_bias: float = -6.0
+    semantic_w_consecutive: float = 2.5
+    semantic_w_dispersion: float = 1.5
+    semantic_w_novel_clusters: float = 3.0
+    semantic_w_regularity: float = 1.5
+    semantic_w_template: float = 2.0
+    semantic_w_rate: float = 1.0
+    semantic_rate_ref_per_hour: float = Field(default=60.0, gt=0)
+    # k for the nightly k-means over canonical_wiki_index.
+    semantic_clusters: int = Field(default=20, ge=2, le=1000)
+
     @model_validator(mode="after")
     def _windows_widen(self) -> Self:
         if not self.coverage_24h_max <= self.coverage_7d_max <= self.coverage_30d_max:
@@ -412,6 +429,7 @@ class WorkerSettings(_BaseSettings):
     llm: LlmSettings = Field(default_factory=LlmSettings)
     qdrant: QdrantSettings = Field(default_factory=QdrantSettings)
     governance: GovernanceSettings = Field(default_factory=GovernanceSettings)
+    shield: ShieldSettings = Field(default_factory=ShieldSettings)
     concurrency: int = Field(default=1, ge=1)
 
     @model_validator(mode="after")

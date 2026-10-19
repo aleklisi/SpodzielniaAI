@@ -82,11 +82,12 @@ RECONCILE_EVERY_SECONDS = 30.0
 
 
 def beat_schedule() -> dict[str, dict[str, Any]]:
-    """Periodic tasks (4.4). A reconcile message expires before the next one is due, so a
+    """Periodic tasks (4.4, 5.3). A reconcile message expires before the next one is due, so a
     stopped worker doesn't come back to a pile of them."""
     from celery.schedules import crontab  # pyright: ignore[reportMissingTypeStubs]
 
     nightly: Any = crontab(hour=3, minute=15)
+    clusters: Any = crontab(hour=3, minute=45)
     return {
         "reconcile-vector-outbox": {
             "task": TaskName.RECONCILE_OUTBOX.value,
@@ -96,6 +97,10 @@ def beat_schedule() -> dict[str, dict[str, Any]]:
         "vector-consistency-audit": {
             "task": TaskName.CONSISTENCY_AUDIT.value,
             "schedule": nightly,
+        },
+        "semantic-clusters": {
+            "task": TaskName.REFRESH_CLUSTERS.value,
+            "schedule": clusters,
         },
     }
 

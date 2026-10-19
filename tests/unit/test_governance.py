@@ -181,5 +181,7 @@ def test_beat_schedules_reconciliation_and_nightly_audit() -> None:
     assert reconcile["schedule"] == 30.0
     assert reconcile["options"]["expires"] < reconcile["schedule"]
     assert schedule["vector-consistency-audit"]["task"] == TaskName.CONSISTENCY_AUDIT.value
+    assert schedule["semantic-clusters"]["task"] == TaskName.REFRESH_CLUSTERS.value  # 5.3
     assert JOB_MODEL[TaskName.RECONCILE_OUTBOX] is MaintenanceJob
+    assert JOB_MODEL[TaskName.REFRESH_CLUSTERS] is MaintenanceJob
     assert MaintenanceJob.model_validate({}).to_message() == {}

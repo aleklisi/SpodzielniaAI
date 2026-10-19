@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 from uuid import UUID
 
 from qdrant_client import models
@@ -229,6 +229,12 @@ class CanonicalScope:
         )
 
 
+def _dense(vector: models.VectorStructOutput | None) -> list[float]:
+    if isinstance(vector, list) and vector and not isinstance(vector[0], list):
+        return [float(x) for x in cast("list[float]", vector)]
+    raise ValueError("canonical points hold one dense vector")
+
+
 @dataclass(frozen=True, slots=True)
 class CanonicalPoint:
     payload: CanonicalPayload
@@ -322,6 +328,24 @@ class CanonicalVectorRepo:
             CANONICAL_COLLECTION, ids=[str(b) for b in block_ids], with_payload=True
         )
         return [StoredPoint(UUID(str(r.id)), dict(r.payload or {})) for r in records]
+
+    async def active_vectors(self, batch: int = SCROLL_BATCH) -> AsyncIterator[list[list[float]]]:
+        """Vectors of retrievable, non-honeypot points, in batches (topic clusters, 5.3)."""
+        flt = models.Filter(must=[*_active_conditions(), _match("is_honeypot", False)])
+        offset: Any = None
+        while True:
+            records, offset = await self._client.scroll(
+                CANONICAL_COLLECTION,
+                scroll_filter=flt,
+                limit=batch,
+                offset=offset,
+                with_payload=False,
+                with_vectors=True,
+            )
+            if records:
+                yield [_dense(r.vector) for r in records]
+            if offset is None:
+                return
 
     async def scroll(self, batch: int = SCROLL_BATCH) -> AsyncIterator[list[StoredPoint]]:
         """Every point, in batches (consistency audit, 4.4)."""

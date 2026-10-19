@@ -235,3 +235,30 @@ async def test_private_indexing_retries_while_the_local_model_is_down(
 
     assert await indexer.index_private_derivative(job, final_attempt=False) is True
     assert await indexer.index_private_derivative(job, final_attempt=True) is False
+
+
+async def test_active_vectors_skip_inactive_and_honeypot_points(qdrant: AsyncQdrantClient) -> None:
+    """The nightly topic clusters (5.3) are built from retrievable, real knowledge only."""
+    repo = CanonicalVectorRepo(qdrant)
+    active = _payload()
+    honeypot = CanonicalPayload(
+        block_id=uuid4(),
+        article_id=uuid4(),
+        author_id=uuid4(),
+        consent_status=ConsentStatus.ACTIVE,
+        article_status=ArticleStatus.CANONICAL,
+        is_honeypot=True,
+        verified_at=None,
+    )
+    vector = hash_embedding(TEXT)
+    await repo.upsert(
+        [
+            CanonicalPoint(active, vector),
+            CanonicalPoint(honeypot, hash_embedding("kanarek")),
+            CanonicalPoint(_payload(ConsentStatus.SUSPENDED), hash_embedding("wstrzymany")),
+        ]
+    )
+
+    batches = [batch async for batch in repo.active_vectors(batch=1)]
+
+    assert [v for batch in batches for v in batch] == [pytest.approx(vector)]

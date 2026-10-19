@@ -36,6 +36,7 @@ class TaskName(StrEnum):
     INDEX_ARTICLE = "index.canonical_article"
     RECONCILE_OUTBOX = "index.reconcile_outbox"  # Celery beat, every 30 s (4.4)
     CONSISTENCY_AUDIT = "index.consistency_audit"  # Celery beat, nightly (4.4)
+    REFRESH_CLUSTERS = "index.refresh_clusters"  # Celery beat, nightly (5.3)
 
 
 TASK_QUEUE: dict[TaskName, Queue] = {
@@ -49,6 +50,7 @@ TASK_QUEUE: dict[TaskName, Queue] = {
     TaskName.INDEX_ARTICLE: Queue.INDEX,
     TaskName.RECONCILE_OUTBOX: Queue.INDEX,
     TaskName.CONSISTENCY_AUDIT: Queue.INDEX,
+    TaskName.REFRESH_CLUSTERS: Queue.INDEX,
 }
 
 KIND_TASK: dict[DerivativeKind, TaskName] = {
@@ -70,6 +72,7 @@ TIME_LIMITS: dict[TaskName, tuple[int, int]] = {
     TaskName.INDEX_ARTICLE: (600, 660),
     TaskName.RECONCILE_OUTBOX: (120, 150),
     TaskName.CONSISTENCY_AUDIT: (3600, 3660),
+    TaskName.REFRESH_CLUSTERS: (1800, 1860),
 }
 
 
@@ -121,6 +124,7 @@ _SPECIAL_JOBS: dict[TaskName, JobModel] = {
     TaskName.INDEX_ARTICLE: ArticleJob,
     TaskName.RECONCILE_OUTBOX: MaintenanceJob,
     TaskName.CONSISTENCY_AUDIT: MaintenanceJob,
+    TaskName.REFRESH_CLUSTERS: MaintenanceJob,
 }
 
 JOB_MODEL: dict[TaskName, JobModel] = {

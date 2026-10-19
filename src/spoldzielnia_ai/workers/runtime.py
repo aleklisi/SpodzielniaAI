@@ -259,6 +259,23 @@ class WorkerRuntime:
         self._loop().run(ConsistencyAuditor(factory, self._qdrant(), sync).run())
         return False
 
+    def refresh_clusters(self, _job: MaintenanceJob, _attempt: int) -> bool:
+        """Topic clusters of the canonical index for the semantic detector (5.3)."""
+        from redis.asyncio import Redis
+
+        from spoldzielnia_ai.shield.clusters import refresh_clusters
+
+        async def run() -> None:
+            redis: Redis = Redis.from_url(self._settings.redis.url())  # pyright: ignore[reportUnknownMemberType]
+            try:
+                repo = CanonicalVectorRepo(self._qdrant())
+                await refresh_clusters(repo, redis, self._settings.shield.semantic_clusters)
+            finally:
+                await redis.aclose()
+
+        self._loop().run(run())
+        return False
+
     def handler(self, name: TaskName) -> Callable[[Any, int], bool]:
         handlers: dict[TaskName, Callable[[Any, int], bool]] = {
             TaskName.PROMOTE_NOTES: self.promote,
@@ -267,6 +284,7 @@ class WorkerRuntime:
             TaskName.INDEX_ARTICLE: self.index_article,
             TaskName.RECONCILE_OUTBOX: self.reconcile,
             TaskName.CONSISTENCY_AUDIT: self.consistency_audit,
+            TaskName.REFRESH_CLUSTERS: self.refresh_clusters,
         }
         return handlers.get(name, self.run)
 
