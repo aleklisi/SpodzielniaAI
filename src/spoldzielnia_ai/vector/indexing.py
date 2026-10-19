@@ -62,7 +62,7 @@ def canonical_payload(block: ArticleBlock, article: WikiArticle) -> CanonicalPay
 
 
 def indexable(block: ArticleBlock) -> bool:
-    return block.consent_status != ConsentStatus.REVOKED
+    return block.consent_status != ConsentStatus.REVOKED and block.content is not None
 
 
 class Indexer:
@@ -125,7 +125,7 @@ class Indexer:
                     select(ArticleBlock).where(ArticleBlock.article_id == job.article_id)
                 )
             )
-        snapshot = {b.id: b.content for b in blocks if indexable(b)}
+        snapshot = {b.id: b.content for b in blocks if indexable(b) and b.content is not None}
         ids = list(snapshot)
         try:
             embedded = await self._embedder.embed([snapshot[i] for i in ids])

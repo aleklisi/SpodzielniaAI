@@ -12,6 +12,7 @@ from redis.asyncio import Redis
 
 from spoldzielnia_ai.api.attachments import router as attachments_router
 from spoldzielnia_ai.api.auth import router as auth_router
+from spoldzielnia_ai.api.contributions import router as contributions_router
 from spoldzielnia_ai.api.links import router as links_router
 from spoldzielnia_ai.api.me import router as me_router
 from spoldzielnia_ai.api.notes import router as notes_router
@@ -111,6 +112,7 @@ def create_app(
     app.state.upload_slots = asyncio.Semaphore(settings.uploads.max_concurrent)
     app.include_router(auth_router)
     app.include_router(me_router)
+    app.include_router(contributions_router)
     app.include_router(promote_router)  # before /notes/{note_id}
     app.include_router(notes_router)
     app.include_router(promotions_router)

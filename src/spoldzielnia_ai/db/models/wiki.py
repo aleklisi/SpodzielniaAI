@@ -44,12 +44,18 @@ class ArticleBlock(Entity):
     """One block of article text with its provenance (author + consent), AGENTS.md §3.2.
 
     The matching Qdrant point carries the same ``author_id`` and ``consent_status`` (4.1).
+    A REVOKED block is a tombstone: no ``content``, no ``content_hash``, and its status is final
+    (migration 0008 enforces both).
     """
 
     __tablename__ = "article_block"
     __table_args__ = (
         UniqueConstraint("article_id", "position"),
         CheckConstraint("position >= 0", name="position_non_negative"),
+        CheckConstraint(
+            "(consent_status = 'REVOKED') = (content IS NULL AND content_hash IS NULL)",
+            name="revoked_is_empty",
+        ),
     )
 
     article_id: Mapped[UUID] = mapped_column(ForeignKey("wiki_article.id", ondelete="CASCADE"))
@@ -58,8 +64,8 @@ class ArticleBlock(Entity):
     consent_status: Mapped[ConsentStatus] = mapped_column(
         server_default=ConsentStatus.ACTIVE.value, default=ConsentStatus.ACTIVE
     )
-    content: Mapped[str] = mapped_column(Text)
-    content_hash: Mapped[str] = mapped_column(String(64))  # hex SHA-256 of `content`
+    content: Mapped[str | None] = mapped_column(Text)
+    content_hash: Mapped[str | None] = mapped_column(String(64))  # hex SHA-256 of `content`
     is_honeypot: Mapped[bool] = mapped_column(server_default=text("false"), default=False)
 
 

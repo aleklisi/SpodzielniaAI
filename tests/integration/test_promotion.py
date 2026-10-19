@@ -216,7 +216,7 @@ async def test_promotion_end_to_end(
     # The resulting blocks carry no PESEL/NIP, and they carry provenance.
     blocks = await _blocks(factory, accepted["article_id"])
     assert blocks
-    content = "\n".join(b.content for b in blocks)
+    content = "\n".join(b.content or "" for b in blocks)
     assert find_checksum_identifiers(content) == []
     assert PESEL not in content
     assert NIP[:3] + "-" + NIP[3:6] not in content
@@ -225,6 +225,7 @@ async def test_promotion_end_to_end(
     for block in blocks:
         assert block.author_id == UUID(alice.user_id)
         assert block.consent_status is ConsentStatus.ACTIVE
+        assert block.content_hash is not None
         assert len(block.content_hash) == 64
     async with factory() as session:
         article = await session.get(WikiArticle, UUID(accepted["article_id"]))
