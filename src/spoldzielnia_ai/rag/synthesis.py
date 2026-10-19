@@ -2,8 +2,10 @@
 
 Sources reach the model as untrusted data labelled ``S1…Sn`` (3.4 builder). A reply counts
 only if it cites at least one source and every ``[Sx]`` marker (and every entry of
-``citations``) is one of the labels it was given. Otherwise the model gets one corrective
-retry, then the caller falls back to "no answer". It never answers from general knowledge.
+``citations``) is one of the labels it was given. A reply that lists valid labels in
+``citations`` but has no inline markers gets them appended (``attach_listed_citations``).
+Otherwise the model gets one corrective retry, then the caller falls back to "no answer". It
+never answers from general knowledge.
 """
 
 from __future__ import annotations
@@ -28,7 +30,7 @@ log = get_logger(__name__)
 
 _GROUP = re.compile(r"\[\s*(S\d{1,3}(?:\s*[,;]\s*S\d{1,3})+)\s*\]")
 _MARKER = re.compile(r"\[(S\d{1,3})\]")
-_REPEAT = re.compile(r"(\[\d+\])(?:\s*\1)+")
+_RUN = re.compile(r"\[\d+\](?:\s*\[\d+\])+")
 
 CORRECTION = (
     "Odpowiedź nie spełnia zasad: każde twierdzenie musi mieć cytowanie [Sx], a wolno używać "
@@ -72,6 +74,18 @@ def is_grounded(draft: AnswerDraft, labels: set[str]) -> bool:
     return bool(used) and set(used) <= labels and set(draft.citations) <= labels
 
 
+def attach_listed_citations(draft: AnswerDraft, labels: set[str]) -> AnswerDraft:
+    """Some local models list their sources in ``citations`` but write no inline ``[Sx]``.
+    If every listed label is a real source, put the markers at the end of the answer: the
+    citation is coarser, never invented."""
+    if markers(draft.answer_markdown) or not draft.citations:
+        return draft
+    if not set(draft.citations) <= labels:
+        return draft
+    tail = "".join(f"[{label}]" for label in dict.fromkeys(draft.citations))
+    return draft.model_copy(update={"answer_markdown": f"{draft.answer_markdown.rstrip()} {tail}"})
+
+
 def renumber(text: str, sources: Sequence[Source]) -> tuple[str, list[UUID]]:
     """Replace ``[Sx]`` with ``[n]``: n is the position of the source's group among the groups
     cited, in order of first citation. The client never learns how many passages an article
@@ -87,7 +101,11 @@ def renumber(text: str, sources: Sequence[Source]) -> tuple[str, list[UUID]]:
             order.append(group)
         return f"[{order.index(group) + 1}]"
 
-    return _REPEAT.sub(r"\1", _MARKER.sub(number, text)), order
+    def dedupe(run: re.Match[str]) -> str:
+        # Passages of one article share its number: "[1][2][1]" reads "[1][2]".
+        return "".join(dict.fromkeys(re.findall(r"\[\d+\]", run.group(0))))
+
+    return _RUN.sub(dedupe, _MARKER.sub(number, text)), order
 
 
 class Synthesizer:
@@ -139,6 +157,7 @@ class Synthesizer:
             draft = draft.model_copy(
                 update={"answer_markdown": normalize_markers(draft.answer_markdown)}
             )
+            draft = attach_listed_citations(draft, labels)
             if is_grounded(draft, labels):
                 return draft
             log.warning("rag.ungrounded", template=self._template.name, attempt=attempt)

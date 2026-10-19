@@ -189,6 +189,23 @@ assert signing_key(s.shield) and Watermarker.from_settings(s.shield) is not None
 '
 check "api: shield keys mounted (honeypot, watermark)" \
   "${COMPOSE[@]}" exec -T api python -c "$SHIELD_PY"
+# A degenerate embedding model (e.g. wrong pooling for a GGUF embedder) maps every text to
+# nearly the same vector: retrieval turns random and the semantic detector goes blind.
+EMBED_PY='
+import asyncio, math
+from spoldzielnia_ai.core.settings import Settings
+from spoldzielnia_ai.llm.gateway import LiteLLMGateway
+s = Settings()
+if not s.llm.embed_model:
+    raise SystemExit(0)  # no local embedding model configured: nothing to check
+a, b = asyncio.run(LiteLLMGateway(s.llm).embed(
+    ["Jak leczyć warrozę kwasem szczawiowym zimą?", "SELECT count(*) FROM invoices WHERE paid"]))
+cos = sum(x * y for x, y in zip(a, b)) / math.sqrt(sum(x * x for x in a) * sum(y * y for y in b))
+print(f"cosine(unrelated) = {cos:.3f}")
+assert cos < 0.8, "embedding model does not separate unrelated texts"
+'
+check "api: embedding model separates unrelated texts" \
+  "${COMPOSE[@]}" exec -T api python -c "$EMBED_PY"
 QDRANT_PY='
 import asyncio
 from spoldzielnia_ai.core.settings import WorkerSettings

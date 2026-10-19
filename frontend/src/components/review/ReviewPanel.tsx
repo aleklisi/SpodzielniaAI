@@ -1,5 +1,6 @@
 "use client";
 
+import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 
 import { StepUpNotice } from "@/components/auth/RequireRole";
@@ -22,7 +23,9 @@ export function orderQueue(items: QueueItem[]): QueueItem[] {
 
 export function ReviewPanel() {
   const queue = useReviewQueue(true);
-  const [selected, setSelected] = useState<string | null>(null);
+  // `/review?article=<id>` opens that article directly (links from notifications, E2E).
+  const params = useSearchParams();
+  const [selected, setSelected] = useState<string | null>(params.get("article"));
   const article = useArticle(selected);
 
   if (queue.error instanceof StepUpRequired) return <StepUpNotice stepUp={queue.error.stepUp} />;

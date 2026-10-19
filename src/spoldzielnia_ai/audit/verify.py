@@ -36,7 +36,7 @@ jsonb_build_object(
 """
 
 _CHAIN_ROWS = text(
-    f"SELECT id, prev_hash, hash, {CANONICAL_ROW_SQL} AS canonical "  # noqa: S608 - constant SQL
+    f"SELECT id, prev_hash, hash, {CANONICAL_ROW_SQL} AS canonical "  # noqa: S608 # nosec B608 - constant SQL
     "FROM security_audit_log ORDER BY id"
 )
 

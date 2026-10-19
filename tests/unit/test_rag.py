@@ -174,3 +174,25 @@ def test_wiki_url_template_needs_the_article_placeholder() -> None:
     with pytest.raises(ValidationError):
         RagSettings(wiki_url_template="https://spoldzielnia.localhost/wiki/")
     assert RagSettings().wiki_url_template.format(article_id="x").endswith("/wiki/x")
+
+
+async def test_listed_citations_without_inline_markers_are_attached() -> None:
+    """Bielik lists sources in `citations` but writes no [Sx]: cite at the end, never invent."""
+    llm = FakeLLMGateway(reply=lambda _call: draft("Zimą leczymy kwasem.", ["S2", "S1", "S2"]))
+    result = await _synth(llm).draft("Jak leczyć?", label_sources(TEXTS), Style())
+    assert result is not None
+    assert result.answer_markdown == "Zimą leczymy kwasem. [S2][S1]"
+    assert len(llm.calls) == 1
+
+
+async def test_listed_citations_of_unknown_sources_are_still_rejected() -> None:
+    llm = FakeLLMGateway(reply=lambda _call: draft("Zimą leczymy kwasem.", ["S7"]))
+    assert await _synth(llm).draft("Jak leczyć?", label_sources(TEXTS), Style()) is None
+    assert len(llm.calls) == 2
+
+
+def test_a_run_of_markers_names_each_article_once() -> None:
+    labelled = label_sources([("a", A), ("b", B), ("c", A), ("d", B), ("e", A)])
+    body, cited = renumber("Odmowa [S1][S2][S3][S4][S5]. Dalej [S3] i [S2].", labelled)
+    assert body == "Odmowa [1][2]. Dalej [1] i [2]."
+    assert cited == [A, B]

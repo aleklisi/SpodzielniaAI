@@ -227,6 +227,16 @@
       ]
     },
     {
+      "username": "expert2",
+      "email": "expert2@spoldzielnia.localhost",
+      "emailVerified": true,
+      "firstName": "Expert",
+      "lastName": "Two",
+      "enabled": true,
+      "realmRoles": ["MEMBER", "EXPERT"],
+      "credentials": [{ "type": "password", "value": "${DEV_USER_PASSWORD}", "temporary": false }]
+    },
+    {
       "username": "admin1",
       "email": "admin1@spoldzielnia.localhost",
       "emailVerified": true,

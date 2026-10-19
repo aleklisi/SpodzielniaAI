@@ -8,7 +8,7 @@ help: ## Show targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  %-12s %s\n", $$1, $$2}'
 
 # --- Stack -------------------------------------------------------------------
-.PHONY: secrets build up watch down reset logs ps smoke trust-cert migrate revision models models-host reindex
+.PHONY: secrets build up watch down reset logs ps smoke audit e2e trust-cert migrate revision models models-host reindex
 secrets: ## Generate Docker secrets + dev TLS certs into ./secrets (idempotent)
 	@infra/scripts/init-secrets.sh
 
@@ -39,6 +39,12 @@ models-host: ## Models for host-side `ml` tests (.models: whisper tiny + Docling
 
 reindex: ## Rebuild both Qdrant collections from Postgres (e.g. after changing LLM_EMBED_DIM)
 	$(COMPOSE) run --rm worker-core reindex --yes
+
+audit: ## Security scanning: pip-audit, bandit, npm audit, gitleaks, trivy (after `make build`)
+	@infra/scripts/audit.sh
+
+e2e: ## Playwright E2E against the running dev stack (`make up` first)
+	cd frontend && npx playwright test
 
 smoke: ## Stack smoke test (HTTPS, IdP, hardening, ports, isolation)
 	@COMPOSE="$(COMPOSE)" infra/scripts/smoke.sh

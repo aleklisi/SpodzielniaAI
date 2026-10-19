@@ -419,7 +419,7 @@ class Settings(_BaseSettings):
     """Runtime settings of the API process."""
 
     root_path: str = "/api"
-    api_host: str = "0.0.0.0"  # noqa: S104 - container listens on all interfaces behind Caddy
+    api_host: str = "0.0.0.0"  # noqa: S104 # nosec B104 - in-container, behind Caddy
     api_port: int = 8000
     forwarded_allow_ips: str = "127.0.0.1"
 
@@ -498,7 +498,7 @@ class BeatSettings(_BaseSettings):
     """Celery beat (`spoldzielnia beat`, 4.4): the broker and nothing else."""
 
     redis: RedisSettings
-    schedule_file: str = "/tmp/celerybeat-schedule"  # noqa: S108 - tmpfs in the container
+    schedule_file: str = "/tmp/celerybeat-schedule"  # noqa: S108 # nosec B108 - tmpfs in the container
 
 
 class BootstrapSettings(_BaseSettings):

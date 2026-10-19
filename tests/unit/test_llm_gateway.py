@@ -184,6 +184,42 @@ async def test_prompt_mode_puts_the_schema_into_the_system_message() -> None:
     assert messages[0]["content"] == "Zasady."  # the caller's list is not mutated
 
 
+async def test_prompt_mode_shows_an_example_not_the_raw_schema() -> None:
+    """A raw JSON Schema in the prompt gets echoed back by some local models (Bielik)."""
+    transport = FakeTransport(['{"title": "T", "blocks": []}'])
+    await _gateway(transport=transport, structured_output="prompt", **LOCAL).complete(
+        list(MESSAGES), purpose=LLMPurpose.PROMOTION, force_local_llm=True, response_model=Draft
+    )
+    system = transport.calls[0][1][0]["content"]
+    assert '{"title": "…", "blocks": ["…"]}' in system
+    assert '"properties"' not in system
+    assert "- title (wymagane)" in system
+
+
+async def test_a_schema_echo_is_recovered_without_a_retry() -> None:
+    echo = (
+        '{"description": "x", "properties": {"title": "T", "blocks": ["a"]}, '
+        '"required": ["title"], "title": "Draft", "type": "object"}'
+    )
+    transport = FakeTransport([echo])
+    result = await _gateway(transport=transport, structured_output="prompt", **LOCAL).complete(
+        list(MESSAGES), purpose=LLMPurpose.PROMOTION, force_local_llm=True, response_model=Draft
+    )
+    assert result.parsed == Draft(title="T", blocks=["a"])
+    assert len(transport.calls) == 1
+
+
+async def test_ordinary_invalid_json_is_not_mistaken_for_an_echo() -> None:
+    transport = FakeTransport(
+        ['{"properties": {"title": "T", "blocks": []}}', '{"title": "U", "blocks": []}']
+    )
+    result = await _gateway(transport=transport, structured_output="prompt", **LOCAL).complete(
+        list(MESSAGES), purpose=LLMPurpose.PROMOTION, force_local_llm=True, response_model=Draft
+    )
+    assert result.parsed == Draft(title="U", blocks=[])  # no schema keys: a normal retry
+    assert len(transport.calls) == 2
+
+
 @pytest.mark.parametrize(
     ("code", "error"),
     [

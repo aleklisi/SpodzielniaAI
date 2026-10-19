@@ -1,0 +1,9 @@
+# Accepted findings (docs/SECURITY_REVIEW.md § Accepted risks). One reason per entry.
+
+# pikepdf's manylinux wheel vendors libjpeg built from RHEL 8's libjpeg-turbo
+# 1.5.3-14.el8_10 (recorded in its auditwheel SBOM). Trivy compares that RHEL build against
+# Debian's fixed versions: a cross-ecosystem mismatch. Both CVEs are in cjpeg's input readers
+# (rdppm.c / cjpeg), which the library and pikepdf don't use; RHEL's -14.el8_10 postdates its
+# fix for CVE-2020-13790. Re-check when pikepdf ships a newer wheel.
+CVE-2016-3616
+CVE-2020-13790

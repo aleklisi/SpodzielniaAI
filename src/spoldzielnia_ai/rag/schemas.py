@@ -56,8 +56,13 @@ class NoteAnswer(BaseModel):
 class AnswerDraft(BaseModel):
     """The model's reply. ``[Sx]`` markers must refer to the sources it was given."""
 
-    answer_markdown: str = Field(max_length=20_000)
-    citations: list[str] = Field(default_factory=list[str], max_length=50)
+    answer_markdown: str = Field(
+        max_length=20_000,
+        description="odpowiedź w Markdown; po każdym zdaniu etykieta źródła, np. [S1]",
+    )
+    citations: list[str] = Field(
+        default_factory=list[str], max_length=50, description="użyte etykiety źródeł, np. S1"
+    )
     insufficient: bool = Field(
         default=False, description="true, jeśli źródła nie zawierają odpowiedzi na pytanie"
     )

@@ -237,11 +237,68 @@ def _extract_json(text: str) -> str:
     return stripped
 
 
+_EXAMPLE_SCALARS: dict[str, Any] = {"string": "…", "integer": 0, "number": 0, "boolean": False}
+
+
+def _example(schema: dict[str, Any], defs: dict[str, Any]) -> Any:
+    """A filled-in instance of ``schema``: models copy an example's shape faithfully, while a
+    raw JSON Schema often comes back echoed (``{"properties": {...}, "type": "object"}``)."""
+    if "$ref" in schema:
+        return _example(defs[schema["$ref"].split("/")[-1]], defs)
+    if "anyOf" in schema:
+        options = [o for o in schema["anyOf"] if o.get("type") != "null"]
+        return _example(options[0], defs) if options else None
+    if "enum" in schema:
+        return schema["enum"][0]
+    kind = schema.get("type")
+    if kind == "object":
+        properties: dict[str, Any] = schema.get("properties", {})
+        return {name: _example(sub, defs) for name, sub in properties.items()}
+    if kind == "array":
+        return [_example(schema.get("items", {}), defs)]
+    return _EXAMPLE_SCALARS.get(str(kind), "…")
+
+
+def _field_notes(schema: dict[str, Any]) -> str:
+    required = set(schema.get("required", []))
+    lines: list[str] = []
+    for name, sub in schema.get("properties", {}).items():
+        note = sub.get("description") or sub.get("title") or ""
+        flag = "wymagane" if name in required else "opcjonalne"
+        lines.append(f"- {name} ({flag}){': ' + note if note else ''}")
+    return "\n".join(lines)
+
+
+def _schema_echo(text: str, model: type[BaseModel]) -> BaseModel | None:
+    """A reply that copied the JSON Schema's shape (``properties`` holding the actual values
+    next to ``type``/``title``): validate what is inside ``properties``."""
+    try:
+        data = json.loads(text)
+    except ValueError:
+        return None
+    if not isinstance(data, dict):
+        return None
+    shell = cast("dict[str, Any]", data)
+    if not isinstance(shell.get("properties"), dict) or not (
+        {"type", "title", "required"} & shell.keys()
+    ):
+        return None
+    try:
+        return model.model_validate(shell["properties"])
+    except ValidationError:
+        return None
+
+
 def _schema_in_prompt(messages: list[ChatMessage], model: type[BaseModel]) -> list[ChatMessage]:
-    """``structured_output = "prompt"``: append the schema to the (first) system message.
+    """``structured_output = "prompt"``: describe the answer in the (first) system message, as
+    an example object plus field notes (not the raw JSON Schema, which models tend to echo).
     One system message only, as some chat templates reject a second one."""
-    schema = json.dumps(model.model_json_schema(), ensure_ascii=False)
-    note = f"\n\nSchemat JSON odpowiedzi (zwróć wyłącznie obiekt JSON zgodny z nim):\n{schema}"
+    schema = model.model_json_schema()
+    example = json.dumps(_example(schema, schema.get("$defs", {})), ensure_ascii=False)
+    note = (
+        "\n\nOdpowiedz wyłącznie jednym obiektem JSON o dokładnie takiej budowie (podstaw "
+        f"własne wartości):\n{example}\nPola:\n{_field_notes(schema)}"
+    )
     out = list(messages)
     first = out[0] if out else None
     if first is not None and first["role"] == "system" and isinstance(first["content"], str):
@@ -349,6 +406,12 @@ class LiteLLMGateway:
             try:
                 parsed = response_model.model_validate_json(_extract_json(content))
             except ValidationError as exc:
+                echoed = _schema_echo(_extract_json(content), response_model)
+                if echoed is not None:
+                    log.info("llm.schema_echo_recovered", deployment=deployment.name)
+                    return LLMResult(
+                        content, echoed, deployment.name, deployment.model, attempt, usage
+                    )
                 log.warning("llm.invalid_output", deployment=deployment.name, attempt=attempt)
                 conversation = [
                     *messages,

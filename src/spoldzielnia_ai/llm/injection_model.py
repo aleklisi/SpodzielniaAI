@@ -48,11 +48,12 @@ class InjectionClassifier:
                 path = str(self._model_dir)
                 self._tokenizer = cast(
                     "Any",
-                    AutoTokenizer.from_pretrained(path, local_files_only=True),  # pyright: ignore[reportUnknownMemberType]
+                    # nosec B615 - a local directory, local_files_only: never downloads
+                    AutoTokenizer.from_pretrained(path, local_files_only=True),  # pyright: ignore[reportUnknownMemberType] # nosec B615
                 )
                 model = cast(
                     "Any",
-                    AutoModelForSequenceClassification.from_pretrained(  # pyright: ignore[reportUnknownMemberType]
+                    AutoModelForSequenceClassification.from_pretrained(  # pyright: ignore[reportUnknownMemberType] # nosec B615
                         path, local_files_only=True
                     ),
                 )

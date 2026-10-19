@@ -220,3 +220,26 @@ each OWASP API Top 10 and OWASP LLM Top 10 (2025) item to the implementing chunk
   shield decisions rather than in the table.
 - **Every console read is audited** (`SECURITY_DASHBOARD_ACCESSED`, view + filters), and
   unlocking records the admin's reason and the previous lock reason (`ACCOUNT_UNLOCKED`).
+- **Scanners (`make audit`, CI job `security`)** use `uvx pip-audit` on `uv export`, `uvx bandit -ll`,
+  `npm audit --omit=dev` (dev findings are printed for information), and gitleaks and trivy pinned by
+  digest. Findings that are accepted carry their reason in `docs/SECURITY_REVIEW.md` § Accepted
+  risks and in `.trivyignore`. The frontend runtime moved to distroless Debian 13 because Debian
+  12's `libssl3` had fixed HIGH CVEs.
+- **The E2E suite** (`make e2e`, Playwright, serial) runs against the real compose stack, with no mocks.
+  Logins go through Keycloak, and TOTP codes come from the dev seed. Each login waits for a fresh
+  30-second window because Keycloak refuses a replayed code. Data the UI can't create (canonical
+  multi-author articles, GPS JPEGs, a shield reset) is seeded by `e2e/support/seed.py`, piped into
+  the `api` container. `expert2`, the second reviewer the quorum needs, is in the realm export and
+  also created by global setup on stacks imported before it existed.
+- **Scenario 4 depends on the embedding model.** Global setup measures the cosine of two unrelated
+  texts. If it is ≥ 0.8, the model can't rank, so the scenario is skipped with that reason rather
+  than failing at random. The same check is in `make smoke`. Making a 11B local model
+  (`LLM_STRUCTURED_OUTPUT=prompt`) answer reliably needed gateway changes: prompt mode now shows an
+  example and per-field notes instead of the raw JSON schema (the model echoed the schema),
+  replies nested under `"properties"` are recovered, citations listed only in the `citations`
+  field get markers appended, and runs of repeated markers are collapsed.
+- **Scenario 5** asserts the exit strategy through the API as well as the UI: after the co-author's
+  revoke, the article is `REVISION_REQUIRED`, the revoked block has gone, and no answer cites it.
+- **Scenario 6** shows the step-up → lock path (401 challenges ignored, then 403, and then `/me` 423)
+  and the admin unlock through the UI. The coverage-ratio cut-off needs a larger corpus than the dev
+  stack's (the floor from G14 dominates), so `test_distillation_attack.py` covers it.
