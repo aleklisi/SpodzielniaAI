@@ -27,3 +27,10 @@ def test_migrate_targets_head_by_default() -> None:
 def test_reindex_refuses_without_confirmation() -> None:
     # Drops both collections: nothing happens (not even settings are loaded) without --yes.
     assert main(["reindex"]) == 2
+
+
+def test_honeypot_command_arguments() -> None:
+    args = build_parser().parse_args(["honeypot", "scan", "--file", "leak.txt"])
+    assert (args.action, args.file, args.count) == ("scan", "leak.txt", 5)
+    with pytest.raises(SystemExit):
+        build_parser().parse_args(["honeypot", "delete"])

@@ -99,6 +99,8 @@ secrets:
   llm_api_key: { file: ./secrets/llm_api_key }
   # Key-encryption key of the private zone (core.crypto). Back it up separately from the DB.
   kek: { file: ./secrets/kek }
+  # Anti-distillation shield (Stage 5): canary signatures, answer watermarks.
+  honeypot_key: { file: ./secrets/honeypot_key }
 
 services:
   postgres:
@@ -315,6 +317,7 @@ services:
       - { source: qdrant_api_key, target: qdrant__api_key }
       - { source: minio_root_password, target: s3__secret_key }
       - { source: llm_api_key, target: llm__api_key }
+      - { source: honeypot_key, target: shield__honeypot_key }
       - internal_ca
 
   # --- Workers (2.5) ----------------------------------------------------------

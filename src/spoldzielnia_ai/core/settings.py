@@ -274,6 +274,16 @@ class ShieldSettings(BaseModel):
     # k for the nightly k-means over canonical_wiki_index.
     semantic_clusters: int = Field(default=20, ge=2, le=1000)
 
+    # Honeypots (5.4). The key (Docker secret `honeypot_key`) signs canary tokens: needed to
+    # inject and to scan leaked text, not to detect a hit (the block flag does that).
+    honeypot_key: SecretStr | None = None
+    honeypot_prefix: str = Field(default="PSZ", pattern=r"^[A-Z]{2,5}$")
+    honeypot_penalty: float = Field(default=0.5, gt=0, le=1)
+    honeypot_lock_after: int = Field(default=2, ge=1)  # triggers within 30 days
+
+    # Risk score (5.4, 5.6): incident points decay with this half-life.
+    risk_half_life_days: float = Field(default=7.0, gt=0)
+
     @model_validator(mode="after")
     def _windows_widen(self) -> Self:
         if not self.coverage_24h_max <= self.coverage_7d_max <= self.coverage_30d_max:

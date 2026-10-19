@@ -88,7 +88,7 @@ async def review_queue(
     )
     rows = await session.execute(
         select(WikiArticle, approvals, own)
-        .where(WikiArticle.status.in_(REVIEWABLE))
+        .where(WikiArticle.status.in_(REVIEWABLE), WikiArticle.is_hidden.is_(False))
         .order_by(WikiArticle.status_changed_at, WikiArticle.id)
         .limit(200)
     )

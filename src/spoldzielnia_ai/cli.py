@@ -9,6 +9,7 @@ Subcommands:
     reindex    rebuild both Qdrant collections from Postgres (4.4)
     models     download/verify the offline ML models (2.5)
     bootstrap  create the storage bucket (1.2b) and the Qdrant collections (4.1)
+    honeypot   inject, list or trace canary blocks (5.4): `docker compose run --rm api honeypot …`
 """
 
 from __future__ import annotations
@@ -164,6 +165,28 @@ def _cmd_bootstrap(_args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_honeypot(args: argparse.Namespace) -> int:
+    import asyncio
+    import json
+    from pathlib import Path
+
+    from spoldzielnia_ai.shield.honeypot import HoneypotKeyMissing
+    from spoldzielnia_ai.shield.tools import honeypot_command
+
+    settings = get_settings()
+    configure_logging(settings.log_level, json=settings.environment != "dev")
+    text: str | None = None
+    if args.action == "scan":
+        text = Path(args.file).read_text() if args.file != "-" else sys.stdin.read()
+    try:
+        output = asyncio.run(honeypot_command(settings, args.action, int(args.count), text))
+    except HoneypotKeyMissing:
+        log.error("honeypot.key_missing", hint="mount the honeypot_key secret")
+        return 2
+    print(json.dumps(output, ensure_ascii=False, indent=2))
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="spoldzielnia", description="Spółdzielnia AI backend")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -204,6 +227,12 @@ def build_parser() -> argparse.ArgumentParser:
 
     bootstrap = sub.add_parser("bootstrap", help="provision buckets and collections")
     bootstrap.set_defaults(handler=_cmd_bootstrap)
+
+    honeypot = sub.add_parser("honeypot", help="inject, list or trace canary blocks")
+    honeypot.add_argument("action", choices=["inject", "list", "scan"])
+    honeypot.add_argument("--count", default=5, type=int, help="canaries to inject (1-20)")
+    honeypot.add_argument("--file", default="-", help="text to scan (default: stdin)")
+    honeypot.set_defaults(handler=_cmd_honeypot)
 
     return parser
 

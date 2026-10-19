@@ -106,10 +106,11 @@ class ReviewService:
         self._quorum = quorum
 
     async def _lock(self, *article_ids: UUID) -> dict[UUID, WikiArticle]:
-        """Lock in id order, so two transactions locking the same pair can't deadlock."""
+        """Lock in id order, so two transactions locking the same pair can't deadlock. Hidden
+        (honeypot) articles are never reviewable: to review they don't exist."""
         rows = await self._session.scalars(
             select(WikiArticle)
-            .where(WikiArticle.id.in_(article_ids))
+            .where(WikiArticle.id.in_(article_ids), WikiArticle.is_hidden.is_(False))
             .order_by(WikiArticle.id)
             .with_for_update()
         )

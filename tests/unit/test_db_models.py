@@ -164,6 +164,7 @@ def test_migrations_form_a_single_linear_history() -> None:
         "0008_consent",
         "0009_vector_outbox",
         "0010_account_lock",
+        "0011_hidden_articles",
     ]
 
 

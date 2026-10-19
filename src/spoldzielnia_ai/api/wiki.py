@@ -125,7 +125,7 @@ async def list_articles(
     articles = list(
         await session.scalars(
             select(WikiArticle)
-            .where(WikiArticle.status == ArticleStatus.CANONICAL)
+            .where(WikiArticle.status == ArticleStatus.CANONICAL, WikiArticle.is_hidden.is_(False))
             .order_by(WikiArticle.last_verified_at.desc().nulls_last(), WikiArticle.id)
             .limit(limit)
             .offset(offset)
@@ -150,7 +150,7 @@ async def get_article(
     article_id: UUID, principal: CurrentUser, session: SessionDep, coverage: CoverageDep
 ) -> ArticleOut:
     article = await session.get(WikiArticle, article_id)
-    if article is None:
+    if article is None or article.is_hidden:  # honeypots (5.4) exist for retrieval only
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Article not found")
     authors = (await _authors(session, [article_id]))[article_id]
     is_author = principal.id in {a.id for a in authors}

@@ -36,6 +36,8 @@ class WikiArticle(Entity):
     )
     status_changed_at: Mapped[datetime] = mapped_column(server_default=func.now())
     review_alert: Mapped[str | None] = mapped_column(Text)
+    # Holds honeypot blocks (5.4): indexed, never listed, served, reviewed or counted.
+    is_hidden: Mapped[bool] = mapped_column(server_default=text("false"), default=False)
 
     __mapper_args__ = {"version_id_col": version}  # noqa: RUF012 - read by SQLAlchemy
 
