@@ -42,6 +42,7 @@ class Harness:
     app: FastAPI
     idp: FakeIdP
     storage: MemoryObjectStorage
+    router: respx.MockRouter
     clients: list[AsyncClient] = field(default_factory=list[AsyncClient])
 
     async def login(self, subject: str | None = None, **claims: Any) -> LoggedIn:
@@ -72,7 +73,7 @@ async def harness(settings: Settings, factory: SessionFactory) -> AsyncGenerator
     idp = FakeIdP()
     with respx.mock(assert_all_called=False) as router:
         idp.mount(router)
-        h = Harness(app, idp, storage)
+        h = Harness(app, idp, storage, router)
         try:
             yield h
         finally:

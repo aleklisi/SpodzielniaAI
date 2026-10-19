@@ -194,7 +194,7 @@ Each one is resolved (✅ = decision baked into the chunk plans) or needs your i
 
 ### Stage 4 — Governance, Consent, Qdrant
 - [x] 4.1 Qdrant collections, embeddings & vector repositories
-- [ ] 4.2 Expert review state machine & index synchronisation
+- [x] 4.2 Expert review state machine & index synchronisation
 - [ ] 4.3 Exit Strategy endpoints (suspend / resume / revoke)
 - [ ] 4.4 Outbox, reconciliation & propagation guarantees
 

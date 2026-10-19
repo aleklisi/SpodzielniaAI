@@ -8,12 +8,12 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from fastapi import Request  # noqa: TC002 - FastAPI resolves the dependency's annotation
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
 
-    from fastapi import Request
     from sqlalchemy.ext.asyncio import AsyncEngine
 
 SessionFactory = async_sessionmaker[AsyncSession]

@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import CheckConstraint, ForeignKey, String, Text, UniqueConstraint, text
+from sqlalchemy import CheckConstraint, ForeignKey, String, Text, UniqueConstraint, func, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from spoldzielnia_ai.db.base import Entity
@@ -11,7 +11,11 @@ from spoldzielnia_ai.db.enums import ArticleStatus, ConsentStatus, ReviewDecisio
 
 
 class WikiArticle(Entity):
-    """A versioned article in the shared wiki, moved through review by the Expert Council."""
+    """A versioned article in the shared wiki, moved through review by the Expert Council.
+
+    ``version`` is the optimistic-locking counter (4.2): every UPDATE checks and increments it,
+    so a decision made on a stale view of the article fails instead of overwriting.
+    """
 
     __tablename__ = "wiki_article"
     __table_args__ = (
@@ -30,6 +34,10 @@ class WikiArticle(Entity):
     created_from_promotion_id: Mapped[UUID | None] = mapped_column(
         ForeignKey("promotion.id", ondelete="SET NULL")
     )
+    status_changed_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    review_alert: Mapped[str | None] = mapped_column(Text)
+
+    __mapper_args__ = {"version_id_col": version}  # noqa: RUF012 - read by SQLAlchemy
 
 
 class ArticleBlock(Entity):

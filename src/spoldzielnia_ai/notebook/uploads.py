@@ -74,6 +74,8 @@ class ProcessingQueue(Protocol):
 
     async def promotion_requested(self, promotion_id: UUID, owner_id: UUID) -> None: ...
 
+    async def article_canonical(self, article_id: UUID) -> None: ...
+
 
 class NoProcessing:
     async def attachment_stored(
@@ -85,6 +87,9 @@ class NoProcessing:
         return None
 
     async def promotion_requested(self, promotion_id: UUID, owner_id: UUID) -> None:
+        return None
+
+    async def article_canonical(self, article_id: UUID) -> None:
         return None
 
 

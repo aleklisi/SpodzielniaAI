@@ -159,6 +159,7 @@ def test_migrations_form_a_single_linear_history() -> None:
         "0004_private_zone",
         "0005_quarantine",
         "0006_promotion",
+        "0007_governance",
     ]
 
 

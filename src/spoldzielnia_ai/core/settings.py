@@ -211,6 +211,15 @@ class PromotionSettings(BaseModel):
     daily_limit: int = Field(default=20, ge=1)  # promotions per user per UTC day
 
 
+class GovernanceSettings(BaseModel):
+    """Expert review and creator consent (Stage 4)."""
+
+    # Distinct experts whose approval makes an article CANONICAL.
+    review_quorum: int = Field(default=1, ge=1, le=10)
+    # Revoking contributions needs a login at most this old (step-up otherwise).
+    revoke_max_auth_age_seconds: int = Field(default=600, ge=60, le=3600)
+
+
 class LlmSettings(BaseModel):
     """LLM endpoints over the standard OpenAI API (LM Studio, Ollama, vLLM, …).
 
@@ -309,6 +318,7 @@ class Settings(_BaseSettings):
     uploads: UploadSettings = Field(default_factory=UploadSettings)
     fetch: FetchSettings = Field(default_factory=FetchSettings)
     promotion: PromotionSettings = Field(default_factory=PromotionSettings)
+    governance: GovernanceSettings = Field(default_factory=GovernanceSettings)
 
     @model_validator(mode="after")
     def _require_runtime_secrets(self) -> Self:

@@ -17,6 +17,8 @@ from spoldzielnia_ai.api.me import router as me_router
 from spoldzielnia_ai.api.notes import router as notes_router
 from spoldzielnia_ai.api.promotion import notes_router as promote_router
 from spoldzielnia_ai.api.promotion import router as promotions_router
+from spoldzielnia_ai.api.reviews import router as reviews_router
+from spoldzielnia_ai.api.wiki import router as wiki_router
 from spoldzielnia_ai.auth.crypto import CsrfTokens, TokenSealer, derive_key
 from spoldzielnia_ai.auth.csrf import csrf_middleware
 from spoldzielnia_ai.auth.deps import DbAuditSink
@@ -114,6 +116,8 @@ def create_app(
     app.include_router(promotions_router)
     app.include_router(attachments_router)
     app.include_router(links_router)
+    app.include_router(wiki_router)
+    app.include_router(reviews_router)
 
     @app.get("/healthz", response_model=HealthResponse, tags=["ops"])
     async def healthz() -> HealthResponse:  # pyright: ignore[reportUnusedFunction]
