@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any
@@ -53,7 +54,14 @@ class ProbeTransport:
             error.status_code = 400  # pyright: ignore[reportAttributeAccessIssue]
             raise error
         text = json.dumps(messages, ensure_ascii=False)
-        content = '{"city": "Kraków", "country": "Polska"}' if "city" in text else "Warszawa"
+        if "apiary" in text:
+            content = '{"date": "12 maja", "apiary": "Lipowa Dolina", "actions": ["przegląd"]}'
+        elif "city" in text:
+            content = '{"city": "Kraków", "country": "Polska"}'
+        elif "stolicę Polski" in text:
+            content = "Warszawa"
+        else:
+            content = f"Odpowiedź modelu {model}"
         usage = SimpleNamespace(prompt_tokens=5, completion_tokens=3, total_tokens=8)
         message = SimpleNamespace(content=content)
         return SimpleNamespace(choices=[SimpleNamespace(message=message)], usage=usage)
@@ -374,6 +382,131 @@ async def test_probes_are_rate_limited(settings: Settings, factory: SessionFacto
             (
                 await admin.client.post(
                     f"/admin/llm/models/{chat['id']}/probe", headers=admin.headers
+                )
+            ).status_code
+            for _ in range(3)
+        ]
+    assert codes == [200, 200, 429]
+
+
+# --- 7.5: playground ----------------------------------------------------------------------------
+
+
+async def test_playground_compares_models_and_audits_only_a_hash(
+    h: Harness, factory: SessionFactory
+) -> None:
+    admin = await _admin(h)
+    presets = {
+        p["key"]: p for p in (await admin.client.get("/admin/llm/playground/presets")).json()
+    }
+    assert presets["summary_pii"]["local_only"] is True
+    assert presets["json_extract"]["structured"] is True
+    bielik = (await admin.client.get("/admin/llm/models")).json()[0]
+    qwen = await _model(admin, await _vllm(admin), "qwen3-32b")
+    prompt = "Jak przygotować ule do zimy? (pytanie testowe 4711)"
+    response = await admin.client.post(
+        "/admin/llm/playground",
+        json={"model_ids": [bielik["id"], qwen["id"]], "prompt": prompt},
+        headers=admin.headers,
+    )
+    assert response.status_code == 200, response.text
+    results = response.json()["results"]
+    assert [r["name"] for r in results] == ["local/bielik-11b", "vllm/qwen3-32b"]
+    assert results[1]["content"] == "Odpowiedź modelu vllm/qwen3-32b"
+    assert all(r["ok"] and r["tokens"] == 8 for r in results)
+
+    structured = await admin.client.post(
+        "/admin/llm/playground",
+        json={"model_ids": [qwen["id"]], "preset": "json_extract"},
+        headers=admin.headers,
+    )
+    assert structured.json()["results"][0]["json_valid"] is True
+    async with factory() as session:
+        rows = list(
+            await session.scalars(
+                select(SecurityAuditLog).where(
+                    SecurityAuditLog.event_type == EventType.LLM_PLAYGROUND_USED.value
+                )
+            )
+        )
+    assert len(rows) == 2
+    assert rows[0].payload["prompt_sha256"] == hashlib.sha256(prompt.encode()).hexdigest()
+    assert "4711" not in json.dumps([r.payload for r in rows])
+
+
+async def test_playground_input_rules(h: Harness) -> None:
+    admin = await _admin(h)
+    models = (await admin.client.get("/admin/llm/models")).json()
+    chat = next(m for m in models if m["capability"] == "CHAT")
+    embed = next(m for m in models if m["capability"] == "EMBED")
+    cases: list[tuple[dict[str, Any], int, str | None]] = [
+        ({"model_ids": [chat["id"]]}, 422, "prompt_or_preset"),
+        ({"model_ids": [chat["id"]], "prompt": "x", "preset": "pl_qa"}, 422, "prompt_or_preset"),
+        ({"model_ids": [chat["id"]], "preset": "nope"}, 422, "unknown_preset"),
+        ({"model_ids": [embed["id"]], "prompt": "x"}, 422, "capability_mismatch"),
+        ({"model_ids": [chat["id"], chat["id"]], "prompt": "x"}, 422, "duplicate_models"),
+        ({"model_ids": [chat["id"]] * 4, "prompt": "x"}, 422, None),
+        ({"model_ids": [chat["id"]], "prompt": "x" * 4001}, 422, None),
+    ]
+    for body, code, error in cases:
+        response = await admin.client.post(
+            "/admin/llm/playground", json=body, headers=admin.headers
+        )
+        assert response.status_code == code, (body, response.text)
+        if error:
+            assert response.json()["detail"]["error"] == error
+
+
+async def test_playground_and_cloud_models(settings: Settings, factory: SessionFactory) -> None:
+    for allow_cloud in (False, True):
+        async with harness(_settings(settings, allow_cloud=allow_cloud), factory) as h:
+            h.app.state.llm_probe_transport = ProbeTransport()
+            admin = await _admin(h)
+            providers = (await admin.client.get("/admin/llm/providers")).json()
+            cloud = (
+                next((p for p in providers if p["name"] == "cloud"), None)
+                or (
+                    await admin.client.post(
+                        "/admin/llm/providers",
+                        json={"name": "cloud", "base_url": "https://api.example.com/v1"},
+                        headers=admin.headers,
+                    )
+                ).json()
+            )
+            models = (await admin.client.get("/admin/llm/models")).json()
+            gpt = next((m for m in models if m["model_name"] == "gpt-x"), None) or (
+                await _model(admin, cloud["id"], "gpt-x")
+            )
+            free = await admin.client.post(
+                "/admin/llm/playground",
+                json={"model_ids": [gpt["id"]], "prompt": "Dzień dobry"},
+                headers=admin.headers,
+            )
+            pii = await admin.client.post(
+                "/admin/llm/playground",
+                json={"model_ids": [gpt["id"]], "preset": "summary_pii"},
+                headers=admin.headers,
+            )
+        if allow_cloud:
+            assert free.status_code == 200, free.text
+            assert free.json()["results"][0]["local"] is False
+            assert pii.json()["detail"]["error"] == "local_only_purpose"
+        else:
+            assert free.json()["detail"]["error"] == "cloud_not_allowed"
+            assert pii.json()["detail"]["error"] == "cloud_not_allowed"
+
+
+async def test_playground_is_rate_limited(settings: Settings, factory: SessionFactory) -> None:
+    async with harness(_settings(settings, playground_per_hour=2), factory) as h:
+        h.app.state.llm_probe_transport = ProbeTransport()
+        admin = await _admin(h)
+        chat = (await admin.client.get("/admin/llm/models")).json()[0]
+        codes = [
+            (
+                await admin.client.post(
+                    "/admin/llm/playground",
+                    json={"model_ids": [chat["id"]], "preset": "pl_qa"},
+                    headers=admin.headers,
                 )
             ).status_code
             for _ in range(3)

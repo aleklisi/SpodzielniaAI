@@ -148,3 +148,17 @@ type = "forbidden"
 source_modules = ["spoldzielnia_ai.api"]
 forbidden_modules = ["spoldzielnia_ai.rag.service"]
 allow_indirect_imports = true
+
+# Chunk 7.5: the admin playground sends only the admin's text or a fixed preset to models.
+# It must never be able to retrieve wiki, notes or vectors (a way around the shield).
+[[tool.importlinter.contracts]]
+name = "LLM playground and probes never retrieve content"
+type = "forbidden"
+source_modules = ["spoldzielnia_ai.llm.playground", "spoldzielnia_ai.llm.probes"]
+forbidden_modules = [
+    "spoldzielnia_ai.rag",
+    "spoldzielnia_ai.vector",
+    "spoldzielnia_ai.wiki",
+    "spoldzielnia_ai.notebook",
+    "spoldzielnia_ai.shield",
+]

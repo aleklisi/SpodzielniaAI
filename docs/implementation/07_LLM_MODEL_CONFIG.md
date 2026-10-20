@@ -291,3 +291,14 @@ Metrics (`core/metrics.py`): `llm_request_seconds{deployment,purpose}`,
   probes (`LLM_MODEL_PROBED`), drafts (`LLM_CONFIG_DRAFT_CHANGED`), activation and rollback with
   the routes (`LLM_CONFIG_ACTIVATED`, `LLM_CONFIG_ROLLED_BACK`).
 - LLM ORM models use `eager_defaults`, so timestamps come back via `RETURNING`.
+
+### 7.5
+- `llm/playground.py` + `GET /admin/llm/playground/presets`, `POST /admin/llm/playground`
+  (1–3 CHAT/VLM models, the admin's prompt ≤ 4000 chars **or** a preset; answers returned, not
+  stored). Presets: Polish Q&A, style, JSON extraction (validated → `json_valid`), and a summary
+  of a synthetic note with personal data that is **local-only** (refused for cloud models, and
+  called with `force_local_llm=True`).
+- An import-linter contract forbids `llm.playground` and `llm.probes` from importing `rag`,
+  `vector`, `wiki`, `notebook` or `shield`, so neither can retrieve content.
+- Audit `LLM_PLAYGROUND_USED`: preset, SHA-256 and length of the prompt, deployment names,
+  per-model success. Limit: `llm.playground_per_hour` per admin.

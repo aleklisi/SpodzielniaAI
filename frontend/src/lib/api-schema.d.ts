@@ -186,6 +186,44 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/llm/playground": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Playground
+         * @description Up to three CHAT/VLM models answer the same prompt (the admin's own text or a preset).
+         *     No retrieval, nothing stored but an audit entry with the prompt's hash.
+         */
+        post: operations["playground_admin_llm_playground_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/llm/playground/presets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Presets */
+        get: operations["get_presets_admin_llm_playground_presets_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/llm/providers": {
         parameters: {
             query?: never;
@@ -1484,6 +1522,64 @@ export interface components {
             /** Title */
             title?: string | null;
         };
+        /** PlaygroundIn */
+        PlaygroundIn: {
+            /** Model Ids */
+            model_ids: string[];
+            /** Preset */
+            preset?: string | null;
+            /** Prompt */
+            prompt?: string | null;
+        };
+        /** PlaygroundOut */
+        PlaygroundOut: {
+            /** Results */
+            results: components["schemas"]["PlaygroundResultOut"][];
+        };
+        /** PlaygroundResultOut */
+        PlaygroundResultOut: {
+            /** Attempts */
+            attempts?: number | null;
+            /** Content */
+            content?: string | null;
+            /** Error */
+            error?: string | null;
+            /** Json Valid */
+            json_valid?: boolean | null;
+            /** Latency Ms */
+            latency_ms?: number | null;
+            /** Local */
+            local: boolean;
+            /**
+             * Model Id
+             * Format: uuid
+             */
+            model_id: string;
+            /** Name */
+            name: string;
+            /** Ok */
+            ok: boolean;
+            /** Tokens */
+            tokens?: number | null;
+            /**
+             * Truncated
+             * @default false
+             */
+            truncated: boolean;
+        };
+        /** PresetOut */
+        PresetOut: {
+            /** Key */
+            key: string;
+            /** Local Only */
+            local_only: boolean;
+            /** Prompt */
+            prompt: string;
+            /** Structured */
+            structured: boolean;
+            /** Title */
+            title: string;
+        };
         /** ProbeOut */
         ProbeOut: {
             model: components["schemas"]["ModelOut"];
@@ -2308,6 +2404,59 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    playground_admin_llm_playground_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PlaygroundIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlaygroundOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_presets_admin_llm_playground_presets_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PresetOut"][];
                 };
             };
         };

@@ -18,6 +18,8 @@ from uuid import UUID  # noqa: TC003 - pydantic resolves annotations at runtime
 from fastapi import Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel, Field
 
+from spoldzielnia_ai.audit.events import EventType
+from spoldzielnia_ai.audit.service import AuditService
 from spoldzielnia_ai.auth.deps import CurrentUser, elevated_router
 from spoldzielnia_ai.core.logging import get_logger
 from spoldzielnia_ai.db.enums import (
@@ -39,7 +41,8 @@ from spoldzielnia_ai.llm.config_service import (
     capability_for,
 )
 from spoldzielnia_ai.llm.endpoints import allowed_endpoints
-from spoldzielnia_ai.llm.probes import deployment_for, list_models, probe_model
+from spoldzielnia_ai.llm.playground import MAX_PROMPT, PRESETS, compare, prompt_digest
+from spoldzielnia_ai.llm.probes import deployment_for, list_models, probe_model, single_gateway
 from spoldzielnia_ai.llm.snapshot import ConfigSnapshot
 
 if TYPE_CHECKING:
@@ -48,7 +51,7 @@ if TYPE_CHECKING:
 
     from spoldzielnia_ai.core.settings import Settings
     from spoldzielnia_ai.db.models import LlmModel, LlmProvider
-    from spoldzielnia_ai.llm.gateway import ChatTransport
+    from spoldzielnia_ai.llm.gateway import ChatTransport, Deployment, LiteLLMGateway
 
 log = get_logger(__name__)
 
@@ -532,3 +535,121 @@ async def rollback(
     except ConfigError as exc:
         raise _http(exc) from None
     return _revision_out(view)
+
+
+# --- Playground (7.5) ---------------------------------------------------------------------------
+
+
+class PresetOut(BaseModel):
+    key: str
+    title: str
+    prompt: str
+    local_only: bool
+    structured: bool
+
+
+class PlaygroundIn(BaseModel):
+    model_ids: list[UUID] = Field(min_length=1, max_length=3)
+    prompt: str | None = Field(default=None, min_length=1, max_length=MAX_PROMPT)
+    preset: str | None = None
+
+
+class PlaygroundResultOut(BaseModel):
+    model_id: UUID
+    name: str
+    local: bool
+    ok: bool
+    content: str | None = None
+    truncated: bool = False
+    latency_ms: int | None = None
+    tokens: int | None = None
+    attempts: int | None = None
+    json_valid: bool | None = None
+    error: str | None = None
+
+
+class PlaygroundOut(BaseModel):
+    results: list[PlaygroundResultOut]
+
+
+@router.get("/playground/presets", response_model=list[PresetOut])
+async def get_presets() -> list[PresetOut]:
+    return [
+        PresetOut(
+            key=p.key,
+            title=p.title,
+            prompt=p.prompt,
+            local_only=p.local_only,
+            structured=p.response_model is not None,
+        )
+        for p in PRESETS.values()
+    ]
+
+
+@router.post("/playground", response_model=PlaygroundOut)
+async def playground(
+    payload: PlaygroundIn, request: Request, service: Service, principal: CurrentUser
+) -> PlaygroundOut:
+    """Up to three CHAT/VLM models answer the same prompt (the admin's own text or a preset).
+    No retrieval, nothing stored but an audit entry with the prompt's hash."""
+    state = request.app.state
+    settings: Settings = state.settings
+    if (payload.prompt is None) == (payload.preset is None):
+        raise _http(ConfigError("prompt_or_preset"))
+    preset = PRESETS.get(payload.preset) if payload.preset is not None else None
+    if payload.preset is not None and preset is None:
+        raise _http(ConfigError("unknown_preset"))
+    prompt = preset.prompt if preset is not None else str(payload.prompt)
+    if len(set(payload.model_ids)) != len(payload.model_ids):
+        raise _http(ConfigError("duplicate_models"))
+    await _rate_limit(request, principal.id, "playground", settings.llm.playground_per_hour)
+    runs: list[tuple[UUID, LiteLLMGateway, Deployment]] = []
+    for model_id in payload.model_ids:
+        try:
+            model, provider = await service.model(model_id)
+            kind = service.kind_of(provider.base_url)
+        except ConfigError as exc:
+            raise _http(exc) from None
+        if model.capability == LlmCapability.EMBED:
+            raise _http(ConfigError("capability_mismatch", model=model.model_name))
+        if model.disabled_at is not None or provider.disabled_at is not None:
+            raise _http(ConfigError("model_disabled", model=model.model_name))
+        if kind == LlmProviderKind.CLOUD:
+            if not settings.llm.allow_cloud:
+                raise _http(ConfigError("cloud_not_allowed", model=model.model_name))
+            if preset is not None and preset.local_only:
+                raise _http(ConfigError("local_only_purpose", model=model.model_name))
+        deployment = deployment_for(
+            f"{provider.name}/{model.model_name}",
+            model.model_name,
+            provider.base_url,
+            service.api_key(provider),
+            kind,
+            temperature=model.temperature,
+            max_tokens=model.max_tokens,
+            structured_output=provider.structured_output,
+            timeout_seconds=provider.timeout_seconds,
+        )
+        runs.append(
+            (model.id, single_gateway(deployment, settings.llm, _transport(request)), deployment)
+        )
+    results = await compare([(g, d) for _, g, d in runs], prompt, preset)
+    async with state.session_factory() as session, session.begin():
+        await AuditService(session).record(
+            EventType.LLM_PLAYGROUND_USED,
+            principal.id,
+            None,
+            {
+                "preset": preset.key if preset else None,
+                "prompt_sha256": prompt_digest(prompt),
+                "prompt_chars": len(prompt),
+                "models": [d.name for _, _, d in runs],
+                "ok": [bool(r.get("ok")) for r in results],
+            },
+        )
+    return PlaygroundOut(
+        results=[
+            PlaygroundResultOut.model_validate({"model_id": model_id, **result})
+            for (model_id, _, _), result in zip(runs, results, strict=True)
+        ]
+    )

@@ -1686,6 +1686,198 @@
         "title": "NoteUpdate",
         "type": "object"
       },
+      "PlaygroundIn": {
+        "properties": {
+          "model_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 3,
+            "minItems": 1,
+            "title": "Model Ids",
+            "type": "array"
+          },
+          "preset": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Preset"
+          },
+          "prompt": {
+            "anyOf": [
+              {
+                "maxLength": 4000,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prompt"
+          }
+        },
+        "required": [
+          "model_ids"
+        ],
+        "title": "PlaygroundIn",
+        "type": "object"
+      },
+      "PlaygroundOut": {
+        "properties": {
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/PlaygroundResultOut"
+            },
+            "title": "Results",
+            "type": "array"
+          }
+        },
+        "required": [
+          "results"
+        ],
+        "title": "PlaygroundOut",
+        "type": "object"
+      },
+      "PlaygroundResultOut": {
+        "properties": {
+          "attempts": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Attempts"
+          },
+          "content": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Content"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "json_valid": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Json Valid"
+          },
+          "latency_ms": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latency Ms"
+          },
+          "local": {
+            "title": "Local",
+            "type": "boolean"
+          },
+          "model_id": {
+            "format": "uuid",
+            "title": "Model Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "ok": {
+            "title": "Ok",
+            "type": "boolean"
+          },
+          "tokens": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tokens"
+          },
+          "truncated": {
+            "default": false,
+            "title": "Truncated",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "model_id",
+          "name",
+          "local",
+          "ok"
+        ],
+        "title": "PlaygroundResultOut",
+        "type": "object"
+      },
+      "PresetOut": {
+        "properties": {
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "local_only": {
+            "title": "Local Only",
+            "type": "boolean"
+          },
+          "prompt": {
+            "title": "Prompt",
+            "type": "string"
+          },
+          "structured": {
+            "title": "Structured",
+            "type": "boolean"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "title",
+          "prompt",
+          "local_only",
+          "structured"
+        ],
+        "title": "PresetOut",
+        "type": "object"
+      },
       "ProbeOut": {
         "properties": {
           "model": {
@@ -3551,6 +3743,73 @@
           }
         },
         "summary": "Probe",
+        "tags": [
+          "admin-llm"
+        ]
+      }
+    },
+    "/admin/llm/playground": {
+      "post": {
+        "description": "Up to three CHAT/VLM models answer the same prompt (the admin's own text or a preset).\nNo retrieval, nothing stored but an audit entry with the prompt's hash.",
+        "operationId": "playground_admin_llm_playground_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlaygroundIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlaygroundOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Playground",
+        "tags": [
+          "admin-llm"
+        ]
+      }
+    },
+    "/admin/llm/playground/presets": {
+      "get": {
+        "operationId": "get_presets_admin_llm_playground_presets_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/PresetOut"
+                  },
+                  "title": "Response Get Presets Admin Llm Playground Presets Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Presets",
         "tags": [
           "admin-llm"
         ]
