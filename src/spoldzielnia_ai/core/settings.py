@@ -362,8 +362,28 @@ class LlmSettings(BaseModel):
     cloud_base_url: str | None = None
     cloud_model: str | None = None
     cloud_api_key: SecretStr | None = None
+    # Stage 7: admins choose models in the UI, within the limits set here (the ceiling):
+    # ``allow_cloud`` and the endpoint allowlists. ``env`` ignores the database configuration.
+    config_source: Literal["db", "env"] = "db"
+    # Extra local endpoints besides ``local_base_url`` (origins: scheme://host[:port]).
+    local_endpoints: list[str] = Field(default_factory=list[str])
+    # Cloud API hosts admins may use (https only), besides the host of ``cloud_base_url``.
+    cloud_hosts: list[str] = Field(default_factory=list[str])
+    # Forward proxy for cloud endpoints (`llm-egress`, 7.3). Local endpoints never use it.
+    egress_proxy_url: str | None = None
+    # How long a process trusts its cached configuration without asking the database.
+    config_ttl_seconds: float = Field(default=30.0, gt=0)
+    probe_max_age_hours: int = Field(default=24, ge=1)
+    playground_per_hour: int = Field(default=30, ge=1)
 
-    @field_validator("chat_model", "vlm_model", "embed_model", "cloud_model", "cloud_base_url")
+    @field_validator(
+        "chat_model",
+        "vlm_model",
+        "embed_model",
+        "cloud_model",
+        "cloud_base_url",
+        "egress_proxy_url",
+    )
     @classmethod
     def _empty_is_unset(cls, value: str | None) -> str | None:
         return value.strip() or None if value is not None else None

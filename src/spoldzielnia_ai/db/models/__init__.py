@@ -2,6 +2,7 @@
 
 from spoldzielnia_ai.db.base import Base
 from spoldzielnia_ai.db.models.audit import SecurityAuditLog
+from spoldzielnia_ai.db.models.llm import LlmConfigRevision, LlmModel, LlmProvider, LlmRouting
 from spoldzielnia_ai.db.models.outbox import VectorOutbox
 from spoldzielnia_ai.db.models.private_note import NoteAttachment, NoteDerivative, PrivateNote
 from spoldzielnia_ai.db.models.promotion import Promotion
@@ -12,6 +13,10 @@ __all__ = [
     "ArticleBlock",
     "Base",
     "ExpertReview",
+    "LlmConfigRevision",
+    "LlmModel",
+    "LlmProvider",
+    "LlmRouting",
     "NoteAttachment",
     "NoteDerivative",
     "PrivateNote",

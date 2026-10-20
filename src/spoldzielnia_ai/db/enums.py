@@ -80,6 +80,36 @@ class OutboxStatus(StrEnum):
     DONE = "DONE"
 
 
+class LlmProviderKind(StrEnum):
+    """Derived from the endpoint allowlist the base URL matched (7.1), never chosen freely."""
+
+    LOCAL = "LOCAL"
+    CLOUD = "CLOUD"
+
+
+class LlmCapability(StrEnum):
+    CHAT = "CHAT"
+    VLM = "VLM"
+    EMBED = "EMBED"
+
+
+class LlmRevisionStatus(StrEnum):
+    DRAFT = "DRAFT"
+    ACTIVE = "ACTIVE"
+    ARCHIVED = "ARCHIVED"
+
+
+class LlmRoutePurpose(StrEnum):
+    """Purposes an admin can assign a model to (``llm.gateway.LLMPurpose`` minus the playground)."""
+
+    PII_SCRUB = "PII_SCRUB"
+    PRIVATE_NOTE = "PRIVATE_NOTE"
+    PROMOTION = "PROMOTION"
+    VLM = "VLM"
+    EMBED = "EMBED"
+    RAG = "RAG"
+
+
 PG_ENUM_NAMES: dict[type[StrEnum], str] = {
     Role: "user_role",
     ConsentStatus: "consent_status",
@@ -91,6 +121,10 @@ PG_ENUM_NAMES: dict[type[StrEnum], str] = {
     PromotionStatus: "promotion_status",
     VectorOpKind: "vector_op_kind",
     OutboxStatus: "outbox_status",
+    LlmProviderKind: "llm_provider_kind",
+    LlmCapability: "llm_capability",
+    LlmRevisionStatus: "llm_revision_status",
+    LlmRoutePurpose: "llm_route_purpose",
 }
 
 

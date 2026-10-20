@@ -56,6 +56,10 @@ def test_tables_registered() -> None:
         "note_derivative",
         "promotion",
         "vector_outbox",
+        "llm_provider",
+        "llm_model",
+        "llm_config_revision",
+        "llm_routing",
     }
 
 
@@ -165,6 +169,7 @@ def test_migrations_form_a_single_linear_history() -> None:
         "0009_vector_outbox",
         "0010_account_lock",
         "0011_hidden_articles",
+        "0012_llm_config",
     ]
 
 
@@ -176,6 +181,7 @@ def test_migration_enum_types_match_python_enums() -> None:
             "0004_private_zone",
             "0006_promotion",
             "0009_vector_outbox",
+            "0012_llm_config",
         )
         for e in cast("tuple[SAEnum, ...]", _revision_module(revision).ENUMS)
     }
