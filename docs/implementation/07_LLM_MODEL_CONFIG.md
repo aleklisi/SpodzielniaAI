@@ -273,3 +273,21 @@ Metrics (`core/metrics.py`): `llm_request_seconds{deployment,purpose}`,
 - Smoke: the proxy refuses a host off the allowlist and `postgres:5432` (403); worker-core cannot
   connect to it. A tunnel to an allowlisted host is covered by unit tests (real sockets, fake DNS),
   not by the smoke test, because the dev stack allows no cloud host.
+
+### 7.4
+- Router `api/admin_llm.py` (ADMIN + MFA): `GET /status`, providers (`GET`, `POST`, `PATCH`,
+  `POST /{id}/disabled`, `POST /{id}/test`), models (`GET`, `POST`, `PATCH`,
+  `POST /{id}/disabled`, `POST /{id}/probe`), revisions (`GET`, `GET /{n}`, `POST`,
+  `PUT /{n}/routing`, `DELETE /{n}`, `POST /{n}/activate`, `POST /{n}/rollback`). Every request
+  seeds `.env` as revision 1 first if nothing is stored.
+- Probes (`llm/probes.py`) run **synchronously** with each provider's timeout instead of as a
+  Celery task (Q5): it is one admin request, and the API already holds the keys and the egress
+  route. The report stores check names, pass/fail, latency, tokens and exception class names,
+  never prompts or output. CHAT recommends `json_schema` or `prompt`; EMBED reports the dimension
+  against `qdrant.vector_size` and whether unrelated sentences stay apart (cosine < 0.9).
+- Connection tests and probes share a per-admin limit of `2 × llm.playground_per_hour` per hour
+  (Redis window, fails open). Cloud endpoints are not contacted at all without `allow_cloud`.
+- Audit: provider/model changes (`LLM_PROVIDER_CHANGED`, `LLM_MODEL_CHANGED`, never keys),
+  probes (`LLM_MODEL_PROBED`), drafts (`LLM_CONFIG_DRAFT_CHANGED`), activation and rollback with
+  the routes (`LLM_CONFIG_ACTIVATED`, `LLM_CONFIG_ROLLED_BACK`).
+- LLM ORM models use `eager_defaults`, so timestamps come back via `RETURNING`.

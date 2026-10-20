@@ -34,6 +34,9 @@ class LlmProvider(Entity):
     ``inherit_env_key`` uses the Docker secret instead (providers imported from ``.env``)."""
 
     __tablename__ = "llm_provider"
+    # Timestamps and identity values come back via RETURNING: the admin API returns the rows
+    # after their session has closed.
+    __mapper_args__ = {"eager_defaults": True}  # noqa: RUF012 - SQLAlchemy reads it
 
     name: Mapped[str] = mapped_column(String(64), unique=True)
     kind: Mapped[LlmProviderKind]
@@ -56,6 +59,7 @@ class LlmModel(Entity):
     probe report holds timings, token counts and pass/fail only: never prompts or output."""
 
     __tablename__ = "llm_model"
+    __mapper_args__ = {"eager_defaults": True}  # noqa: RUF012 - SQLAlchemy reads it
     __table_args__ = (UniqueConstraint("provider_id", "model_name", "capability"),)
 
     provider_id: Mapped[UUID] = mapped_column(
@@ -81,6 +85,7 @@ class LlmConfigRevision(Entity):
     ARCHIVED rows are immutable (trigger, migration 0012)."""
 
     __tablename__ = "llm_config_revision"
+    __mapper_args__ = {"eager_defaults": True}  # noqa: RUF012 - SQLAlchemy reads it
     __table_args__ = (
         Index(
             "uq_llm_config_revision_one_active",

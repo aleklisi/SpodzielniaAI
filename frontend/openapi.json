@@ -563,6 +563,59 @@
         "title": "Citation",
         "type": "object"
       },
+      "ConnectionOut": {
+        "properties": {
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "latency_ms": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latency Ms"
+          },
+          "models": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Models",
+            "type": "array"
+          },
+          "ok": {
+            "title": "Ok",
+            "type": "boolean"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          }
+        },
+        "required": [
+          "ok"
+        ],
+        "title": "ConnectionOut",
+        "type": "object"
+      },
       "ConsentAction": {
         "enum": [
           "SUSPEND",
@@ -846,6 +899,49 @@
         "title": "DerivativeStatus",
         "type": "string"
       },
+      "DisableIn": {
+        "properties": {
+          "disabled": {
+            "title": "Disabled",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "disabled"
+        ],
+        "title": "DisableIn",
+        "type": "object"
+      },
+      "DraftIn": {
+        "properties": {
+          "based_on": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Based On"
+          },
+          "comment": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Comment"
+          }
+        },
+        "title": "DraftIn",
+        "type": "object"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -1024,6 +1120,46 @@
         "title": "LinkIn",
         "type": "object"
       },
+      "LlmCapability": {
+        "enum": [
+          "CHAT",
+          "VLM",
+          "EMBED"
+        ],
+        "title": "LlmCapability",
+        "type": "string"
+      },
+      "LlmProviderKind": {
+        "description": "Derived from the endpoint allowlist the base URL matched (7.1), never chosen freely.",
+        "enum": [
+          "LOCAL",
+          "CLOUD"
+        ],
+        "title": "LlmProviderKind",
+        "type": "string"
+      },
+      "LlmRevisionStatus": {
+        "enum": [
+          "DRAFT",
+          "ACTIVE",
+          "ARCHIVED"
+        ],
+        "title": "LlmRevisionStatus",
+        "type": "string"
+      },
+      "LlmRoutePurpose": {
+        "description": "Purposes an admin can assign a model to (``llm.gateway.LLMPurpose`` minus the playground).",
+        "enum": [
+          "PII_SCRUB",
+          "PRIVATE_NOTE",
+          "PROMOTION",
+          "VLM",
+          "EMBED",
+          "RAG"
+        ],
+        "title": "LlmRoutePurpose",
+        "type": "string"
+      },
       "LogoutResponse": {
         "properties": {
           "logout_url": {
@@ -1093,6 +1229,264 @@
           "mfa_satisfied"
         ],
         "title": "MeResponse",
+        "type": "object"
+      },
+      "ModelIn": {
+        "properties": {
+          "capability": {
+            "$ref": "#/components/schemas/LlmCapability"
+          },
+          "embed_dimension": {
+            "anyOf": [
+              {
+                "maximum": 16384.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Embed Dimension"
+          },
+          "max_tokens": {
+            "anyOf": [
+              {
+                "maximum": 131072.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Tokens"
+          },
+          "model_name": {
+            "maxLength": 256,
+            "minLength": 1,
+            "title": "Model Name",
+            "type": "string"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "provider_id": {
+            "format": "uuid",
+            "title": "Provider Id",
+            "type": "string"
+          },
+          "temperature": {
+            "anyOf": [
+              {
+                "maximum": 2.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Temperature"
+          }
+        },
+        "required": [
+          "provider_id",
+          "model_name",
+          "capability"
+        ],
+        "title": "ModelIn",
+        "type": "object"
+      },
+      "ModelOut": {
+        "properties": {
+          "capability": {
+            "$ref": "#/components/schemas/LlmCapability"
+          },
+          "disabled": {
+            "title": "Disabled",
+            "type": "boolean"
+          },
+          "embed_dimension": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Embed Dimension"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "in_active": {
+            "title": "In Active",
+            "type": "boolean"
+          },
+          "last_probe_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Probe At"
+          },
+          "last_probe_ok": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Probe Ok"
+          },
+          "last_probe_report": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Probe Report"
+          },
+          "max_tokens": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Tokens"
+          },
+          "model_name": {
+            "title": "Model Name",
+            "type": "string"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "provider_id": {
+            "format": "uuid",
+            "title": "Provider Id",
+            "type": "string"
+          },
+          "temperature": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Temperature"
+          }
+        },
+        "required": [
+          "id",
+          "provider_id",
+          "model_name",
+          "capability",
+          "temperature",
+          "max_tokens",
+          "embed_dimension",
+          "notes",
+          "disabled",
+          "in_active",
+          "last_probe_at",
+          "last_probe_ok",
+          "last_probe_report"
+        ],
+        "title": "ModelOut",
+        "type": "object"
+      },
+      "ModelPatch": {
+        "properties": {
+          "embed_dimension": {
+            "anyOf": [
+              {
+                "maximum": 16384.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Embed Dimension"
+          },
+          "max_tokens": {
+            "anyOf": [
+              {
+                "maximum": 131072.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Tokens"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "temperature": {
+            "anyOf": [
+              {
+                "maximum": 2.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Temperature"
+          }
+        },
+        "title": "ModelPatch",
         "type": "object"
       },
       "NoteAnswer": {
@@ -1292,6 +1686,24 @@
         "title": "NoteUpdate",
         "type": "object"
       },
+      "ProbeOut": {
+        "properties": {
+          "model": {
+            "$ref": "#/components/schemas/ModelOut"
+          },
+          "report": {
+            "additionalProperties": true,
+            "title": "Report",
+            "type": "object"
+          }
+        },
+        "required": [
+          "model",
+          "report"
+        ],
+        "title": "ProbeOut",
+        "type": "object"
+      },
       "PromoteIn": {
         "properties": {
           "attachment_derivative_ids": {
@@ -1419,6 +1831,269 @@
         ],
         "title": "PromotionStatus",
         "type": "string"
+      },
+      "ProviderIn": {
+        "properties": {
+          "api_key": {
+            "anyOf": [
+              {
+                "format": "password",
+                "maxLength": 512,
+                "type": "string",
+                "writeOnly": true
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Api Key"
+          },
+          "base_url": {
+            "maxLength": 512,
+            "minLength": 1,
+            "title": "Base Url",
+            "type": "string"
+          },
+          "litellm_provider": {
+            "default": "openai",
+            "title": "Litellm Provider",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "structured_output": {
+            "anyOf": [
+              {
+                "enum": [
+                  "json_schema",
+                  "prompt"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Structured Output"
+          },
+          "timeout_seconds": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "maximum": 600.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Timeout Seconds"
+          }
+        },
+        "required": [
+          "name",
+          "base_url"
+        ],
+        "title": "ProviderIn",
+        "type": "object"
+      },
+      "ProviderOut": {
+        "properties": {
+          "allowed": {
+            "title": "Allowed",
+            "type": "boolean"
+          },
+          "base_url": {
+            "title": "Base Url",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "disabled": {
+            "title": "Disabled",
+            "type": "boolean"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "in_active": {
+            "title": "In Active",
+            "type": "boolean"
+          },
+          "inherit_env_key": {
+            "title": "Inherit Env Key",
+            "type": "boolean"
+          },
+          "key_hint": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Key Hint"
+          },
+          "key_set": {
+            "title": "Key Set",
+            "type": "boolean"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/LlmProviderKind"
+          },
+          "litellm_provider": {
+            "title": "Litellm Provider",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "structured_output": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Structured Output"
+          },
+          "timeout_seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Timeout Seconds"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "kind",
+          "allowed",
+          "base_url",
+          "litellm_provider",
+          "key_set",
+          "key_hint",
+          "inherit_env_key",
+          "structured_output",
+          "timeout_seconds",
+          "disabled",
+          "in_active",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "ProviderOut",
+        "type": "object"
+      },
+      "ProviderPatch": {
+        "description": "Only the fields that are set change. ``clear_api_key`` removes the stored key.",
+        "properties": {
+          "api_key": {
+            "anyOf": [
+              {
+                "format": "password",
+                "maxLength": 512,
+                "type": "string",
+                "writeOnly": true
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Api Key"
+          },
+          "base_url": {
+            "anyOf": [
+              {
+                "maxLength": 512,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base Url"
+          },
+          "clear_api_key": {
+            "default": false,
+            "title": "Clear Api Key",
+            "type": "boolean"
+          },
+          "structured_output": {
+            "anyOf": [
+              {
+                "enum": [
+                  "json_schema",
+                  "prompt"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Structured Output"
+          },
+          "timeout_seconds": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "maximum": 600.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Timeout Seconds"
+          }
+        },
+        "title": "ProviderPatch",
+        "type": "object"
+      },
+      "PurposeOut": {
+        "properties": {
+          "capability": {
+            "$ref": "#/components/schemas/LlmCapability"
+          },
+          "local_only": {
+            "title": "Local Only",
+            "type": "boolean"
+          },
+          "purpose": {
+            "$ref": "#/components/schemas/LlmRoutePurpose"
+          }
+        },
+        "required": [
+          "purpose",
+          "capability",
+          "local_only"
+        ],
+        "title": "PurposeOut",
+        "type": "object"
       },
       "QueueItemOut": {
         "properties": {
@@ -1638,6 +2313,134 @@
         "title": "ReviewOut",
         "type": "object"
       },
+      "RevisionOut": {
+        "properties": {
+          "activated_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Activated At"
+          },
+          "activated_by": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Activated By"
+          },
+          "based_on": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Based On"
+          },
+          "comment": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Comment"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "created_by": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By"
+          },
+          "number": {
+            "title": "Number",
+            "type": "integer"
+          },
+          "rolled_back_from": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rolled Back From"
+          },
+          "routes": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/RouteOut"
+                },
+                "propertyNames": {
+                  "$ref": "#/components/schemas/LlmRoutePurpose"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Routes"
+          },
+          "routing": {
+            "additionalProperties": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "propertyNames": {
+              "$ref": "#/components/schemas/LlmRoutePurpose"
+            },
+            "title": "Routing",
+            "type": "object"
+          },
+          "status": {
+            "$ref": "#/components/schemas/LlmRevisionStatus"
+          }
+        },
+        "required": [
+          "number",
+          "status",
+          "comment",
+          "based_on",
+          "rolled_back_from",
+          "created_by",
+          "created_at",
+          "activated_by",
+          "activated_at",
+          "routing",
+          "routes"
+        ],
+        "title": "RevisionOut",
+        "type": "object"
+      },
       "RevokeIn": {
         "properties": {
           "article_ids": {
@@ -1677,6 +2480,86 @@
         ],
         "title": "Role",
         "type": "string"
+      },
+      "RollbackIn": {
+        "properties": {
+          "comment": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Comment"
+          }
+        },
+        "title": "RollbackIn",
+        "type": "object"
+      },
+      "RouteOut": {
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/LlmProviderKind"
+          },
+          "model_id": {
+            "format": "uuid",
+            "title": "Model Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "model_id",
+          "name",
+          "kind"
+        ],
+        "title": "RouteOut",
+        "type": "object"
+      },
+      "RoutingIn": {
+        "properties": {
+          "comment": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Comment"
+          },
+          "routes": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "propertyNames": {
+              "$ref": "#/components/schemas/LlmRoutePurpose"
+            },
+            "title": "Routes",
+            "type": "object"
+          }
+        },
+        "required": [
+          "routes"
+        ],
+        "title": "RoutingIn",
+        "type": "object"
       },
       "ScanIn": {
         "properties": {
@@ -1749,6 +2632,80 @@
           }
         },
         "title": "ScopeIn",
+        "type": "object"
+      },
+      "StatusOut": {
+        "properties": {
+          "active_revision": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Active Revision"
+          },
+          "allow_cloud": {
+            "title": "Allow Cloud",
+            "type": "boolean"
+          },
+          "cloud_hosts": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Cloud Hosts",
+            "type": "array"
+          },
+          "config_source": {
+            "title": "Config Source",
+            "type": "string"
+          },
+          "egress_proxy": {
+            "title": "Egress Proxy",
+            "type": "boolean"
+          },
+          "local_endpoints": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Local Endpoints",
+            "type": "array"
+          },
+          "probe_max_age_hours": {
+            "title": "Probe Max Age Hours",
+            "type": "integer"
+          },
+          "process_revision": {
+            "title": "Process Revision",
+            "type": "integer"
+          },
+          "purposes": {
+            "items": {
+              "$ref": "#/components/schemas/PurposeOut"
+            },
+            "title": "Purposes",
+            "type": "array"
+          },
+          "vector_size": {
+            "title": "Vector Size",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "config_source",
+          "allow_cloud",
+          "local_endpoints",
+          "cloud_hosts",
+          "egress_proxy",
+          "vector_size",
+          "probe_max_age_hours",
+          "active_revision",
+          "process_revision",
+          "purposes"
+        ],
+        "title": "StatusOut",
         "type": "object"
       },
       "StoredCanaryOut": {
@@ -2382,6 +3339,740 @@
         "summary": "Scan Text",
         "tags": [
           "admin"
+        ]
+      }
+    },
+    "/admin/llm/models": {
+      "get": {
+        "operationId": "get_models_admin_llm_models_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ModelOut"
+                  },
+                  "title": "Response Get Models Admin Llm Models Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Models",
+        "tags": [
+          "admin-llm"
+        ]
+      },
+      "post": {
+        "operationId": "create_model_admin_llm_models_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ModelIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Model",
+        "tags": [
+          "admin-llm"
+        ]
+      }
+    },
+    "/admin/llm/models/{model_id}": {
+      "patch": {
+        "operationId": "update_model_admin_llm_models__model_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "model_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Model Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ModelPatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Model",
+        "tags": [
+          "admin-llm"
+        ]
+      }
+    },
+    "/admin/llm/models/{model_id}/disabled": {
+      "post": {
+        "operationId": "disable_model_admin_llm_models__model_id__disabled_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "model_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Model Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DisableIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Disable Model",
+        "tags": [
+          "admin-llm"
+        ]
+      }
+    },
+    "/admin/llm/models/{model_id}/probe": {
+      "post": {
+        "description": "Synthetic checks against the model (``llm.probes``); the report is stored on the model\nand gates activation.",
+        "operationId": "probe_admin_llm_models__model_id__probe_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "model_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Model Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProbeOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Probe",
+        "tags": [
+          "admin-llm"
+        ]
+      }
+    },
+    "/admin/llm/providers": {
+      "get": {
+        "operationId": "get_providers_admin_llm_providers_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ProviderOut"
+                  },
+                  "title": "Response Get Providers Admin Llm Providers Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Providers",
+        "tags": [
+          "admin-llm"
+        ]
+      },
+      "post": {
+        "operationId": "create_provider_admin_llm_providers_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProviderIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProviderOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Provider",
+        "tags": [
+          "admin-llm"
+        ]
+      }
+    },
+    "/admin/llm/providers/{provider_id}": {
+      "patch": {
+        "operationId": "update_provider_admin_llm_providers__provider_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "provider_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Provider Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProviderPatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProviderOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Provider",
+        "tags": [
+          "admin-llm"
+        ]
+      }
+    },
+    "/admin/llm/providers/{provider_id}/disabled": {
+      "post": {
+        "operationId": "disable_provider_admin_llm_providers__provider_id__disabled_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "provider_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Provider Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DisableIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProviderOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Disable Provider",
+        "tags": [
+          "admin-llm"
+        ]
+      }
+    },
+    "/admin/llm/providers/{provider_id}/test": {
+      "post": {
+        "description": "Reachability, authentication and the models on offer (``GET {base_url}/models``).",
+        "operationId": "test_provider_admin_llm_providers__provider_id__test_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "provider_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Provider Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectionOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Test Provider",
+        "tags": [
+          "admin-llm"
+        ]
+      }
+    },
+    "/admin/llm/revisions": {
+      "get": {
+        "operationId": "get_revisions_admin_llm_revisions_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/RevisionOut"
+                  },
+                  "title": "Response Get Revisions Admin Llm Revisions Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Revisions",
+        "tags": [
+          "admin-llm"
+        ]
+      },
+      "post": {
+        "operationId": "create_draft_admin_llm_revisions_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DraftIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RevisionOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Draft",
+        "tags": [
+          "admin-llm"
+        ]
+      }
+    },
+    "/admin/llm/revisions/{number}": {
+      "delete": {
+        "operationId": "delete_draft_admin_llm_revisions__number__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "number",
+            "required": true,
+            "schema": {
+              "title": "Number",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Draft",
+        "tags": [
+          "admin-llm"
+        ]
+      },
+      "get": {
+        "operationId": "get_revision_admin_llm_revisions__number__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "number",
+            "required": true,
+            "schema": {
+              "title": "Number",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RevisionOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Revision",
+        "tags": [
+          "admin-llm"
+        ]
+      }
+    },
+    "/admin/llm/revisions/{number}/activate": {
+      "post": {
+        "operationId": "activate_admin_llm_revisions__number__activate_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "number",
+            "required": true,
+            "schema": {
+              "title": "Number",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RevisionOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Activate",
+        "tags": [
+          "admin-llm"
+        ]
+      }
+    },
+    "/admin/llm/revisions/{number}/rollback": {
+      "post": {
+        "operationId": "rollback_admin_llm_revisions__number__rollback_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "number",
+            "required": true,
+            "schema": {
+              "title": "Number",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RollbackIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RevisionOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Rollback",
+        "tags": [
+          "admin-llm"
+        ]
+      }
+    },
+    "/admin/llm/revisions/{number}/routing": {
+      "put": {
+        "operationId": "set_routing_admin_llm_revisions__number__routing_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "number",
+            "required": true,
+            "schema": {
+              "title": "Number",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RoutingIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RevisionOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Set Routing",
+        "tags": [
+          "admin-llm"
+        ]
+      }
+    },
+    "/admin/llm/status": {
+      "get": {
+        "operationId": "get_status_admin_llm_status_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Status",
+        "tags": [
+          "admin-llm"
         ]
       }
     },

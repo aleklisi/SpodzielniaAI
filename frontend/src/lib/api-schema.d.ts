@@ -113,6 +113,255 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/llm/models": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Models */
+        get: operations["get_models_admin_llm_models_get"];
+        put?: never;
+        /** Create Model */
+        post: operations["create_model_admin_llm_models_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/llm/models/{model_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update Model */
+        patch: operations["update_model_admin_llm_models__model_id__patch"];
+        trace?: never;
+    };
+    "/admin/llm/models/{model_id}/disabled": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Disable Model */
+        post: operations["disable_model_admin_llm_models__model_id__disabled_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/llm/models/{model_id}/probe": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Probe
+         * @description Synthetic checks against the model (``llm.probes``); the report is stored on the model
+         *     and gates activation.
+         */
+        post: operations["probe_admin_llm_models__model_id__probe_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/llm/providers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Providers */
+        get: operations["get_providers_admin_llm_providers_get"];
+        put?: never;
+        /** Create Provider */
+        post: operations["create_provider_admin_llm_providers_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/llm/providers/{provider_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update Provider */
+        patch: operations["update_provider_admin_llm_providers__provider_id__patch"];
+        trace?: never;
+    };
+    "/admin/llm/providers/{provider_id}/disabled": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Disable Provider */
+        post: operations["disable_provider_admin_llm_providers__provider_id__disabled_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/llm/providers/{provider_id}/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Test Provider
+         * @description Reachability, authentication and the models on offer (``GET {base_url}/models``).
+         */
+        post: operations["test_provider_admin_llm_providers__provider_id__test_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/llm/revisions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Revisions */
+        get: operations["get_revisions_admin_llm_revisions_get"];
+        put?: never;
+        /** Create Draft */
+        post: operations["create_draft_admin_llm_revisions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/llm/revisions/{number}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Revision */
+        get: operations["get_revision_admin_llm_revisions__number__get"];
+        put?: never;
+        post?: never;
+        /** Delete Draft */
+        delete: operations["delete_draft_admin_llm_revisions__number__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/llm/revisions/{number}/activate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Activate */
+        post: operations["activate_admin_llm_revisions__number__activate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/llm/revisions/{number}/rollback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Rollback */
+        post: operations["rollback_admin_llm_revisions__number__rollback_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/llm/revisions/{number}/routing": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Set Routing */
+        put: operations["set_routing_admin_llm_revisions__number__routing_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/llm/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Status */
+        get: operations["get_status_admin_llm_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/users/{user_id}/unlock": {
         parameters: {
             query?: never;
@@ -835,6 +1084,19 @@ export interface components {
             /** Wiki Url */
             wiki_url: string;
         };
+        /** ConnectionOut */
+        ConnectionOut: {
+            /** Error */
+            error?: string | null;
+            /** Latency Ms */
+            latency_ms?: number | null;
+            /** Models */
+            models?: string[];
+            /** Ok */
+            ok: boolean;
+            /** Status */
+            status?: number | null;
+        };
         /**
          * ConsentAction
          * @enum {string}
@@ -942,6 +1204,18 @@ export interface components {
          * @enum {string}
          */
         DerivativeStatus: "PENDING" | "PROCESSING" | "DONE" | "FAILED" | "QUARANTINED";
+        /** DisableIn */
+        DisableIn: {
+            /** Disabled */
+            disabled: boolean;
+        };
+        /** DraftIn */
+        DraftIn: {
+            /** Based On */
+            based_on?: number | null;
+            /** Comment */
+            comment?: string | null;
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -1004,6 +1278,28 @@ export interface components {
             /** Url */
             url: string;
         };
+        /**
+         * LlmCapability
+         * @enum {string}
+         */
+        LlmCapability: "CHAT" | "VLM" | "EMBED";
+        /**
+         * LlmProviderKind
+         * @description Derived from the endpoint allowlist the base URL matched (7.1), never chosen freely.
+         * @enum {string}
+         */
+        LlmProviderKind: "LOCAL" | "CLOUD";
+        /**
+         * LlmRevisionStatus
+         * @enum {string}
+         */
+        LlmRevisionStatus: "DRAFT" | "ACTIVE" | "ARCHIVED";
+        /**
+         * LlmRoutePurpose
+         * @description Purposes an admin can assign a model to (``llm.gateway.LLMPurpose`` minus the playground).
+         * @enum {string}
+         */
+        LlmRoutePurpose: "PII_SCRUB" | "PRIVATE_NOTE" | "PROMOTION" | "VLM" | "EMBED" | "RAG";
         /** LogoutResponse */
         LogoutResponse: {
             /** Logout Url */
@@ -1024,6 +1320,72 @@ export interface components {
             mfa_satisfied: boolean;
             /** Roles */
             roles: components["schemas"]["Role"][];
+        };
+        /** ModelIn */
+        ModelIn: {
+            capability: components["schemas"]["LlmCapability"];
+            /** Embed Dimension */
+            embed_dimension?: number | null;
+            /** Max Tokens */
+            max_tokens?: number | null;
+            /** Model Name */
+            model_name: string;
+            /** Notes */
+            notes?: string | null;
+            /**
+             * Provider Id
+             * Format: uuid
+             */
+            provider_id: string;
+            /** Temperature */
+            temperature?: number | null;
+        };
+        /** ModelOut */
+        ModelOut: {
+            capability: components["schemas"]["LlmCapability"];
+            /** Disabled */
+            disabled: boolean;
+            /** Embed Dimension */
+            embed_dimension: number | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** In Active */
+            in_active: boolean;
+            /** Last Probe At */
+            last_probe_at: string | null;
+            /** Last Probe Ok */
+            last_probe_ok: boolean | null;
+            /** Last Probe Report */
+            last_probe_report: {
+                [key: string]: unknown;
+            } | null;
+            /** Max Tokens */
+            max_tokens: number | null;
+            /** Model Name */
+            model_name: string;
+            /** Notes */
+            notes: string | null;
+            /**
+             * Provider Id
+             * Format: uuid
+             */
+            provider_id: string;
+            /** Temperature */
+            temperature: number | null;
+        };
+        /** ModelPatch */
+        ModelPatch: {
+            /** Embed Dimension */
+            embed_dimension?: number | null;
+            /** Max Tokens */
+            max_tokens?: number | null;
+            /** Notes */
+            notes?: string | null;
+            /** Temperature */
+            temperature?: number | null;
         };
         /**
          * NoteAnswer
@@ -1122,6 +1484,14 @@ export interface components {
             /** Title */
             title?: string | null;
         };
+        /** ProbeOut */
+        ProbeOut: {
+            model: components["schemas"]["ModelOut"];
+            /** Report */
+            report: {
+                [key: string]: unknown;
+            };
+        };
         /** PromoteIn */
         PromoteIn: {
             /** Attachment Derivative Ids */
@@ -1181,6 +1551,91 @@ export interface components {
          * @enum {string}
          */
         PromotionStatus: "PENDING" | "RUNNING" | "DONE" | "FAILED";
+        /** ProviderIn */
+        ProviderIn: {
+            /** Api Key */
+            api_key?: string | null;
+            /** Base Url */
+            base_url: string;
+            /**
+             * Litellm Provider
+             * @default openai
+             */
+            litellm_provider: string;
+            /** Name */
+            name: string;
+            /** Structured Output */
+            structured_output?: ("json_schema" | "prompt") | null;
+            /** Timeout Seconds */
+            timeout_seconds?: number | null;
+        };
+        /** ProviderOut */
+        ProviderOut: {
+            /** Allowed */
+            allowed: boolean;
+            /** Base Url */
+            base_url: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Disabled */
+            disabled: boolean;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** In Active */
+            in_active: boolean;
+            /** Inherit Env Key */
+            inherit_env_key: boolean;
+            /** Key Hint */
+            key_hint: string | null;
+            /** Key Set */
+            key_set: boolean;
+            kind: components["schemas"]["LlmProviderKind"];
+            /** Litellm Provider */
+            litellm_provider: string;
+            /** Name */
+            name: string;
+            /** Structured Output */
+            structured_output: string | null;
+            /** Timeout Seconds */
+            timeout_seconds: number | null;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /**
+         * ProviderPatch
+         * @description Only the fields that are set change. ``clear_api_key`` removes the stored key.
+         */
+        ProviderPatch: {
+            /** Api Key */
+            api_key?: string | null;
+            /** Base Url */
+            base_url?: string | null;
+            /**
+             * Clear Api Key
+             * @default false
+             */
+            clear_api_key: boolean;
+            /** Structured Output */
+            structured_output?: ("json_schema" | "prompt") | null;
+            /** Timeout Seconds */
+            timeout_seconds?: number | null;
+        };
+        /** PurposeOut */
+        PurposeOut: {
+            capability: components["schemas"]["LlmCapability"];
+            /** Local Only */
+            local_only: boolean;
+            purpose: components["schemas"]["LlmRoutePurpose"];
+        };
         /** QueueItemOut */
         QueueItemOut: {
             /** Approvals */
@@ -1274,6 +1729,37 @@ export interface components {
             /** Version */
             version: number;
         };
+        /** RevisionOut */
+        RevisionOut: {
+            /** Activated At */
+            activated_at: string | null;
+            /** Activated By */
+            activated_by: string | null;
+            /** Based On */
+            based_on: number | null;
+            /** Comment */
+            comment: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Created By */
+            created_by: string | null;
+            /** Number */
+            number: number;
+            /** Rolled Back From */
+            rolled_back_from: number | null;
+            /** Routes */
+            routes: {
+                [key: string]: components["schemas"]["RouteOut"];
+            } | null;
+            /** Routing */
+            routing: {
+                [key: string]: string;
+            };
+            status: components["schemas"]["LlmRevisionStatus"];
+        };
         /** RevokeIn */
         RevokeIn: {
             /** Article Ids */
@@ -1289,6 +1775,31 @@ export interface components {
          * @enum {string}
          */
         Role: "MEMBER" | "EXPERT" | "ADMIN";
+        /** RollbackIn */
+        RollbackIn: {
+            /** Comment */
+            comment?: string | null;
+        };
+        /** RouteOut */
+        RouteOut: {
+            kind: components["schemas"]["LlmProviderKind"];
+            /**
+             * Model Id
+             * Format: uuid
+             */
+            model_id: string;
+            /** Name */
+            name: string;
+        };
+        /** RoutingIn */
+        RoutingIn: {
+            /** Comment */
+            comment?: string | null;
+            /** Routes */
+            routes: {
+                [key: string]: string | null;
+            };
+        };
         /** ScanIn */
         ScanIn: {
             /** Text */
@@ -1310,6 +1821,29 @@ export interface components {
         ScopeIn: {
             /** Article Ids */
             article_ids?: string[] | null;
+        };
+        /** StatusOut */
+        StatusOut: {
+            /** Active Revision */
+            active_revision: number | null;
+            /** Allow Cloud */
+            allow_cloud: boolean;
+            /** Cloud Hosts */
+            cloud_hosts: string[];
+            /** Config Source */
+            config_source: string;
+            /** Egress Proxy */
+            egress_proxy: boolean;
+            /** Local Endpoints */
+            local_endpoints: string[];
+            /** Probe Max Age Hours */
+            probe_max_age_hours: number;
+            /** Process Revision */
+            process_revision: number;
+            /** Purposes */
+            purposes: components["schemas"]["PurposeOut"][];
+            /** Vector Size */
+            vector_size: number;
         };
         /** StoredCanaryOut */
         StoredCanaryOut: {
@@ -1620,6 +2154,548 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_models_admin_llm_models_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelOut"][];
+                };
+            };
+        };
+    };
+    create_model_admin_llm_models_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ModelIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_model_admin_llm_models__model_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                model_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ModelPatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    disable_model_admin_llm_models__model_id__disabled_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                model_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DisableIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    probe_admin_llm_models__model_id__probe_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                model_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProbeOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_providers_admin_llm_providers_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProviderOut"][];
+                };
+            };
+        };
+    };
+    create_provider_admin_llm_providers_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProviderIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProviderOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_provider_admin_llm_providers__provider_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                provider_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProviderPatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProviderOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    disable_provider_admin_llm_providers__provider_id__disabled_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                provider_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DisableIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProviderOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    test_provider_admin_llm_providers__provider_id__test_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                provider_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConnectionOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_revisions_admin_llm_revisions_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RevisionOut"][];
+                };
+            };
+        };
+    };
+    create_draft_admin_llm_revisions_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DraftIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RevisionOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_revision_admin_llm_revisions__number__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                number: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RevisionOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_draft_admin_llm_revisions__number__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                number: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    activate_admin_llm_revisions__number__activate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                number: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RevisionOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    rollback_admin_llm_revisions__number__rollback_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                number: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RollbackIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RevisionOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    set_routing_admin_llm_revisions__number__routing_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                number: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RoutingIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RevisionOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_status_admin_llm_status_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StatusOut"];
                 };
             };
         };

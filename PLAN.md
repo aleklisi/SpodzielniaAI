@@ -210,7 +210,7 @@ Rejestr historyjek dodanych poza Etapami 1–6: [docs/USER_STORIES_LOG.md](docs/
 - [x] 7.1 Model danych konfiguracji LLM (dostawcy, modele, rewizje, przypisania do celów), szyfrowanie kluczy API, triggery lokalności, seed z `.env`
 - [x] 7.2 `LlmConfigStore` i bramka LLM z przeładowaniem bez restartu (api i workery), env jako górny limit polityki
 - [x] 7.3 Kontrolowany ruch wychodzący do modeli chmurowych (proxy `llm-egress` z allowlistą hostów)
-- [ ] 7.4 API administratora `/admin/llm` (CRUD, test połączenia, sondy modeli, rewizje, aktywacja, rollback, audyt, metryki)
+- [x] 7.4 API administratora `/admin/llm` (CRUD, test połączenia, sondy modeli, rewizje, aktywacja, rollback, audyt, metryki)
 - [ ] 7.5 Playground i porównanie modeli (bez retrievalu, syntetyczne zestawy promptów, limit zapytań)
 - [ ] 7.6 Interfejs `/admin/llm` (Dostawcy, Modele, Przypisania, Playground, Historia)
 - [ ] 7.7 Testy E2E Playwright, aktualizacja przeglądu bezpieczeństwa i dokumentacji

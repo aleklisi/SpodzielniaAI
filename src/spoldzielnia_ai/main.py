@@ -13,6 +13,7 @@ from pydantic import BaseModel
 from redis.asyncio import Redis
 
 from spoldzielnia_ai.api.admin import router as admin_router
+from spoldzielnia_ai.api.admin_llm import router as admin_llm_router
 from spoldzielnia_ai.api.attachments import router as attachments_router
 from spoldzielnia_ai.api.auth import router as auth_router
 from spoldzielnia_ai.api.contributions import router as contributions_router
@@ -139,6 +140,7 @@ def create_app(
     app.include_router(wiki_router)
     app.include_router(reviews_router)
     app.include_router(admin_router)
+    app.include_router(admin_llm_router)
 
     @app.get("/healthz", response_model=HealthResponse, tags=["ops"])
     async def healthz() -> HealthResponse:  # pyright: ignore[reportUnusedFunction]
