@@ -219,7 +219,7 @@ Each one is resolved (✅ = decision baked into the chunk plans) or needs your i
 ### Stage 7 — Admin-configurable LLM models (beyond the original plan, [US-01](../USER_STORIES_LOG.md#us-01))
 - [x] 7.1 LLM config data model, encrypted keys, locality triggers, seed from env
 - [x] 7.2 `LlmConfigStore` & hot-reloading gateway (env as policy ceiling)
-- [ ] 7.3 Cloud egress proxy (`llm-egress`, host allowlist)
+- [x] 7.3 Cloud egress proxy (`llm-egress`, host allowlist)
 - [ ] 7.4 Admin API `/admin/llm` (CRUD, tests, probes, revisions, audit, metrics)
 - [ ] 7.5 Playground & model comparison
 - [ ] 7.6 Frontend `/admin/llm`

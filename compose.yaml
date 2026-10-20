@@ -35,6 +35,10 @@ x-llm-env: &llm-env
   SPOLDZIELNIA_LLM__VLM_MODEL: ${LLM_VLM_MODEL:-}
   SPOLDZIELNIA_LLM__EMBED_MODEL: ${LLM_EMBED_MODEL:-}
   SPOLDZIELNIA_LLM__STRUCTURED_OUTPUT: ${LLM_STRUCTURED_OUTPUT:-json_schema}
+  # Stage 7: the ceiling for the admin's model configuration (same in every process).
+  SPOLDZIELNIA_LLM__ALLOW_CLOUD: ${LLM_ALLOW_CLOUD:-false}
+  SPOLDZIELNIA_LLM__LOCAL_ENDPOINTS: ${LLM_LOCAL_ENDPOINTS:-[]}
+  SPOLDZIELNIA_LLM__CLOUD_HOSTS: ${LLM_CLOUD_HOSTS:-[]}
 
 # Qdrant over internal TLS (4.1). The vector size must match LLM_EMBED_MODEL's dimension.
 x-qdrant-env: &qdrant-env
@@ -62,7 +66,12 @@ networks:
     driver: bridge
     internal: true
     ipam: { config: [{ subnet: 172.30.2.0/24 }] }
-  # Controlled egress: ClamAV signature updates, worker-egress (Stage 2).
+  # api <-> llm-egress only (7.3). No internet; workers are not on it.
+  llm-cloud:
+    driver: bridge
+    internal: true
+    ipam: { config: [{ subnet: 172.30.4.0/24 }] }
+  # Controlled egress: ClamAV signature updates, worker-egress (Stage 2), llm-egress (7.3).
   egress:
     driver: bridge
     ipam: { config: [{ subnet: 172.30.3.0/24 }] }
@@ -292,7 +301,7 @@ services:
     # Upload spool: up to ~2x the file size per upload, `uploads.max_concurrent` (2) at a time.
     tmpfs: ["/tmp:size=1g"]
     restart: unless-stopped
-    networks: [edge, backend]
+    networks: [edge, backend, llm-cloud]
     depends_on:
       migrate: { condition: service_completed_successfully }
       bootstrap: { condition: service_completed_successfully }
@@ -303,6 +312,8 @@ services:
     environment:
       # LLM: question embeddings and answer synthesis (Stage 5).
       <<: [*app-env, *qdrant-env, *llm-env]
+      # Cloud LLM APIs only through the CONNECT proxy (7.3); the api has no internet route.
+      SPOLDZIELNIA_LLM__EGRESS_PROXY_URL: http://llm-egress:3128
       # Trust X-Forwarded-* only from the proxy's network.
       SPOLDZIELNIA_FORWARDED_ALLOW_IPS: 172.30.1.0/24
       SPOLDZIELNIA_SECURITY__ALLOWED_ORIGINS: '["https://${SITE_DOMAIN:-spoldzielnia.localhost}"]'
@@ -372,6 +383,23 @@ services:
     secrets: *worker-secrets
     healthcheck:
       disable: true
+
+  # The only way out to cloud LLM APIs (7.3): CONNECT to LLM_CLOUD_HOSTS on :443, public
+  # addresses only. Holds no secrets (TLS is end to end).
+  llm-egress:
+    <<: [*hardening, *backend-image]
+    command: ["llm-egress"]
+    restart: unless-stopped
+    networks: [llm-cloud, egress]
+    tmpfs: ["/tmp:size=16m"]
+    mem_limit: 256m
+    environment:
+      <<: [*app-env, *llm-env]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket; socket.create_connection(('127.0.0.1', 3128), 2).close()"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
 
   # Local LLM behind the standard OpenAI API on :11434/v1 (chunk 3.4). Prod: Ollama on `backend`
   # (GPU via compose.gpu.yaml). Dev: a relay to LM Studio/Ollama on the host (compose.dev.yaml).

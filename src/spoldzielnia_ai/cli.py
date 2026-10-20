@@ -11,6 +11,7 @@ Subcommands:
     bootstrap  create the storage bucket (1.2b) and the Qdrant collections (4.1)
     honeypot   inject, list or trace canary blocks (5.4): `docker compose run --rm api honeypot …`
     openapi    write the API's OpenAPI schema (frontend type generation, 6.1)
+    llm-egress run the CONNECT-only forward proxy to allowlisted cloud LLM APIs (7.3)
 """
 
 from __future__ import annotations
@@ -135,6 +136,33 @@ def _cmd_reindex(args: argparse.Namespace) -> int:
     configure_logging(settings.log_level, json=settings.environment != "dev")
     report = asyncio.run(run_reindex(settings))
     return 0 if report.failed == 0 else 1
+
+
+def _cmd_llm_egress(_args: argparse.Namespace) -> int:
+    import asyncio
+
+    from spoldzielnia_ai.core.settings import LlmEgressSettings
+    from spoldzielnia_ai.llm.endpoints import allowed_endpoints
+    from spoldzielnia_ai.net.connect_proxy import ConnectProxy
+
+    settings = LlmEgressSettings()  # pyright: ignore[reportCallIssue]  # env/secrets
+    configure_logging(settings.log_level, json=settings.environment != "dev")
+    _, cloud_hosts = allowed_endpoints(settings.llm)
+    proxy = ConnectProxy(
+        frozenset(cloud_hosts),
+        header_timeout=settings.header_timeout_seconds,
+        connect_timeout=settings.connect_timeout_seconds,
+        idle_timeout=settings.idle_timeout_seconds,
+        max_connections=settings.max_connections,
+    )
+
+    async def run() -> None:
+        server = await proxy.serve(settings.listen_host, settings.listen_port)
+        async with server:
+            await server.serve_forever()
+
+    asyncio.run(run())
+    return 0
 
 
 def _cmd_models(args: argparse.Namespace) -> int:
@@ -273,6 +301,9 @@ def build_parser() -> argparse.ArgumentParser:
     honeypot.add_argument("--count", default=5, type=int, help="canaries to inject (1-20)")
     honeypot.add_argument("--file", default="-", help="text to scan (default: stdin)")
     honeypot.set_defaults(handler=_cmd_honeypot)
+
+    egress = sub.add_parser("llm-egress", help="run the forward proxy for cloud LLM APIs")
+    egress.set_defaults(handler=_cmd_llm_egress)
 
     openapi = sub.add_parser("openapi", help="write the OpenAPI schema (JSON)")
     openapi.add_argument("--out", default="-", help="file to write (default: stdout)")

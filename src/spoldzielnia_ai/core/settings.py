@@ -521,6 +521,18 @@ class BeatSettings(_BaseSettings):
     schedule_file: str = "/tmp/celerybeat-schedule"  # noqa: S108 # nosec B108 - tmpfs in the container
 
 
+class LlmEgressSettings(_BaseSettings):
+    """The ``llm-egress`` forward proxy (7.3): the cloud allowlist and nothing else."""
+
+    llm: LlmSettings = Field(default_factory=LlmSettings)
+    listen_host: str = "0.0.0.0"  # noqa: S104 # nosec B104 - in-container, `backend` network
+    listen_port: int = 3128
+    header_timeout_seconds: float = Field(default=10.0, gt=0)
+    connect_timeout_seconds: float = Field(default=10.0, gt=0)
+    idle_timeout_seconds: float = Field(default=300.0, gt=0)
+    max_connections: int = Field(default=64, ge=1)
+
+
 class BootstrapSettings(_BaseSettings):
     """Settings of the one-shot ``bootstrap`` job: object storage and Qdrant collections."""
 

@@ -259,3 +259,17 @@ Metrics (`core/metrics.py`): `llm_request_seconds{deployment,purpose}`,
 - The vision engine runs each call on its own event loop (worker thread). It gets a
   `StaticConfig` of the store's last configuration, refreshed on the worker's loop before each
   derivative job.
+
+### 7.3
+- No third-party proxy image: `net/connect_proxy.py` (CONNECT only, cloud allowlist, port 443,
+  DNS resolved once and every address must be public via `safe_fetch.is_public_ip`, tunnel to
+  the validated address, limits on head size/time, connect, idle and concurrency), run as
+  `spoldzielnia llm-egress` from the backend image.
+- Network: a new internal network `llm-cloud` (api ↔ llm-egress only) plus `egress`; the proxy
+  is **not** on `backend`, so workers cannot reach it at all (smoke-checked). The prod egress
+  firewall (2.4) already covers the `egress` subnet.
+- `LLM_ALLOW_CLOUD`, `LLM_LOCAL_ENDPOINTS`, `LLM_CLOUD_HOSTS` are set for every process (same
+  classification everywhere); only the api gets `SPOLDZIELNIA_LLM__EGRESS_PROXY_URL`.
+- Smoke: the proxy refuses a host off the allowlist and `postgres:5432` (403); worker-core cannot
+  connect to it. A tunnel to an allowlisted host is covered by unit tests (real sockets, fake DNS),
+  not by the smoke test, because the dev stack allows no cloud host.

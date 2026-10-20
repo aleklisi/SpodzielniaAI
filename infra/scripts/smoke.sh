@@ -178,6 +178,16 @@ except urllib.error.HTTPError:
 check "worker-core reaches the local LLM endpoint (llm:11434)" \
   "${COMPOSE[@]}" exec -T worker-core python -c "$LLM_PY"
 check_not "worker-core has no internet access" "${COMPOSE[@]}" exec -T worker-core python -c "$OUT"
+EGRESS_PY='import socket,sys
+s = socket.create_connection(("llm-egress", 3128), 5)
+s.sendall(b"CONNECT " + sys.argv[1].encode() + b" HTTP/1.1\r\n\r\n")
+sys.exit(0 if s.recv(64).startswith(b"HTTP/1.1 " + sys.argv[2].encode()) else 1)'
+check "llm-egress refuses hosts off the cloud allowlist (403)" \
+  "${COMPOSE[@]}" exec -T api python -c "$EGRESS_PY" example.org:443 403
+check "llm-egress refuses the backend network (403)" \
+  "${COMPOSE[@]}" exec -T api python -c "$EGRESS_PY" postgres:5432 403
+check_not "worker-core cannot reach llm-egress" "${COMPOSE[@]}" exec -T worker-core python -c \
+  'import socket; socket.create_connection(("llm-egress", 3128), 3).close()'
 check "api reaches the local LLM endpoint (RAG, Stage 5)" \
   "${COMPOSE[@]}" exec -T api python -c "$LLM_PY"
 SHIELD_PY='

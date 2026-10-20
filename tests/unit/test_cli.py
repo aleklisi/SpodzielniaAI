@@ -6,7 +6,7 @@ from spoldzielnia_ai.cli import build_parser, main
 
 
 @pytest.mark.parametrize(
-    "command", ["api", "migrate", "audit-verify", "bootstrap", "beat", "reindex"]
+    "command", ["api", "migrate", "audit-verify", "bootstrap", "beat", "reindex", "llm-egress"]
 )
 def test_subcommands_registered(command: str) -> None:
     args = build_parser().parse_args([command])
