@@ -25,9 +25,10 @@ from spoldzielnia_ai.auth.deps import (
     elevated_router,
     get_user_directory,
     get_user_provisioner,
+    is_mfa_satisfied,
 )
 from spoldzielnia_ai.auth.provisioning import ProvisionedUser
-from spoldzielnia_ai.auth.sessions import SessionStore
+from spoldzielnia_ai.auth.sessions import SessionData, SessionStore
 from spoldzielnia_ai.auth.users import UserRecord
 from spoldzielnia_ai.db.enums import Role
 from spoldzielnia_ai.main import create_app
@@ -480,6 +481,21 @@ async def test_mfa_via_acr_is_accepted(client: AsyncClient, idp: FakeIdP) -> Non
     )
     await client.get("/auth/callback", params={"state": params["state"][0], "code": "c"})
     assert (await client.get("/test/expert")).status_code == 200
+
+
+def test_mfa_switched_off_satisfies_every_session(settings: Settings) -> None:
+    session = SessionData(
+        user_id=uuid4(),
+        family_id="f",
+        acr=None,
+        amr=["pwd"],
+        auth_time=None,
+        created_at=0,
+        expires_at=1,
+    )
+    assert is_mfa_satisfied(session, settings.security) is False
+    relaxed = settings.security.model_copy(update={"mfa_required": False})
+    assert is_mfa_satisfied(session, relaxed) is True
 
 
 def test_elevated_router_refuses_member_role() -> None:

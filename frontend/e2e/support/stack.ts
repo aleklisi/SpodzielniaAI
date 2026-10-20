@@ -39,13 +39,20 @@ async function freshCode(): Promise<string> {
 
 export const OTP_USERS = new Set(["expert1", "admin1"]);
 
+async function otpRequested(page: Page): Promise<boolean> {
+  const otp = page.locator("#otp");
+  await Promise.race([otp.waitFor(), page.waitForURL((url) => url.origin === SITE)]);
+  return otp.isVisible();
+}
+
 /** Log `user` in through the real OIDC flow and land on `path`. */
 export async function login(page: Page, user: string, path = "/"): Promise<Page> {
   await page.goto(`/api/auth/login?return_to=${encodeURIComponent(path)}`);
   await page.fill("#username", user);
   await page.fill("#password", secret("dev_user_password"));
   await page.click("#kc-login");
-  if (OTP_USERS.has(user)) {
+  // With `make mfa-off` Keycloak skips the OTP step and goes straight back to the site.
+  if (OTP_USERS.has(user) && (await otpRequested(page))) {
     await page.fill("#otp", await freshCode());
     await page.click("#kc-login");
   }

@@ -123,6 +123,8 @@ async def current_session(request: Request) -> SessionData:
 
 def is_mfa_satisfied(session: SessionData, security: SecuritySettings) -> bool:
     """MFA as asserted by the IdP: an MFA ``acr`` or a second-factor ``amr`` method."""
+    if not security.mfa_required:
+        return True
     if session.acr is not None and session.acr in security.mfa_acr_values:
         return True
     return bool(set(session.amr) & set(security.mfa_amr_values))

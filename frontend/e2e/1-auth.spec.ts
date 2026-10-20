@@ -13,6 +13,8 @@ test("a member is kept out of the review panel, in the UI and the API", async ({
 
 test("an expert who logged in without a second factor is sent to step up", async ({ page }) => {
   await login(page, "expert2", "/review");
+  const me = await (await apiCall(page, "GET", "/me")).json();
+  test.skip(me.mfa_satisfied, "MFA is switched off (make mfa-off)");
   await expect(page.getByRole("heading", { name: "Potwierdź swoją tożsamość" })).toBeVisible();
   const link = page.getByRole("link", { name: "Zaloguj ponownie z MFA" });
   await expect(link).toHaveAttribute("href", /\/api\/auth\/login\?prompt=login.*acr_values=/);

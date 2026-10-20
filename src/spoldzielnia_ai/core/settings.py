@@ -400,6 +400,8 @@ class SecuritySettings(BaseModel):
     session_absolute_ttl_seconds: int = Field(default=12 * 60 * 60, ge=300)
     mfa_acr_values: list[str] = Field(default_factory=lambda: ["mfa"])
     mfa_amr_values: list[str] = Field(default_factory=lambda: ["otp", "mfa", "hwk", "fido"])
+    # Dev/test only (`make mfa-off`): treat every session as MFA-satisfied. Refused in prod.
+    mfa_required: bool = True
     # Waiting for another request's refresh of the same token family.
     refresh_lock_timeout_seconds: float = Field(default=10.0, gt=0)
 
@@ -462,6 +464,8 @@ class Settings(_BaseSettings):
     def _require_runtime_secrets(self) -> Self:
         if self.db.app_password is None:
             raise ValueError("db.app_password is required")
+        if self.environment == "prod" and not self.security.mfa_required:
+            raise ValueError("security.mfa_required cannot be disabled in prod")
         return self
 
 

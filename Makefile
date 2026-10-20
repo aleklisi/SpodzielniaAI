@@ -8,7 +8,7 @@ help: ## Show targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  %-12s %s\n", $$1, $$2}'
 
 # --- Stack -------------------------------------------------------------------
-.PHONY: secrets build up watch down reset logs ps smoke audit e2e trust-cert migrate revision models models-host reindex
+.PHONY: secrets build up watch down reset logs ps smoke audit e2e trust-cert mfa-off mfa-on migrate revision models models-host reindex
 secrets: ## Generate Docker secrets + dev TLS certs into ./secrets (idempotent)
 	@infra/scripts/init-secrets.sh
 
@@ -52,6 +52,12 @@ smoke: ## Stack smoke test (HTTPS, IdP, hardening, ports, isolation)
 trust-cert: ## Trust Caddy's local root CA in the macOS login keychain (asks for your password)
 	$(COMPOSE) cp proxy:/data/caddy/pki/authorities/local/root.crt ./secrets/tls/caddy-root.crt
 	security add-trusted-cert -r trustRoot -k "$$HOME/Library/Keychains/login.keychain-db" ./secrets/tls/caddy-root.crt
+
+mfa-off: ## Dev only: log in without TOTP; the API stops requiring MFA (`make mfa-on` reverts)
+	@COMPOSE="$(COMPOSE)" infra/scripts/dev-mfa.sh off
+
+mfa-on: ## Restore TOTP at login and MFA for experts/admins
+	@COMPOSE="$(COMPOSE)" infra/scripts/dev-mfa.sh on
 
 down: ## Stop the stack (keeps volumes)
 	$(COMPOSE) --profile tools down

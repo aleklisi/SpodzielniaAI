@@ -108,6 +108,11 @@ send `X-CSRF-Token: <__Host-csrf>` from an allowed `Origin`. `GET /api/me` retur
 Dev users: `member1`, `member2` (password), `expert1`, `admin1` (password + TOTP). The password is
 in `secrets/dev_user_password`, the TOTP seed in `secrets/dev_totp_seed`.
 
+To work without TOTP in development, run `make mfa-off`: Keycloak skips the OTP step and the API
+treats every session as MFA-satisfied (`MFA_REQUIRED=false` in `.env`, rebuilds `api`). `make
+mfa-on` restores both. Log in again after switching. The API refuses to start with MFA off when
+`SPOLDZIELNIA_ENVIRONMENT=prod`. While MFA is off, the E2E step-up scenario is skipped.
+
 ## Private notebook & media pipeline (Stage 2)
 
 Notes, attachments and derivatives are encrypted per row (envelope encryption, KEK = Docker

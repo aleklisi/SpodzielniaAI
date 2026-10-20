@@ -85,6 +85,29 @@ def test_env_configures_non_secret_values(monkeypatch: pytest.MonkeyPatch, tmp_p
     assert loaded.environment == "dev"
 
 
+@pytest.mark.parametrize("environment", ["dev", "test"])
+def test_mfa_can_be_switched_off_outside_prod(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, environment: str
+) -> None:
+    for key, value in REQUIRED_ENV.items():
+        monkeypatch.setenv(key, value)
+    monkeypatch.setenv("SPOLDZIELNIA_ENVIRONMENT", environment)
+    monkeypatch.setenv("SPOLDZIELNIA_SECURITY__MFA_REQUIRED", "false")
+
+    assert _load(tmp_path).security.mfa_required is False
+
+
+def test_mfa_cannot_be_switched_off_in_prod(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    for key, value in REQUIRED_ENV.items():
+        monkeypatch.setenv(key, value)
+    monkeypatch.setenv("SPOLDZIELNIA_SECURITY__MFA_REQUIRED", "false")
+
+    with pytest.raises(ValidationError, match="mfa_required"):
+        _load(tmp_path)
+
+
 def test_defaults_use_compose_service_names(settings: Settings) -> None:
     assert settings.db.host == "postgres"
     assert settings.redis.host == "redis"
