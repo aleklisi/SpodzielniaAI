@@ -142,6 +142,29 @@ If the server requires a token (LM Studio), paste it into `secrets/llm_api_key`.
 never goes to a cloud model: without a local model, promotion and image descriptions fail with
 `LocalModelUnavailable` / `vision_unavailable`.
 
+### Choosing models in the admin console (Stage 7)
+
+`/admin/llm` (ADMIN with MFA) manages providers, models and which model serves each purpose.
+On the first visit the `.env` models above are imported as revision 1; from then on the
+**active revision in the database is authoritative** and every process picks up a change
+without a restart. Changes go into a draft, models that take over a purpose must pass a probe,
+and any earlier revision can be restored.
+
+`.env` stays the ceiling: admins can only choose from what it allows.
+
+```bash
+LLM_LOCAL_ENDPOINTS=["http://vllm:8000"]  # extra local OpenAI-compatible servers (origins)
+LLM_ALLOW_CLOUD=false                     # true: the cooperative chat (RAG) may use a cloud model
+LLM_CLOUD_HOSTS=["api.openai.com"]        # https hosts admins may configure
+# SPOLDZIELNIA_LLM__CONFIG_SOURCE=env     # emergency: ignore the database and use .env only
+```
+
+Private-data purposes (notes, promotion, PII scrubbing, images, embeddings) can only use local
+models, which is enforced by the UI, the API, database triggers and the gateway. Cloud calls go
+out through the `llm-egress` proxy (CONNECT to `LLM_CLOUD_HOSTS` only); the api has no other
+route to the internet. Changing the embedding model is not possible from the console (it needs
+`make reindex`).
+
 ## Test markers
 
 `integration` (Docker services), `ml` (heavy models), `e2e` (running stack). Run a subset with

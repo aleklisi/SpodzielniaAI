@@ -315,3 +315,23 @@ Metrics (`core/metrics.py`): `llm_request_seconds{deployment,purpose}`,
 - **Rule change found while building the UI:** activation now requires a fresh probe only for
   models that take over a purpose. The dev stack's embedding model fails the separation check
   (the open 6.7 item), and with the original rule it blocked every other change.
+
+### 7.7
+- Playwright `e2e/9-llm-config.spec.ts` against the dev stack and its real local model: a member
+  gets "Brak dostępu" and 403s; the admin adds a provider on the local endpoint (with the LM Studio
+  token), adds the same chat model at temperature 0, probes it for real (LM Studio + Bielik:
+  `json_schema` rejected with 400, prompt mode recommended, Polish answer ✓), routes RAG to it in
+  a draft, activates, sees `process_revision == active_revision` (no restart), and restores the
+  starting revision from the history. E2E providers are disabled at the end (they stay in history).
+- `docs/SECURITY_REVIEW.md`: API5, API7, LLM02, LLM06 and LLM10 extended, Stage 7 notes (cloud and
+  creator consent, tamper resistance, what probes and the playground store). README: the console,
+  `.env` as the ceiling, `LLM_LOCAL_ENDPOINTS` / `LLM_ALLOW_CLOUD` / `LLM_CLOUD_HOSTS`,
+  `SPOLDZIELNIA_LLM__CONFIG_SOURCE=env` for emergencies.
+- E2E note: two admin logins within the same 30-second TOTP window fail (Keycloak refuses a used
+  code; the helper remembers used windows per process only). Leave a minute between separate
+  `playwright test` runs that log in as admin1. Repeated chat runs on the same day also raise
+  member1's shield risk until `/rag/ask` demands proof of work (E2E 5 and
+  `test_rag_ask_through_the_stack` then get 401); reset it with the seed action `reset_shield`.
+- Final gate (2026-10-20): ruff, pyright, lint-imports, 1039 Python tests, 96 Vitest, E2E 13
+  passed. Still open, from 6.7 and unrelated to Stage 7: the stack's embedding model fails the
+  smoke separation check, so E2E 4 is skipped.

@@ -213,4 +213,4 @@ Rejestr historyjek dodanych poza Etapami 1–6: [docs/USER_STORIES_LOG.md](docs/
 - [x] 7.4 API administratora `/admin/llm` (CRUD, test połączenia, sondy modeli, rewizje, aktywacja, rollback, audyt, metryki)
 - [x] 7.5 Playground i porównanie modeli (bez retrievalu, syntetyczne zestawy promptów, limit zapytań)
 - [x] 7.6 Interfejs `/admin/llm` (Dostawcy, Modele, Przypisania, Playground, Historia)
-- [ ] 7.7 Testy E2E Playwright, aktualizacja przeglądu bezpieczeństwa i dokumentacji
+- [x] 7.7 Testy E2E Playwright, aktualizacja przeglądu bezpieczeństwa i dokumentacji

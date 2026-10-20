@@ -15,7 +15,7 @@ committed, add the commit hash to the story's *Delivery* list.
 
 | ID | Story | Status | Plan | Added |
 |----|-------|--------|------|-------|
-| [US-01](#us-01) | Administrator configures LLM models (local / cloud) in the UI and tests them | IN PROGRESS | [07_LLM_MODEL_CONFIG.md](implementation/07_LLM_MODEL_CONFIG.md) · Etap 7 | 2026-10-20 |
+| [US-01](#us-01) | Administrator configures LLM models (local / cloud) in the UI and tests them | DONE | [07_LLM_MODEL_CONFIG.md](implementation/07_LLM_MODEL_CONFIG.md) · Etap 7 | 2026-10-20 |
 
 ---
 
@@ -26,8 +26,8 @@ I can decide whether to use locally hosted or cloud models and test different mo
 way to change the configuration.
 
 - **Source:** product owner request, 2026-10-20.
-- **Status:** IN PROGRESS (Etap 7, chunks 7.1–7.7), started 2026-10-20 on request while 6.7
-  and 6.8 are still open.
+- **Status:** DONE 2026-10-20 (Etap 7, chunks 7.1–7.7). Implemented on request while 6.7 and
+  6.8 are still open.
 - **Plan:** [docs/implementation/07_LLM_MODEL_CONFIG.md](implementation/07_LLM_MODEL_CONFIG.md)
 - **Acceptance criteria:**
   1. An admin (with MFA) can add, edit, test and disable local and cloud model providers in
@@ -45,7 +45,13 @@ way to change the configuration.
 - **Out of scope / follow-ups:** live switching of the embedding model (needs re-embedding of the
   index, candidate US-02); per-user model choice; cost reporting.
 - **Delivery:**
-  - 7.1 data model, encrypted keys, locality triggers, seeding (this commit series)
+  - 7.1 data model, encrypted keys, locality triggers, seeding: `068ff49`
+  - 7.2 config store, hot reload, per-purpose gateway: `9fca464`
+  - 7.3 `llm-egress` CONNECT proxy: `6be5a4e`
+  - 7.4 `/admin/llm` API, connection tests, probes: `83e1b3f`
+  - 7.5 playground and model comparison: `5849ac2`
+  - 7.6 `/admin/llm` console: `d0173aa`
+  - 7.7 E2E scenario 9, security review, docs: the `feat(stage-7.7)` commit
 
 ---
 

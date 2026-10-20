@@ -223,7 +223,7 @@ Each one is resolved (✅ = decision baked into the chunk plans) or needs your i
 - [x] 7.4 Admin API `/admin/llm` (CRUD, tests, probes, revisions, audit, metrics)
 - [x] 7.5 Playground & model comparison
 - [x] 7.6 Frontend `/admin/llm`
-- [ ] 7.7 E2E, security review & docs
+- [x] 7.7 E2E, security review & docs
 
 ---
 
