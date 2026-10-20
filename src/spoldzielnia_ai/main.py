@@ -39,6 +39,7 @@ from spoldzielnia_ai.db.migrate import head_revision
 from spoldzielnia_ai.db.session import create_session_factory
 from spoldzielnia_ai.files.antivirus import ClamdScanner
 from spoldzielnia_ai.files.storage import S3ObjectStorage
+from spoldzielnia_ai.llm.config_store import LlmConfigStore
 from spoldzielnia_ai.llm.gateway import LiteLLMGateway
 from spoldzielnia_ai.notebook.queue import CeleryProcessingQueue
 from spoldzielnia_ai.shield.alerts import make_notifier
@@ -119,8 +120,12 @@ def create_app(
         app.state.session_factory, app.state.cipher, app.state.celery
     )
     app.state.upload_slots = asyncio.Semaphore(settings.uploads.max_concurrent)
-    # Question embeddings and answer synthesis (Stage 5). The router is built on first use.
-    app.state.llm = LiteLLMGateway(settings.llm)
+    # Question embeddings and answer synthesis (Stage 5), routed by the admin's ACTIVE LLM
+    # configuration (Stage 7, reloaded without a restart). Transports are built on first use.
+    app.state.llm_config = LlmConfigStore(
+        app.state.session_factory, app.state.cipher, settings.llm, redis
+    )
+    app.state.llm = LiteLLMGateway(settings.llm, source=app.state.llm_config)
     app.state.notifier = make_notifier(settings.shield)
     app.include_router(auth_router)
     app.include_router(me_router)

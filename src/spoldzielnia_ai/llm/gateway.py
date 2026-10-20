@@ -1,8 +1,10 @@
-"""LLM gateway (chunk 3.4): one place that decides where a prompt may go.
+"""LLM gateway (chunk 3.4, 7.2): one place that decides where a prompt may go.
 
 Endpoints speak the standard OpenAI API (LM Studio, Ollama, vLLM …), reached through
-LiteLLM's ``openai/`` provider with a configurable ``api_base``. Deployments: ``local-chat``,
-``local-vlm``, ``local-embed`` and an optional ``cloud-chat``.
+LiteLLM's ``openai/`` provider with a configurable ``api_base``. Where the deployments come from
+is a ``ConfigSource``: ``.env`` (``local-chat``, ``local-vlm``, ``local-embed`` and an optional
+``cloud-chat``) or, since Stage 7, the admin's ACTIVE revision (``llm.config_store``), which a
+process picks up without a restart. Each purpose has its own route.
 
 Routing policy (AGENTS.md §3.4):
 
@@ -12,7 +14,10 @@ Routing policy (AGENTS.md §3.4):
 - ``force_local_llm=True`` → local deployments only. If none is configured, or the call to it
   fails, ``LocalModelUnavailable`` is raised. **There is never a fallback to the cloud.**
 - The cloud is used only if ``llm.allow_cloud`` is set, for purposes outside
-  ``ALWAYS_LOCAL`` and without ``force_local_llm``.
+  ``ALWAYS_LOCAL`` and without ``force_local_llm``. The configuration source cannot widen this:
+  a route to a non-local deployment for a local-only call is refused here, whatever the
+  database says (``llm_route_refused_total``).
+- Cloud deployments go out through ``llm.egress_proxy_url`` (7.3) when it is set.
 
 Structured output: ``response_model`` (pydantic) is sent as a JSON schema, and the reply is
 validated. An invalid reply gets one corrective retry, then ``LLMOutputInvalid``. With
@@ -33,6 +38,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import time
 from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import TYPE_CHECKING, Any, Literal, Protocol, TypedDict, cast, overload
@@ -40,8 +46,11 @@ from typing import TYPE_CHECKING, Any, Literal, Protocol, TypedDict, cast, overl
 from pydantic import BaseModel, ValidationError
 
 from spoldzielnia_ai.core.logging import get_logger
+from spoldzielnia_ai.core.metrics import LLM_ERRORS, LLM_REQUEST_SECONDS, LLM_ROUTE_REFUSED
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping
+
     from spoldzielnia_ai.core.settings import LlmSettings
 
 # Before LiteLLM is imported anywhere: never download the model price map at runtime.
@@ -57,6 +66,7 @@ class LLMPurpose(StrEnum):
     VLM = "VLM"
     EMBED = "EMBED"
     RAG = "RAG"  # Stage 5: canonical (public) knowledge only
+    PLAYGROUND = "PLAYGROUND"  # 7.5: an admin's own test prompt, never retrieval or user data
 
 
 ALWAYS_LOCAL = frozenset(
@@ -149,7 +159,8 @@ class LLMGateway(Protocol):
 
 
 class ChatTransport(Protocol):
-    """What the gateway needs from LiteLLM's Router (tests substitute a fake)."""
+    """What the gateway needs from LiteLLM (tests substitute a fake). ``model`` is the
+    deployment name."""
 
     async def acompletion(self, model: str, messages: list[Any], **kwargs: Any) -> Any: ...
 
@@ -158,11 +169,39 @@ class ChatTransport(Protocol):
 
 @dataclass(frozen=True, slots=True)
 class Deployment:
+    """One model on one endpoint. ``None`` parameters fall back to ``LlmSettings``."""
+
     name: str
     model: str
     base_url: str
     api_key: str | None
     local: bool
+    temperature: float | None = None
+    max_tokens: int | None = None
+    structured_output: Literal["json_schema", "prompt"] | None = None
+    timeout_seconds: float | None = None
+    provider: str = "openai"
+
+
+@dataclass(frozen=True, slots=True)
+class ResolvedLlmConfig:
+    """What a process routes by. ``revision`` 0 is ``.env``; otherwise the ACTIVE revision."""
+
+    revision: int
+    deployments: Mapping[str, Deployment]
+    routes: Mapping[LLMPurpose, str]
+
+
+class ConfigSource(Protocol):
+    async def current(self) -> ResolvedLlmConfig: ...
+
+
+@dataclass(frozen=True, slots=True)
+class StaticConfig:
+    config: ResolvedLlmConfig
+
+    async def current(self) -> ResolvedLlmConfig:
+        return self.config
 
 
 def deployments(settings: LlmSettings) -> dict[str, Deployment]:
@@ -184,10 +223,38 @@ def deployments(settings: LlmSettings) -> dict[str, Deployment]:
     return found
 
 
-def litellm_router(settings: LlmSettings) -> ChatTransport:
-    """LiteLLM Router over the configured deployments (OpenAI-compatible, no fallbacks)."""
+def _kind_deployment(purpose: LLMPurpose) -> str:
+    if purpose == LLMPurpose.VLM:
+        return LOCAL_VLM
+    if purpose == LLMPurpose.EMBED:
+        return LOCAL_EMBED
+    return LOCAL_CHAT
+
+
+def env_config(settings: LlmSettings) -> ResolvedLlmConfig:
+    """``.env`` as before Stage 7: one local model per kind; the cloud chat model only for
+    purposes that may leave the server, and only when there is no local chat model."""
+    found = deployments(settings)
+    routes: dict[LLMPurpose, str] = {}
+    for purpose in LLMPurpose:
+        if purpose == LLMPurpose.PLAYGROUND:
+            continue
+        wanted = _kind_deployment(purpose)
+        if wanted in found:
+            routes[purpose] = wanted
+        elif wanted == LOCAL_CHAT and purpose not in ALWAYS_LOCAL and CLOUD_CHAT in found:
+            routes[purpose] = CLOUD_CHAT
+    return ResolvedLlmConfig(0, found, routes)
+
+
+_litellm_ready = False
+
+
+def _configure_litellm() -> None:
+    global _litellm_ready
+    if _litellm_ready:
+        return
     import litellm
-    from litellm.router import Router
 
     litellm.turn_off_message_logging = True
     # httpx (like the rest of the stack) instead of aiohttp.
@@ -196,19 +263,61 @@ def litellm_router(settings: LlmSettings) -> ChatTransport:
     litellm.success_callback = []
     litellm.failure_callback = []
     litellm.callbacks = []
-    model_list: list[dict[str, Any]] = [
-        {
-            "model_name": d.name,
-            "litellm_params": {
-                "model": f"openai/{d.model}",
-                "api_base": d.base_url,
-                "api_key": d.api_key or "not-needed",
-                "timeout": settings.timeout_seconds,
-            },
+    _litellm_ready = True
+
+
+class LiteLLMTransport:
+    """LiteLLM's ``acompletion``/``aembedding`` per deployment (OpenAI-compatible, one retry,
+    no fallbacks). Not LiteLLM's Router: it manages its own HTTP clients, and cloud
+    deployments need one that goes through the egress proxy (7.3)."""
+
+    def __init__(self, config: ResolvedLlmConfig, settings: LlmSettings) -> None:
+        _configure_litellm()
+        self._config = config
+        self._settings = settings
+        self._clients: dict[str, Any] = {}
+
+    def _client(self, deployment: Deployment, timeout: float) -> Any:
+        """An OpenAI SDK client over the egress proxy, for cloud deployments only."""
+        if deployment.name not in self._clients:
+            import httpx
+            from openai import AsyncOpenAI
+
+            http = httpx.AsyncClient(
+                proxy=self._settings.egress_proxy_url, trust_env=False, timeout=timeout
+            )
+            self._clients[deployment.name] = AsyncOpenAI(
+                api_key=deployment.api_key or "not-needed",
+                base_url=deployment.base_url,
+                http_client=http,
+                max_retries=1,
+                timeout=timeout,
+            )
+        return self._clients[deployment.name]
+
+    def _params(self, name: str) -> dict[str, Any]:
+        deployment = self._config.deployments[name]
+        timeout = deployment.timeout_seconds or self._settings.timeout_seconds
+        params: dict[str, Any] = {
+            "model": f"{deployment.provider}/{deployment.model}",
+            "api_base": deployment.base_url,
+            "api_key": deployment.api_key or "not-needed",
+            "timeout": timeout,
+            "max_retries": 1,
         }
-        for d in deployments(settings).values()
-    ]
-    return cast("ChatTransport", Router(model_list=model_list, num_retries=1, fallbacks=[]))  # pyright: ignore[reportArgumentType]
+        if not deployment.local and self._settings.egress_proxy_url:
+            params["client"] = self._client(deployment, timeout)
+        return params
+
+    async def acompletion(self, model: str, messages: list[Any], **kwargs: Any) -> Any:
+        import litellm
+
+        return await litellm.acompletion(messages=messages, **self._params(model), **kwargs)
+
+    async def aembedding(self, model: str, input: list[str], **kwargs: Any) -> Any:
+        import litellm
+
+        return await litellm.aembedding(input=input, **self._params(model), **kwargs)
 
 
 def _json_schema(model: type[BaseModel]) -> dict[str, Any]:
@@ -315,32 +424,63 @@ def _rejected(exc: Exception) -> bool:
 
 
 class LiteLLMGateway:
-    def __init__(self, settings: LlmSettings, transport: ChatTransport | None = None) -> None:
+    """``transport`` fixes the transport (tests); otherwise one ``LiteLLMTransport`` per
+    configuration revision is built on first use. Calls in flight finish on the transport they
+    started with; the next call after a change uses the new one."""
+
+    def __init__(
+        self,
+        settings: LlmSettings,
+        transport: ChatTransport | None = None,
+        *,
+        source: ConfigSource | None = None,
+    ) -> None:
         self._settings = settings
-        self._deployments = deployments(settings)
-        self._transport = transport
+        self._config = env_config(settings)
+        self._source: ConfigSource = source or StaticConfig(self._config)
+        self._fixed_transport = transport
+        self._transport: ChatTransport | None = transport
+        self._transport_config: ResolvedLlmConfig | None = None
+
+    @property
+    def config(self) -> ResolvedLlmConfig:
+        """The configuration of the last call (``.env`` until the first one)."""
+        return self._config
+
+    async def refresh(self) -> ResolvedLlmConfig:
+        self._config = await self._source.current()
+        return self._config
 
     def _router(self) -> ChatTransport:
-        if self._transport is None:
-            self._transport = litellm_router(self._settings)
+        if self._fixed_transport is not None:
+            return self._fixed_transport
+        if self._transport is None or self._transport_config is not self._config:
+            self._transport = LiteLLMTransport(self._config, self._settings)
+            self._transport_config = self._config
         return self._transport
 
     def route(self, purpose: LLMPurpose, force_local_llm: bool) -> Deployment:
         local_only = force_local_llm or purpose in ALWAYS_LOCAL
-        wanted = (
-            LOCAL_VLM
-            if purpose == LLMPurpose.VLM
-            else LOCAL_EMBED
-            if purpose == LLMPurpose.EMBED
-            else LOCAL_CHAT
-        )
-        if wanted in self._deployments:
-            return self._deployments[wanted]
-        if local_only:
-            raise LocalModelUnavailable(f"no local deployment for {purpose.value}")
-        if CLOUD_CHAT in self._deployments and purpose not in (LLMPurpose.VLM, LLMPurpose.EMBED):
-            return self._deployments[CLOUD_CHAT]
-        raise LLMError(f"no deployment for {purpose.value}")
+        name = self._config.routes.get(purpose)
+        deployment = self._config.deployments.get(name) if name is not None else None
+        if deployment is not None and not deployment.local and not self._settings.allow_cloud:
+            deployment = None  # the operator's ceiling (S2), whatever the configuration says
+        if deployment is not None and local_only and not deployment.local:
+            # Unreachable through the admin service and the database triggers (S1): if this
+            # fires, the configuration was tampered with. Refuse, never fall back.
+            LLM_ROUTE_REFUSED.labels(purpose=purpose.value).inc()
+            log.error(
+                "llm.route_refused",
+                purpose=purpose.value,
+                deployment=deployment.name,
+                revision=self._config.revision,
+            )
+            deployment = None
+        if deployment is None:
+            if local_only:
+                raise LocalModelUnavailable(f"no local deployment for {purpose.value}")
+            raise LLMError(f"no deployment for {purpose.value}")
+        return deployment
 
     @overload
     async def complete(
@@ -370,21 +510,31 @@ class LiteLLMGateway:
         force_local_llm: bool = False,
         response_model: type[BaseModel] | None = None,
     ) -> LLMResult[Any]:
+        await self.refresh()
         deployment = self.route(purpose, force_local_llm)
+        settings = self._settings
         kwargs: dict[str, Any] = {
-            "max_tokens": self._settings.max_tokens,
-            "temperature": self._settings.temperature,
+            "max_tokens": deployment.max_tokens or settings.max_tokens,
+            "temperature": deployment.temperature
+            if deployment.temperature is not None
+            else settings.temperature,
         }
-        if response_model is not None and self._settings.structured_output == "prompt":
+        structured = deployment.structured_output or settings.structured_output
+        if response_model is not None and structured == "prompt":
             messages = _schema_in_prompt(messages, response_model)
         elif response_model is not None:
             kwargs["response_format"] = _json_schema(response_model)
         conversation: list[Any] = list(messages)
+        router = self._router()
         for attempt in (1, 2):
+            started = time.monotonic()
             try:
-                response = await self._router().acompletion(deployment.name, conversation, **kwargs)
+                response = await router.acompletion(deployment.name, conversation, **kwargs)
             except Exception as exc:  # connection refused, timeout, 5xx …
                 rejected = _rejected(exc)
+                LLM_ERRORS.labels(
+                    deployment=deployment.name, kind="rejected" if rejected else "unavailable"
+                ).inc()
                 log.warning(
                     "llm.call_failed",
                     deployment=deployment.name,
@@ -399,6 +549,9 @@ class LiteLLMGateway:
                 if deployment.local:
                     raise LocalModelUnavailable(f"{deployment.name}: {type(exc).__name__}") from exc
                 raise LLMError(f"{deployment.name}: {type(exc).__name__}") from exc
+            LLM_REQUEST_SECONDS.labels(deployment=deployment.name, purpose=purpose.value).observe(
+                time.monotonic() - started
+            )
             content = str(response.choices[0].message.content or "")
             usage = _usage(response)
             if response_model is None:
@@ -413,6 +566,7 @@ class LiteLLMGateway:
                         content, echoed, deployment.name, deployment.model, attempt, usage
                     )
                 log.warning("llm.invalid_output", deployment=deployment.name, attempt=attempt)
+                LLM_ERRORS.labels(deployment=deployment.name, kind="invalid_output").inc()
                 conversation = [
                     *messages,
                     {"role": "assistant", "content": content},
@@ -428,11 +582,17 @@ class LiteLLMGateway:
         raise LLMOutputInvalid(f"{deployment.name}: output does not match {schema}")
 
     async def embed(self, texts: list[str], *, force_local_llm: bool = True) -> list[list[float]]:
+        await self.refresh()
         deployment = self.route(LLMPurpose.EMBED, force_local_llm)
+        started = time.monotonic()
         try:
             response = await self._router().aembedding(deployment.name, input=texts)
         except Exception as exc:
+            LLM_ERRORS.labels(deployment=deployment.name, kind="unavailable").inc()
             raise LocalModelUnavailable(f"{deployment.name}: {type(exc).__name__}") from exc
+        LLM_REQUEST_SECONDS.labels(deployment=deployment.name, purpose="EMBED").observe(
+            time.monotonic() - started
+        )
         return [list(map(float, item["embedding"])) for item in response.data]
 
 

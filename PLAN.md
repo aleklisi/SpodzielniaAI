@@ -208,7 +208,7 @@ Rejestr historyjek dodanych poza Etapami 1–6: [docs/USER_STORIES_LOG.md](docs/
 ### Etap 7: Konfiguracja modeli LLM w panelu administratora (US-01)
 *Dokumentacja: [docs/implementation/07_LLM_MODEL_CONFIG.md](docs/implementation/07_LLM_MODEL_CONFIG.md)*
 - [x] 7.1 Model danych konfiguracji LLM (dostawcy, modele, rewizje, przypisania do celów), szyfrowanie kluczy API, triggery lokalności, seed z `.env`
-- [ ] 7.2 `LlmConfigStore` i bramka LLM z przeładowaniem bez restartu (api i workery), env jako górny limit polityki
+- [x] 7.2 `LlmConfigStore` i bramka LLM z przeładowaniem bez restartu (api i workery), env jako górny limit polityki
 - [ ] 7.3 Kontrolowany ruch wychodzący do modeli chmurowych (proxy `llm-egress` z allowlistą hostów)
 - [ ] 7.4 API administratora `/admin/llm` (CRUD, test połączenia, sondy modeli, rewizje, aktywacja, rollback, audyt, metryki)
 - [ ] 7.5 Playground i porównanie modeli (bez retrievalu, syntetyczne zestawy promptów, limit zapytań)

@@ -6,10 +6,12 @@ from __future__ import annotations
 import base64
 import os
 from datetime import UTC, datetime, timedelta
+from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any
 
 import pytest
 from cryptography.exceptions import InvalidTag
+from fakeredis import FakeAsyncRedis
 from pydantic import SecretStr
 from sqlalchemy import insert, select, text, update
 from sqlalchemy.exc import DBAPIError
@@ -40,6 +42,8 @@ from spoldzielnia_ai.llm.config_service import (
     ProviderIn,
     ProviderPatch,
 )
+from spoldzielnia_ai.llm.config_store import LlmConfigStore
+from spoldzielnia_ai.llm.gateway import LiteLLMGateway, LLMPurpose
 from spoldzielnia_ai.llm.snapshot import ConfigSnapshot
 
 if TYPE_CHECKING:
@@ -59,6 +63,7 @@ ENV = LlmSettings(
     cloud_hosts=["api.example.com"],
 )
 DIM = 32
+MESSAGES: list[Any] = [{"role": "user", "content": "x"}]
 
 
 @pytest.fixture
@@ -451,3 +456,88 @@ async def test_rollback_restores_a_snapshot_as_a_new_revision(
     assert exc.value.code == "not_archived"
     with pytest.raises(ConfigError):
         await service.set_model_disabled(None, (await service.models())[0].id, True)
+
+
+# --- 7.2: the store and hot reload --------------------------------------------------------------
+
+
+class Recorder:
+    def __init__(self) -> None:
+        self.models: list[str] = []
+
+    async def acompletion(self, model: str, messages: list[Any], **kwargs: Any) -> Any:
+        self.models.append(model)
+        message = SimpleNamespace(content="ok")
+        return SimpleNamespace(choices=[SimpleNamespace(message=message)], usage=None)
+
+    async def aembedding(self, model: str, input: list[str], **kwargs: Any) -> Any:
+        return SimpleNamespace(data=[{"embedding": [0.0] * DIM} for _ in input])
+
+
+async def test_the_store_follows_activations_without_a_restart(
+    factory: SessionFactory, cipher: EnvelopeCipher
+) -> None:
+    redis = FakeAsyncRedis()
+    clock = [0.0]
+    service = LlmConfigService(factory, cipher, ENV, vector_size=DIM, redis=redis)
+    store = LlmConfigStore(factory, cipher, ENV, redis, clock=lambda: clock[0])
+    recorder = Recorder()
+    gateway = LiteLLMGateway(ENV, recorder, source=store)
+
+    await gateway.complete(MESSAGES, purpose=LLMPurpose.RAG)
+    assert gateway.config.revision == 0  # nothing seeded: .env
+    await service.ensure_seeded(None)
+    await gateway.complete(MESSAGES, purpose=LLMPurpose.RAG)  # the seed published revision 1
+    assert gateway.config.revision == 1
+    local_chat, _ = await _two_chat_models(service)
+    second = await _activate_with(service, {LlmRoutePurpose.RAG: local_chat.id})
+    await gateway.complete(MESSAGES, purpose=LLMPurpose.RAG)
+    await gateway.complete(MESSAGES, purpose=LLMPurpose.PROMOTION, force_local_llm=True)
+    assert recorder.models == [
+        "local-chat",
+        "local/bielik-11b",
+        "vllm/qwen3-32b",
+        "local/bielik-11b",
+    ]
+    assert gateway.config.revision == second
+    assert gateway.config.deployments["local/bielik-11b"].api_key == "lm-studio-token-0001"
+
+
+async def test_without_redis_the_ttl_bounds_staleness(
+    factory: SessionFactory, cipher: EnvelopeCipher
+) -> None:
+    clock = [0.0]
+    service = _service(factory, cipher)
+    await service.ensure_seeded(None)
+    store = LlmConfigStore(factory, cipher, ENV, None, clock=lambda: clock[0])
+    assert (await store.current()).revision == 1
+    local_chat, _ = await _two_chat_models(service)
+    second = await _activate_with(service, {LlmRoutePurpose.RAG: local_chat.id})
+    clock[0] += ENV.config_ttl_seconds - 1
+    assert (await store.current()).revision == 1
+    clock[0] += 1
+    assert (await store.current()).revision == second
+
+
+async def test_a_database_outage_keeps_the_last_good_configuration(
+    factory: SessionFactory, cipher: EnvelopeCipher
+) -> None:
+    clock = [0.0]
+    await _service(factory, cipher).ensure_seeded(None)
+    broken = create_session_factory(create_async_engine("postgresql+asyncpg://x:y@127.0.0.1:1/z"))
+    store = LlmConfigStore(factory, cipher, ENV, None, clock=lambda: clock[0])
+    assert (await store.current()).revision == 1
+    store._factory = broken  # pyright: ignore[reportPrivateUsage]
+    clock[0] += ENV.config_ttl_seconds
+    assert (await store.current()).revision == 1
+
+
+async def test_env_mode_ignores_the_database(
+    factory: SessionFactory, cipher: EnvelopeCipher
+) -> None:
+    await _service(factory, cipher).ensure_seeded(None)
+    settings = ENV.model_copy(update={"config_source": "env"})
+    store = LlmConfigStore(factory, cipher, settings)
+    config = await store.current()
+    assert config.revision == 0
+    assert config.routes[LLMPurpose.RAG] == "local-chat"

@@ -26,6 +26,7 @@ from spoldzielnia_ai.db.enums import ArticleStatus, DerivativeStatus, OutboxStat
 from spoldzielnia_ai.db.models import NoteDerivative, User, VectorOutbox, WikiArticle
 from spoldzielnia_ai.db.rls import rls_session
 from spoldzielnia_ai.db.session import create_session_factory
+from spoldzielnia_ai.llm.config_store import LlmConfigStore
 from spoldzielnia_ai.llm.gateway import LiteLLMGateway
 from spoldzielnia_ai.vector.client import make_qdrant
 from spoldzielnia_ai.vector.collections import recreate_collections
@@ -121,12 +122,14 @@ async def rebuild(
 async def run_reindex(settings: WorkerSettings) -> ReindexReport:
     engine = create_app_engine(settings.db)
     client = make_qdrant(settings.qdrant)
+    factory = create_session_factory(engine)
+    cipher = EnvelopeCipher(StaticKeyProvider(settings.security.kek.get_secret_value()))
     try:
         return await rebuild(
-            create_session_factory(engine),
-            EnvelopeCipher(StaticKeyProvider(settings.security.kek.get_secret_value())),
+            factory,
+            cipher,
             client,
-            LiteLLMGateway(settings.llm),
+            LiteLLMGateway(settings.llm, source=LlmConfigStore(factory, cipher, settings.llm)),
             settings.qdrant.vector_size,
             settings.qdrant.timeout_seconds,
         )

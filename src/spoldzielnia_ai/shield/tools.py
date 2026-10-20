@@ -13,6 +13,7 @@ from redis.asyncio import Redis
 from spoldzielnia_ai.core.crypto import EnvelopeCipher, StaticKeyProvider
 from spoldzielnia_ai.db.engine import create_app_engine
 from spoldzielnia_ai.db.session import create_session_factory
+from spoldzielnia_ai.llm.config_store import LlmConfigStore
 from spoldzielnia_ai.llm.gateway import LiteLLMGateway
 from spoldzielnia_ai.shield.honeypot import HoneypotInjector, list_canaries, trace
 from spoldzielnia_ai.vector.client import make_qdrant
@@ -48,8 +49,11 @@ async def honeypot_command(
         if action == "scan":
             signatures, blocks = await trace(factory, settings.shield, text or "")
             return {"signatures": signatures, "honeypot_ids": [str(b) for b in blocks]}
-        embedder = Embedder(LiteLLMGateway(settings.llm), settings.qdrant.vector_size)
         cipher = EnvelopeCipher(StaticKeyProvider(settings.security.kek.get_secret_value()))
+        source = LlmConfigStore(factory, cipher, settings.llm, redis)
+        embedder = Embedder(
+            LiteLLMGateway(settings.llm, source=source), settings.qdrant.vector_size
+        )
         indexer = Indexer(factory, cipher, embedder, qdrant)
 
         async def index(article_id: UUID) -> None:

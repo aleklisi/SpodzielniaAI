@@ -240,3 +240,22 @@ Metrics (`core/metrics.py`): `llm_request_seconds{deployment,purpose}`,
   canonical content to a third party.
 - Settings: `llm.config_source`, `local_endpoints`, `cloud_hosts`, `egress_proxy_url`,
   `config_ttl_seconds`, `probe_max_age_hours`, `playground_per_hour`.
+
+### 7.2
+- `llm/config_store.py` (`LlmConfigStore`, a `ConfigSource`) and `ResolvedLlmConfig` /
+  `env_config` / `StaticConfig` in `llm/gateway.py`. The gateway routes **per purpose**; each
+  deployment carries its own temperature, max tokens, structured-output mode and timeout.
+- Reload signal: activation and rollback `SET llm:config:revision <n>`; a process reloads when
+  that number is newer than its own, and in any case after `llm.config_ttl_seconds`. That is one
+  Redis GET per model call, instead of a pub/sub subscriber task in every process.
+- LiteLLM's Router was replaced by `LiteLLMTransport` (direct `litellm.acompletion` /
+  `aembedding`, `max_retries=1`, no fallbacks): the Router builds its own HTTP clients, and cloud
+  deployments need one that goes through the egress proxy. One transport per revision; calls in
+  flight finish on the old one.
+- The gateway refuses a non-local route for a local-only call even if the configuration says so,
+  and counts it in `llm_route_refused_total` (a log line, not an audit event: the gateway has no
+  database session). Metrics: `llm_request_seconds`, `llm_request_errors_total`,
+  `llm_config_revision`.
+- The vision engine runs each call on its own event loop (worker thread). It gets a
+  `StaticConfig` of the store's last configuration, refreshed on the worker's loop before each
+  derivative job.

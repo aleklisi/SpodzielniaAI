@@ -14,6 +14,8 @@ from fakeredis import FakeAsyncRedis
 from httpx import ASGITransport, AsyncClient
 
 from spoldzielnia_ai.files.storage import MemoryObjectStorage
+from spoldzielnia_ai.llm.config_store import LlmConfigStore
+from spoldzielnia_ai.llm.gateway import LiteLLMGateway
 from spoldzielnia_ai.main import create_app
 from spoldzielnia_ai.notebook.uploads import NoProcessing
 from tests.fixtures.oidc import FakeIdP
@@ -67,6 +69,9 @@ async def harness(settings: Settings, factory: SessionFactory) -> AsyncGenerator
     app = create_app(settings, readiness_checks={})
     app.state.redis = FakeAsyncRedis()
     app.state.session_factory = factory
+    # The LLM configuration store reads the test database (7.2).
+    app.state.llm_config = LlmConfigStore(factory, app.state.cipher, settings.llm, app.state.redis)
+    app.state.llm = LiteLLMGateway(settings.llm, source=app.state.llm_config)
     storage = MemoryObjectStorage()
     app.state.storage = storage
     app.state.processing_queue = NoProcessing()  # tests opt in to Celery (eager) explicitly

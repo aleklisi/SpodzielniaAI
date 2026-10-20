@@ -18,7 +18,8 @@ from spoldzielnia_ai.db.enums import DerivativeKind
 from spoldzielnia_ai.db.session import create_session_factory
 from spoldzielnia_ai.files.antivirus import ClamdScanner
 from spoldzielnia_ai.files.storage import S3ObjectStorage
-from spoldzielnia_ai.llm.gateway import LiteLLMGateway
+from spoldzielnia_ai.llm.config_store import LlmConfigStore
+from spoldzielnia_ai.llm.gateway import LiteLLMGateway, StaticConfig
 from spoldzielnia_ai.llm.injection_guard import InjectionGuard
 from spoldzielnia_ai.net.safe_fetch import SafeFetcher
 from spoldzielnia_ai.notebook.queue import CeleryProcessingQueue
@@ -81,6 +82,7 @@ class WorkerRuntime:
         self._guard: tuple[InjectionGuard, bool] | None = None
         self._factory: SessionFactory | None = None
         self._cipher: EnvelopeCipher | None = None
+        self._llm_config: LlmConfigStore | None = None
         self._engine_cache: dict[str, Engine] = {}
 
     def _engine_for(self, kind: DerivativeKind, mime_type: str) -> Engine:
@@ -103,12 +105,32 @@ class WorkerRuntime:
         else:
             key = "vision"
             if key not in self._engine_cache:
+                # The engine runs on its own event loop (worker thread), so it gets the
+                # configuration ``run`` refreshed, not the store with its loop-bound clients.
+                store = self._llm_store()
                 self._engine_cache[key] = (
-                    GatewayVisionEngine(lambda: LiteLLMGateway(self._settings.llm))
-                    if self._settings.llm.vlm_model
+                    GatewayVisionEngine(
+                        lambda: LiteLLMGateway(
+                            self._settings.llm, source=StaticConfig(store.cached)
+                        )
+                    )
+                    if self._settings.llm.vlm_model or self._settings.llm.config_source == "db"
                     else UnavailableVisionEngine()
                 )
         return self._engine_cache[key]
+
+    def _llm_store(self) -> LlmConfigStore:
+        """One per process: the ACTIVE LLM configuration revision (7.2)."""
+        if self._llm_config is None:
+            from redis.asyncio import Redis
+
+            factory, cipher = self._shared()
+            redis: Redis = Redis.from_url(self._settings.redis.url())  # pyright: ignore[reportUnknownMemberType]
+            self._llm_config = LlmConfigStore(factory, cipher, self._settings.llm, redis)
+        return self._llm_config
+
+    def _gateway(self) -> LiteLLMGateway:
+        return LiteLLMGateway(self._settings.llm, source=self._llm_store())
 
     def _shared(self) -> tuple[SessionFactory, EnvelopeCipher]:
         if self._factory is None or self._cipher is None:
@@ -150,8 +172,7 @@ class WorkerRuntime:
         factory, cipher = self._shared()
         scrubber = PiiScrubber(CombinedAnalyzer(PresidioAnalyzer.shared(), ChecksumAnalyzer()))
         guard, _ = self._injection_guard()
-        gateway = LiteLLMGateway(self._settings.llm)
-        return PromotionProcessor(factory, cipher, scrubber, guard, gateway)
+        return PromotionProcessor(factory, cipher, scrubber, guard, self._gateway())
 
     def _qdrant(self) -> AsyncQdrantClient:
         if self._qdrant_client is None:
@@ -162,7 +183,7 @@ class WorkerRuntime:
         """worker-core: local embeddings and Qdrant over internal TLS (4.1)."""
         factory, cipher = self._shared()
         settings = self._settings
-        embedder = Embedder(LiteLLMGateway(settings.llm), settings.qdrant.vector_size)
+        embedder = Embedder(self._gateway(), settings.qdrant.vector_size)
         return Indexer(factory, cipher, embedder, self._qdrant())
 
     def _build_sync(self) -> VectorSync:
@@ -213,6 +234,8 @@ class WorkerRuntime:
         if self._processor is None:
             self._processor = runner.run(_construct(self._build))
         processor = self._processor
+        # A fresh LLM configuration for the vision engine (cheap: TTL and a Redis GET).
+        runner.run(self._llm_store().current())
         try:
             return runner.run(processor.handle(job, final_attempt=attempt >= MAX_RETRIES))
         except _soft_time_limit():
