@@ -9,10 +9,11 @@ enforced again by the database (migration 0012) and by the gateway at call time 
 - S5: API keys are envelope-encrypted (AAD ``llm_provider:<id>``), write-only, never audited.
 
 Revisions: a DRAFT holds ``llm_routing`` rows. Activation freezes the routes into a snapshot
-(``llm.snapshot``) and requires a passing probe of every routed model, at most
-``llm.probe_max_age_hours`` old. Rollback re-activates an older snapshot as a new revision, so
-the history stays linear. When no revision exists yet, ``ensure_seeded`` imports ``.env`` as
-revision 1, so the runtime keeps behaving exactly as before.
+(``llm.snapshot``) and requires a passing probe, at most ``llm.probe_max_age_hours`` old, of
+every model that takes over a purpose (routes that stay as they are need none). Rollback
+re-activates an older snapshot as a new revision, so the history stays linear. When no revision
+exists yet, ``ensure_seeded`` imports ``.env`` as revision 1, so the runtime keeps behaving
+exactly as before.
 """
 
 from __future__ import annotations
@@ -649,9 +650,17 @@ class LlmConfigService:
             )
 
     async def _snapshot(
-        self, session: AsyncSession, routing: dict[LlmRoutePurpose, UUID], *, require_probe: bool
+        self,
+        session: AsyncSession,
+        routing: dict[LlmRoutePurpose, UUID],
+        *,
+        require_probe: bool,
+        running: ConfigSnapshot | None = None,
     ) -> ConfigSnapshot:
-        """Policy first (S1-S4, for every route), then probe freshness: the more useful error."""
+        """Policy first (S1-S4, for every route), then probe freshness: the more useful error.
+        Only changed routes need a fresh probe: a model that keeps its purpose from ``running``
+        (the ACTIVE snapshot) is already in service, and a weak one elsewhere (e.g. an embedding
+        model failing the separation check) must not block every other change."""
         deployments: dict[str, SnapshotDeployment] = {}
         routes: dict[LlmRoutePurpose, str] = {}
         unprobed: list[tuple[LlmRoutePurpose, LlmModel]] = []
@@ -662,7 +671,9 @@ class LlmConfigService:
             kind = self._check_route(purpose, model, provider)
             if kind == LlmProviderKind.CLOUD and not self._settings.allow_cloud:
                 raise ConfigError("cloud_not_allowed", purpose=purpose.value)
-            if not (
+            current = running.deployment_for(purpose) if running is not None else None
+            unchanged = current is not None and current.model_id == model.id
+            if not unchanged and not (
                 model.last_probe_ok
                 and model.last_probe_at is not None
                 and model.last_probe_at >= oldest
@@ -743,8 +754,9 @@ class LlmConfigService:
             if revision.status != LlmRevisionStatus.DRAFT:
                 raise ConfigError("not_draft", 409)
             routing = await self._routing(session, revision.id)
-            snapshot = await self._snapshot(session, routing, require_probe=True)
-            self._check_embedding(snapshot, await self._active_snapshot(session))
+            running = await self._active_snapshot(session)
+            snapshot = await self._snapshot(session, routing, require_probe=True, running=running)
+            self._check_embedding(snapshot, running)
             previous = await self._make_active(session, revision, snapshot, actor)
             await AuditService(session).record(
                 EventType.LLM_CONFIG_ACTIVATED,

@@ -302,3 +302,16 @@ Metrics (`core/metrics.py`): `llm_request_seconds{deployment,purpose}`,
   `vector`, `wiki`, `notebook` or `shield`, so neither can retrieve content.
 - Audit `LLM_PLAYGROUND_USED`: preset, SHA-256 and length of the prompt, deployment names,
   per-model success. Limit: `llm.playground_per_hour` per admin.
+
+### 7.6
+- `/admin/llm` (`components/admin/llm/*`, `lib/llm-admin.ts`), nav item "Modele AI". Tabs:
+  Przypisania (draft matrix, 🔒 on local-only purposes whose selects list local models only,
+  embeddings read-only, per-route probe button, activation dialog listing every change and
+  warning about cloud-bound purposes), Dostawcy (allowlists shown, live local/cloud/forbidden
+  hint for the URL, cloud form blocked when `allow_cloud` is off, write-only key field, connection
+  test with discovered models), Modele (add with model discovery, probe with report), Playground
+  (up to 3 models, presets, local-only presets drop cloud models, answers rendered as plain text),
+  Historia (revisions, routes, restore with comment).
+- **Rule change found while building the UI:** activation now requires a fresh probe only for
+  models that take over a purpose. The dev stack's embedding model fails the separation check
+  (the open 6.7 item), and with the original rule it blocked every other change.

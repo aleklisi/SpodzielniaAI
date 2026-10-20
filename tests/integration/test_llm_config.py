@@ -300,7 +300,7 @@ async def test_activation_needs_fresh_probes_and_the_cloud_ceiling(
     await service.set_routing(None, number, {LlmRoutePurpose.RAG: local_chat.id})
     with pytest.raises(ConfigError) as exc:
         await service.activate(None, number)
-    assert exc.value.code == "probe_required"  # the seeded chat model was never probed
+    assert exc.value.code == "probe_required"  # qwen3-32b takes over RAG and was never probed
     for model in await service.models():
         await _probed(service, model)
     await _probed(service, local_chat, ok=False)
@@ -325,6 +325,21 @@ async def test_activation_needs_fresh_probes_and_the_cloud_ceiling(
     with pytest.raises(ConfigError) as exc:
         await service.activate(None, number)
     assert exc.value.code == "not_draft"
+
+
+async def test_routes_that_stay_need_no_new_probe(
+    factory: SessionFactory, cipher: EnvelopeCipher
+) -> None:
+    """The seeded models were never probed; changing only RAG must still be possible (a weak
+    embedding model elsewhere must not block every change)."""
+    service = _service(factory, cipher)
+    await service.ensure_seeded(None)
+    local_chat, _ = await _two_chat_models(service)
+    draft = await service.create_draft(None, None, None)
+    await service.set_routing(None, draft.revision.number, {LlmRoutePurpose.RAG: local_chat.id})
+    await _probed(service, local_chat)
+    view = await service.activate(None, draft.revision.number)
+    assert view.revision.status == LlmRevisionStatus.ACTIVE
 
 
 async def test_active_and_archived_revisions_are_immutable(
