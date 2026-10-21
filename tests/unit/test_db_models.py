@@ -60,6 +60,8 @@ def test_tables_registered() -> None:
         "llm_model",
         "llm_config_revision",
         "llm_routing",
+        "visual_domain",
+        "visual_label",
     }
 
 
@@ -171,6 +173,7 @@ def test_migrations_form_a_single_linear_history() -> None:
         "0011_hidden_articles",
         "0012_llm_config",
         "0013_user_admin",
+        "0014_visual_labels",
     ]
 
 
@@ -183,6 +186,7 @@ def test_migration_enum_types_match_python_enums() -> None:
             "0006_promotion",
             "0009_vector_outbox",
             "0012_llm_config",
+            "0014_visual_labels",
         )
         for e in cast("tuple[SAEnum, ...]", _revision_module(revision).ENUMS)
     }

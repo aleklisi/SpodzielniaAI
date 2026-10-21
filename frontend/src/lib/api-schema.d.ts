@@ -21,6 +21,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/atlas/domains": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create Domain */
+        post: operations["create_domain_admin_atlas_domains_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/atlas/domains/{domain_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update Domain */
+        patch: operations["update_domain_admin_atlas_domains__domain_id__patch"];
+        trace?: never;
+    };
     "/admin/audit-log": {
         parameters: {
             query?: never;
@@ -565,6 +599,167 @@ export interface paths {
         put?: never;
         /** Unlock User */
         post: operations["unlock_user_admin_users__user_id__unlock_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/atlas/curation/labels": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Curate List */
+        get: operations["curate_list_atlas_curation_labels_get"];
+        put?: never;
+        /** Create Label */
+        post: operations["create_label_atlas_curation_labels_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/atlas/curation/labels/{label_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Edit Label */
+        patch: operations["edit_label_atlas_curation_labels__label_id__patch"];
+        trace?: never;
+    };
+    "/atlas/curation/labels/{label_id}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Approve Label */
+        post: operations["approve_label_atlas_curation_labels__label_id__approve_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/atlas/curation/labels/{label_id}/deprecate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Deprecate Label */
+        post: operations["deprecate_label_atlas_curation_labels__label_id__deprecate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/atlas/curation/labels/{label_id}/merge": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Merge Label */
+        post: operations["merge_label_atlas_curation_labels__label_id__merge_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/atlas/curation/labels/{label_id}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reject Label */
+        post: operations["reject_label_atlas_curation_labels__label_id__reject_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/atlas/domains": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Domains
+         * @description All domains; archived ones only label existing photos (the UI offers ACTIVE ones).
+         */
+        get: operations["list_domains_atlas_domains_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/atlas/labels": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Labels
+         * @description ACTIVE labels and the caller's own proposals, searched by name and synonyms (diacritics
+         *     don't matter).
+         */
+        get: operations["list_labels_atlas_labels_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/atlas/labels/proposals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Propose Label */
+        post: operations["propose_label_atlas_labels_proposals_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1384,6 +1579,39 @@ export interface components {
             temporary_password: string | null;
             user: components["schemas"]["UserOut"];
         };
+        /** CuratedLabelOut */
+        CuratedLabelOut: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Description */
+            description: string | null;
+            /**
+             * Domain Id
+             * Format: uuid
+             */
+            domain_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Own Proposal */
+            is_own_proposal: boolean;
+            /** Merged Into Id */
+            merged_into_id: string | null;
+            /** Name */
+            name: string;
+            /** Proposed By Name */
+            proposed_by_name: string | null;
+            /** Slug */
+            slug: string;
+            status: components["schemas"]["VisualLabelStatus"];
+            /** Synonyms */
+            synonyms: string[];
+        };
         /**
          * DerivativeKind
          * @enum {string}
@@ -1432,6 +1660,36 @@ export interface components {
         DisableIn: {
             /** Disabled */
             disabled: boolean;
+        };
+        /** DomainIn */
+        DomainIn: {
+            /** Description */
+            description?: string | null;
+            /** Name */
+            name: string;
+        };
+        /** DomainOut */
+        DomainOut: {
+            /** Description */
+            description: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            /** Slug */
+            slug: string;
+            status: components["schemas"]["VisualDomainStatus"];
+        };
+        /** DomainPatch */
+        DomainPatch: {
+            /** Description */
+            description?: string | null;
+            /** Name */
+            name?: string | null;
+            status?: components["schemas"]["VisualDomainStatus"] | null;
         };
         /** DraftIn */
         DraftIn: {
@@ -1515,6 +1773,58 @@ export interface components {
             /** Index Synced */
             index_synced: boolean;
         };
+        /** LabelIn */
+        LabelIn: {
+            /** Description */
+            description?: string | null;
+            /**
+             * Domain Id
+             * Format: uuid
+             */
+            domain_id: string;
+            /** Name */
+            name: string;
+            /**
+             * Synonyms
+             * @default []
+             */
+            synonyms: string[];
+        };
+        /** LabelOut */
+        LabelOut: {
+            /** Description */
+            description: string | null;
+            /**
+             * Domain Id
+             * Format: uuid
+             */
+            domain_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Own Proposal */
+            is_own_proposal: boolean;
+            /** Merged Into Id */
+            merged_into_id: string | null;
+            /** Name */
+            name: string;
+            /** Slug */
+            slug: string;
+            status: components["schemas"]["VisualLabelStatus"];
+            /** Synonyms */
+            synonyms: string[];
+        };
+        /** LabelPatch */
+        LabelPatch: {
+            /** Description */
+            description?: string | null;
+            /** Name */
+            name?: string | null;
+            /** Synonyms */
+            synonyms?: string[] | null;
+        };
         /** LinkIn */
         LinkIn: {
             /** Url */
@@ -1562,6 +1872,14 @@ export interface components {
             mfa_satisfied: boolean;
             /** Roles */
             roles: components["schemas"]["Role"][];
+        };
+        /** MergeIn */
+        MergeIn: {
+            /**
+             * Into Id
+             * Format: uuid
+             */
+            into_id: string;
         };
         /** ModelIn */
         ModelIn: {
@@ -1874,6 +2192,18 @@ export interface components {
          * @enum {string}
          */
         PromotionStatus: "PENDING" | "RUNNING" | "DONE" | "FAILED";
+        /** ProposalIn */
+        ProposalIn: {
+            /** Description */
+            description?: string | null;
+            /**
+             * Domain Id
+             * Format: uuid
+             */
+            domain_id: string;
+            /** Name */
+            name: string;
+        };
         /** ProviderIn */
         ProviderIn: {
             /** Api Key */
@@ -2015,6 +2345,11 @@ export interface components {
              * @enum {string}
              */
             status: "ok" | "unavailable";
+        };
+        /** RejectIn */
+        RejectIn: {
+            /** Reason */
+            reason?: string | null;
         };
         /**
          * ReviewDecision
@@ -2379,6 +2714,19 @@ export interface components {
             /** Error Type */
             type: string;
         };
+        /**
+         * VisualDomainStatus
+         * @description A domain of the visual atlas (9.1). ARCHIVED: read-only, accepts no new photos.
+         * @enum {string}
+         */
+        VisualDomainStatus: "ACTIVE" | "ARCHIVED";
+        /**
+         * VisualLabelStatus
+         * @description PROPOSED by a member until an expert approves (ACTIVE), rejects or merges it. A merged
+         *     label is DEPRECATED with ``merged_into_id`` set.
+         * @enum {string}
+         */
+        VisualLabelStatus: "PROPOSED" | "ACTIVE" | "DEPRECATED" | "REJECTED";
     };
     responses: never;
     parameters: never;
@@ -2407,6 +2755,74 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AuditEntryOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_domain_admin_atlas_domains_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DomainIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DomainOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_domain_admin_atlas_domains__domain_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                domain_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DomainPatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DomainOut"];
                 };
             };
             /** @description Validation Error */
@@ -3531,6 +3947,324 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["UnlockOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    curate_list_atlas_curation_labels_get: {
+        parameters: {
+            query?: {
+                domain_id?: string | null;
+                q?: string;
+                status?: components["schemas"]["VisualLabelStatus"][] | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CuratedLabelOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_label_atlas_curation_labels_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LabelIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LabelOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    edit_label_atlas_curation_labels__label_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                label_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LabelPatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LabelOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    approve_label_atlas_curation_labels__label_id__approve_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                label_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LabelOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    deprecate_label_atlas_curation_labels__label_id__deprecate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                label_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LabelOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    merge_label_atlas_curation_labels__label_id__merge_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                label_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MergeIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LabelOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reject_label_atlas_curation_labels__label_id__reject_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                label_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RejectIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LabelOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_domains_atlas_domains_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DomainOut"][];
+                };
+            };
+        };
+    };
+    list_labels_atlas_labels_get: {
+        parameters: {
+            query?: {
+                domain_id?: string | null;
+                q?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LabelOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    propose_label_atlas_labels_proposals_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProposalIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LabelOut"];
                 };
             };
             /** @description Validation Error */

@@ -228,7 +228,7 @@ Rejestr historyjek dodanych poza Etapami 1–6: [docs/USER_STORIES_LOG.md](docs/
 *Dokumentacja: [docs/implementation/09_IMAGE_ATLAS.md](docs/implementation/09_IMAGE_ATLAS.md)*
 
 *Faza A — zweryfikowany zbiór danych*
-- [ ] 9.1 Dziedziny i słownik etykiet (wiele dziedzin, synonimy, propozycje członków, zarządzanie przez ekspertów, przykładowa dziedzina tylko dla dev/testów)
+- [x] 9.1 Dziedziny i słownik etykiet (wiele dziedzin, synonimy, propozycje członków, zarządzanie przez ekspertów, przykładowa dziedzina tylko dla dev/testów)
 - [ ] 9.2 Prywatne oznaczenia zdjęć (prostokąty, opisy, RLS, szyfrowanie), bezpieczne serwowanie obrazów i podglądów
 - [ ] 9.3 Edytor oznaczeń w notatniku (mysz, dotyk, klawiatura)
 - [ ] 9.4 Przekazanie zdjęcia do atlasu (kopia bez metadanych, PII scrubbing, skan injection, flagi prywatności VLM, duplikaty)

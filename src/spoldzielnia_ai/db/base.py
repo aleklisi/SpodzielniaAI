@@ -26,6 +26,8 @@ from spoldzielnia_ai.db.enums import (
     Role,
     ScanStatus,
     VectorOpKind,
+    VisualDomainStatus,
+    VisualLabelStatus,
     pg_enum,
 )
 
@@ -59,6 +61,8 @@ class Base(DeclarativeBase):
         LlmCapability: pg_enum(LlmCapability),
         LlmRevisionStatus: pg_enum(LlmRevisionStatus),
         LlmRoutePurpose: pg_enum(LlmRoutePurpose),
+        VisualDomainStatus: pg_enum(VisualDomainStatus),
+        VisualLabelStatus: pg_enum(VisualLabelStatus),
     }
 
 

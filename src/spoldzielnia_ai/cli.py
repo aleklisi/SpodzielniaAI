@@ -12,6 +12,7 @@ Subcommands:
     honeypot   inject, list or trace canary blocks (5.4): `docker compose run --rm api honeypot …`
     openapi    write the API's OpenAPI schema (frontend type generation, 6.1)
     llm-egress run the CONNECT-only forward proxy to allowlisted cloud LLM APIs (7.3)
+    atlas      `atlas seed-example`: load the example atlas domain, not in prod (9.1)
 """
 
 from __future__ import annotations
@@ -216,6 +217,36 @@ def _cmd_honeypot(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_atlas(args: argparse.Namespace) -> int:
+    import asyncio
+
+    from spoldzielnia_ai.atlas.seed import seed_example
+    from spoldzielnia_ai.db.engine import create_app_engine
+    from spoldzielnia_ai.db.session import create_session_factory
+
+    settings = get_settings()
+    configure_logging(settings.log_level, json=settings.environment != "dev")
+    if args.action == "seed-example" and settings.environment == "prod":
+        log.error("atlas.seed_example_refused", reason="example data is not loaded in prod")
+        return 2
+
+    async def run() -> int:
+        engine = create_app_engine(settings.db)
+        try:
+            report = await seed_example(create_session_factory(engine))
+        finally:
+            await engine.dispose()
+        log.info(
+            "atlas.seed_example",
+            domain_id=str(report.domain_id),
+            domain_created=report.domain_created,
+            labels_created=report.labels_created,
+        )
+        return 0
+
+    return asyncio.run(run())
+
+
 def _cmd_openapi(args: argparse.Namespace) -> int:
     """No service is contacted: the app is built with placeholder settings and only its route
     table is read."""
@@ -304,6 +335,10 @@ def build_parser() -> argparse.ArgumentParser:
 
     egress = sub.add_parser("llm-egress", help="run the forward proxy for cloud LLM APIs")
     egress.set_defaults(handler=_cmd_llm_egress)
+
+    atlas = sub.add_parser("atlas", help="visual atlas tools")
+    atlas.add_argument("action", choices=["seed-example"])
+    atlas.set_defaults(handler=_cmd_atlas)
 
     openapi = sub.add_parser("openapi", help="write the OpenAPI schema (JSON)")
     openapi.add_argument("--out", default="-", help="file to write (default: stdout)")

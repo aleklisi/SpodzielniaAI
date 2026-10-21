@@ -103,8 +103,7 @@ example, a beekeeper adds photos of queen bees).
 The solution is multi-domain: beekeeping is only an example use case.
 
 - **Source:** product owner request, 2026-10-21 (refinement session).
-- **Status:** PLANNED 2026-10-21 (Etap 9, chunks 9.1–9.10). Not started; waits for an explicit
-  instruction.
+- **Status:** IN PROGRESS since 2026-10-21 (Etap 9, chunks 9.1–9.10).
 - **Plan:** [docs/implementation/09_IMAGE_ATLAS.md](implementation/09_IMAGE_ATLAS.md)
 - **Refinement decisions:** both a dataset and in-app recognition, phased (Phase A dataset,
   Phase B recognition); photos are annotated privately and then contributed to a shared atlas
@@ -133,7 +132,8 @@ The solution is multi-domain: beekeeping is only an example use case.
      so instead of guessing. Suggestions can be accepted as the member's own annotations.
 - **Out of scope / follow-ups:** polygons and points; automatic face blurring; training a
   detector inside the app; video frames; domain-scoped experts.
-- **Delivery:** (commits added per chunk)
+- **Delivery:**
+  - 9.1 domains and label vocabulary: the `feat(stage-9.1)` commit
 
 ---
 

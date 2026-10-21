@@ -240,6 +240,12 @@ class GovernanceSettings(BaseModel):
     outbox_alert_after: int = Field(default=5, ge=1)
 
 
+class AtlasSettings(BaseModel):
+    """Visual atlas: annotated photos, expert review, export, recognition (Stage 9)."""
+
+    label_proposals_per_day: int = Field(default=10, ge=1)  # per member, UTC day
+
+
 class RagSettings(BaseModel):
     """Cooperative RAG (5.1)."""
 
@@ -478,6 +484,7 @@ class Settings(_BaseSettings):
     rag: RagSettings = Field(default_factory=RagSettings)
     shield: ShieldSettings = Field(default_factory=ShieldSettings)
     keycloak_admin: KeycloakAdminSettings = Field(default_factory=KeycloakAdminSettings)
+    atlas: AtlasSettings = Field(default_factory=AtlasSettings)
 
     @model_validator(mode="after")
     def _require_runtime_secrets(self) -> Self:

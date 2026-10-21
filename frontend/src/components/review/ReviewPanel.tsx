@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 
@@ -34,9 +35,14 @@ export function ReviewPanel() {
   return (
     <div className="grid gap-6 lg:grid-cols-[22rem_1fr]">
       <section aria-labelledby="queue-title" className="flex flex-col gap-3">
-        <h1 id="queue-title" className="font-display text-2xl font-semibold">
-          Recenzje
-        </h1>
+        <div className="flex items-baseline justify-between gap-2">
+          <h1 id="queue-title" className="font-display text-2xl font-semibold">
+            Recenzje
+          </h1>
+          <Link href="/review/labels" className="text-sm font-medium text-primary-strong">
+            Słownik etykiet
+          </Link>
+        </div>
         {queue.isPending && <p className="text-text-muted">Ładowanie kolejki…</p>}
         {queue.isError && !(queue.error instanceof StepUpRequired) && <p role="alert" className="text-danger">Nie udało się wczytać kolejki.</p>}
         {queue.data?.length === 0 && <p className="text-text-muted">Kolejka jest pusta.</p>}

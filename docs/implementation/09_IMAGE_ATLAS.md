@@ -427,4 +427,27 @@ green; A1–A12 covered by tests; scenario 11 passes against the compose stack.
 
 ## Implementation notes
 
-*(filled in per chunk while implementing)*
+### 9.1 (done)
+
+- New package `spoldzielnia_ai/atlas/` (instead of `wiki/labels.py`): `text.py` (fold, slug,
+  search key), `labels.py` (`LabelService`), `seed.py` (example domain).
+- Migration `0014_visual_labels`: `visual_domain`, `visual_label` (+ enums
+  `visual_domain_status`, `visual_label_status` with `REJECTED` for refused proposals). No seed.
+- **Search without `unaccent`:** the extension needs a superuser on some installs, so labels
+  carry a `search_key` (folded name + synonyms, Polish `ł` handled) matched with an escaped
+  `ILIKE`. A rejected proposal keeps its row (audit) but frees its slug.
+- **Merges are resolved on read** (`LabelService.resolve`/`usable`) instead of rewriting
+  references: an expert can't (and mustn't) update a member's private annotations under RLS.
+  Shared tables that reference labels register in `LABEL_REFERENCES` and are re-pointed in
+  place (9.4). The merged label's name becomes a synonym of the target.
+- API: `GET /atlas/domains`, `GET /atlas/labels`, `POST /atlas/labels/proposals` (members,
+  10/day); `/atlas/curation/labels…` (EXPERT/ADMIN + MFA: list any status with proposer name,
+  create, edit, approve, reject, merge, deprecate); `/admin/atlas/domains…` (ADMIN + MFA).
+  Audit: `DOMAIN_CREATED/CHANGED`, `LABEL_PROPOSED/APPROVED/REJECTED/CHANGED/MERGED/DEPRECATED`.
+- CLI `spoldzielnia atlas seed-example` (refused in prod, idempotent).
+- Frontend: `lib/atlas.ts`, `LabelCombobox` (ARIA combobox, propose-in-place),
+  `/review/labels` „Słownik etykiet” (linked from the review queue), `/admin/atlas` with
+  „Dziedziny atlasu”, nav item „Atlas (admin)”.
+- Tests: `tests/unit/test_atlas_text.py`, `tests/integration/test_atlas_labels.py` (authz
+  matrix, diacritics search, per-domain uniqueness, private proposals + limit, merge/deprecate,
+  archived domain, audit sequence, idempotent seed), `atlas-labels.test.tsx` (6).

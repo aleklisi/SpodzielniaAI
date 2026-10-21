@@ -110,6 +110,23 @@ class LlmRoutePurpose(StrEnum):
     RAG = "RAG"
 
 
+class VisualDomainStatus(StrEnum):
+    """A domain of the visual atlas (9.1). ARCHIVED: read-only, accepts no new photos."""
+
+    ACTIVE = "ACTIVE"
+    ARCHIVED = "ARCHIVED"
+
+
+class VisualLabelStatus(StrEnum):
+    """PROPOSED by a member until an expert approves (ACTIVE), rejects or merges it. A merged
+    label is DEPRECATED with ``merged_into_id`` set."""
+
+    PROPOSED = "PROPOSED"
+    ACTIVE = "ACTIVE"
+    DEPRECATED = "DEPRECATED"
+    REJECTED = "REJECTED"
+
+
 PG_ENUM_NAMES: dict[type[StrEnum], str] = {
     Role: "user_role",
     ConsentStatus: "consent_status",
@@ -125,6 +142,8 @@ PG_ENUM_NAMES: dict[type[StrEnum], str] = {
     LlmCapability: "llm_capability",
     LlmRevisionStatus: "llm_revision_status",
     LlmRoutePurpose: "llm_route_purpose",
+    VisualDomainStatus: "visual_domain_status",
+    VisualLabelStatus: "visual_label_status",
 }
 
 
