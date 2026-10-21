@@ -261,6 +261,12 @@ class AtlasSettings(BaseModel):
     exports_per_day: int = Field(default=5, ge=1)  # per admin, UTC day
     export_link_ttl_seconds: int = Field(default=86_400, ge=300, le=7 * 86_400)
     export_step_up_max_age_seconds: int = Field(default=300, ge=60, le=3600)
+    # Recognition (9.9). The score threshold is provisional: calibrate it on the cooperative's
+    # own approved photos with `spoldzielnia atlas benchmark`.
+    recognitions_per_day: int = Field(default=30, ge=1)
+    recognition_min_score: float = Field(default=0.80, gt=0, lt=1)
+    recognition_max_labels: int = Field(default=3, ge=1, le=10)
+    recognition_references: int = Field(default=3, ge=0, le=6)
 
 
 class RagSettings(BaseModel):

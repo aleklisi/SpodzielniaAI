@@ -1483,6 +1483,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/notes/{note_id}/attachments/{attachment_id}/recognitions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Recognitions
+         * @description The photo's recognitions, newest first (pending ones without a result).
+         */
+        get: operations["recognitions_notes__note_id__attachments__attachment_id__recognitions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/notes/{note_id}/attachments/{attachment_id}/recognize": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Recognize
+         * @description Ask what's on the photo, answered from verified atlas examples by a local model.
+         */
+        post: operations["recognize_notes__note_id__attachments__attachment_id__recognize_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/notes/{note_id}/derivatives/{derivative_id}/confirm-quarantine": {
         parameters: {
             query?: never;
@@ -1944,6 +1984,18 @@ export interface components {
             /** Wiki Url */
             wiki_url: string;
         };
+        /** CitationOut */
+        CitationOut: {
+            /** Author Name */
+            author_name: string | null;
+            /**
+             * Image Id
+             * Format: uuid
+             */
+            image_id: string;
+            /** Labels */
+            labels: string[];
+        };
         /** ConnectionOut */
         ConnectionOut: {
             /** Error */
@@ -2103,7 +2155,7 @@ export interface components {
          * DerivativeKind
          * @enum {string}
          */
-        DerivativeKind: "TRANSCRIPT" | "IMAGE_DESCRIPTION" | "PARSED_DOC" | "FETCHED_LINK" | "ANNOTATIONS";
+        DerivativeKind: "TRANSCRIPT" | "IMAGE_DESCRIPTION" | "PARSED_DOC" | "FETCHED_LINK" | "ANNOTATIONS" | "RECOGNITION";
         /** DerivativeOut */
         DerivativeOut: {
             /** Attachment Id */
@@ -3135,6 +3187,46 @@ export interface components {
              */
             status: "ok" | "unavailable";
         };
+        /** RecognitionOut */
+        RecognitionOut: {
+            /** Answer */
+            answer: string | null;
+            /** Citations */
+            citations: components["schemas"]["CitationOut"][];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Error */
+            error: string | null;
+            /** Grounded */
+            grounded: boolean;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Question */
+            question: string;
+            status: components["schemas"]["DerivativeStatus"];
+            /** Suggestions */
+            suggestions: components["schemas"]["SuggestionOut"][];
+            /** Vlm */
+            vlm: string | null;
+        };
+        /** RecognizeIn */
+        RecognizeIn: {
+            /**
+             * All Domains
+             * @default false
+             */
+            all_domains: boolean;
+            /** Domain Id */
+            domain_id?: string | null;
+            /** Question */
+            question?: string | null;
+        };
         /** RegionEditIn */
         RegionEditIn: {
             /** Description */
@@ -3506,6 +3598,26 @@ export interface components {
             status: components["schemas"]["ArticleStatus"];
             /** Version */
             version: number;
+        };
+        /** SuggestionOut */
+        SuggestionOut: {
+            /** Confidence */
+            confidence: number;
+            /** H */
+            h: number;
+            /**
+             * Label Id
+             * Format: uuid
+             */
+            label_id: string;
+            /** Label Name */
+            label_name: string;
+            /** W */
+            w: number;
+            /** X */
+            x: number;
+            /** Y */
+            y: number;
         };
         /** SyncOut */
         SyncOut: {
@@ -6553,6 +6665,74 @@ export interface operations {
                     "image/jpeg": unknown;
                     "image/png": unknown;
                     "image/webp": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    recognitions_notes__note_id__attachments__attachment_id__recognitions_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                note_id: string;
+                attachment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecognitionOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    recognize_notes__note_id__attachments__attachment_id__recognize_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                note_id: string;
+                attachment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RecognizeIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecognitionOut"];
                 };
             };
             /** @description Validation Error */

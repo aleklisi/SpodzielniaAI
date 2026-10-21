@@ -8,7 +8,9 @@ import { flaggedSpans, segment, useConfirmQuarantine, type Derivative } from "@/
 
 const TONE = { DONE: "ok", FAILED: "danger", QUARANTINED: "warn", PENDING: "neutral", PROCESSING: "neutral" } as const;
 
-export function DerivativesPanel({ noteId, derivatives }: { noteId: string; derivatives: Derivative[] }) {
+export function DerivativesPanel({ noteId, derivatives: all }: { noteId: string; derivatives: Derivative[] }) {
+  // Recognition results live in the photo editor (9.9), not among the note's materials.
+  const derivatives = all.filter((d) => d.kind !== "RECOGNITION");
   if (derivatives.length === 0) return null;
   return (
     <section aria-labelledby="derivatives-title" className="flex flex-col gap-3">

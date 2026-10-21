@@ -14,7 +14,7 @@ from spoldzielnia_ai.notebook.queue import derivative_kinds
 from spoldzielnia_ai.workers.celery_adapter import make_celery, register, send
 from spoldzielnia_ai.workers.jobs import (
     KIND_TASK,
-    OWNER_WRITTEN_KINDS,
+    NO_MEDIA_TASK_KINDS,
     TASK_QUEUE,
     DerivativeJob,
     Queue,
@@ -93,7 +93,7 @@ def test_celery_is_json_only_with_late_acks() -> None:
 
 
 def test_every_kind_has_a_task_and_queue() -> None:
-    assert set(KIND_TASK) == set(DerivativeKind) - OWNER_WRITTEN_KINDS
+    assert set(KIND_TASK) == set(DerivativeKind) - NO_MEDIA_TASK_KINDS
     assert set(TASK_QUEUE) == set(TaskName)
     content_tasks = set(KIND_TASK.values()) - {TaskName.FETCH_LINK}
     assert {TASK_QUEUE[t] for t in content_tasks} == {Queue.TRANSCRIBE, Queue.VISION, Queue.PARSE}

@@ -87,6 +87,10 @@ class CeleryProcessingQueue:
         job = AtlasIndexJob(image_id=image_id)
         await asyncio.to_thread(send, self._celery, TaskName.INDEX_ATLAS, job)
 
+    async def recognition_requested(self, job: DerivativeJob) -> None:
+        """„Rozpoznaj” on a notebook photo (9.9, worker-core)."""
+        await self._send(TaskName.RECOGNIZE_ATLAS, job)
+
     async def derivative_clean(self, job: DerivativeJob) -> None:
         """Screened and not quarantined: index it for "ask my notebook" (4.1)."""
         await self._send(TaskName.INDEX_DERIVATIVE, job)

@@ -11,6 +11,7 @@ import { PhotoEditor } from "@/components/notebook/PhotoEditor";
 import { PhotosPanel } from "@/components/notebook/PhotosPanel";
 import type { Domain, Label } from "@/lib/atlas";
 import type { Submission } from "@/lib/atlas-submissions";
+import type { Recognition } from "@/lib/recognition";
 import { clampBox, type Mark, type Photo } from "@/lib/photos";
 import type { Attachment } from "@/lib/upload";
 import { API, renderWithClient } from "@/test/render";
@@ -164,6 +165,11 @@ function photo(overrides: Partial<Photo> = {}): Photo {
   };
 }
 
+let recognitions: Recognition[] = [];
+afterEach(() => {
+  recognitions = [];
+});
+
 function mountEditor(initial: Photo, put: (body: unknown) => Response | Promise<Response>, domains: Domain[] = [BEES]) {
   server.use(
     http.get(`${API}/atlas/domains`, () => HttpResponse.json(domains)),
@@ -171,6 +177,7 @@ function mountEditor(initial: Photo, put: (body: unknown) => Response | Promise<
     http.get(`${API}/notes/n1/attachments/a1/annotations`, () => HttpResponse.json(initial)),
     http.get(`${API}/notes/n1`, () => HttpResponse.json({})),
     http.get(`${API}/atlas/submissions`, () => HttpResponse.json([])),
+    http.get(`${API}/notes/n1/attachments/a1/recognitions`, () => HttpResponse.json(recognitions)),
     http.put(`${API}/notes/n1/attachments/a1/annotations`, async ({ request }) => put(await request.json())),
   );
   renderWithClient(<PhotoEditor noteId="n1" attachmentId="a1" />);
@@ -336,6 +343,68 @@ describe("AtlasSubmissionPanel", () => {
     renderWithClient(<AtlasSubmissionPanel noteId="n1" attachmentId="a1" canSubmit reason={null} />);
     expect(await screen.findByText("W recenzji ekspertów")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Przekaż do atlasu" })).not.toBeInTheDocument();
+  });
+});
+
+// --- Recognition ---------------------------------------------------------------------------------
+
+function recognition(overrides: Partial<Recognition> = {}): Recognition {
+  return {
+    id: "rec1",
+    status: "DONE",
+    error: null,
+    question: "Gdzie jest matka?",
+    answer: "Matka jest w lewej części ramki.",
+    grounded: true,
+    vlm: "ok",
+    suggestions: [{ label_id: "l1", label_name: "Matka pszczela", x: 0.2, y: 0.3, w: 0.2, h: 0.2, confidence: 0.87 }],
+    citations: [{ image_id: "atl1", labels: ["Matka pszczela"], author_name: null }],
+    created_at: "2026-10-21T10:00:00Z",
+    ...overrides,
+  };
+}
+
+describe("Recognition", () => {
+  it("asks with the photo's domain and shows the grounded answer with sources", async () => {
+    let posted: unknown = null;
+    recognitions = [];
+    server.use(
+      http.post(`${API}/notes/n1/attachments/a1/recognize`, async ({ request }) => {
+        posted = await request.json();
+        recognitions = [recognition()];
+        return HttpResponse.json(recognition({ status: "PENDING", answer: null, suggestions: [], citations: [] }), { status: 202 });
+      }),
+    );
+    mountEditor(photo(), () => HttpResponse.json(photo()));
+    await userEvent.type(await screen.findByLabelText("Pytanie (opcjonalnie)"), "Gdzie jest matka?");
+    await userEvent.click(screen.getByRole("button", { name: "Rozpoznaj" }));
+    await waitFor(() => expect(posted).toEqual({ question: "Gdzie jest matka?", domain_id: "d1", all_domains: false }));
+    const result = await screen.findByRole("region", { name: "Wynik rozpoznawania" });
+    expect(within(result).getByText("Matka jest w lewej części ramki.")).toBeInTheDocument();
+    const source = within(result).getByRole("link");
+    expect(source).toHaveAttribute("href", "/atlas/atl1");
+    expect(source).toHaveTextContent("Członek spółdzielni");
+    // The suggestion is drawn dashed on the photo until accepted or dismissed.
+    expect(screen.getByRole("img", { name: "Podpowiedź: Matka pszczela" })).toBeInTheDocument();
+  });
+
+  it("turns an accepted suggestion into a mark to save", async () => {
+    recognitions = [recognition()];
+    mountEditor(photo(), () => HttpResponse.json(photo()));
+    const list = await screen.findByRole("list", { name: "Podpowiedzi" });
+    await userEvent.click(within(list).getByRole("button", { name: "Przyjmij" }));
+    expect(screen.getByText("(z rozpoznawania)")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Oznaczenie 2: Matka pszczela" })).toBeInTheDocument();
+    expect(screen.queryByRole("img", { name: "Podpowiedź: Matka pszczela" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Zapisz" })).toBeEnabled();
+  });
+
+  it("says when the vision model was unavailable and hides dismissed suggestions", async () => {
+    recognitions = [recognition({ vlm: "unavailable" })];
+    mountEditor(photo(), () => HttpResponse.json(photo()));
+    expect(await screen.findByText(/ramki są przybliżone/)).toBeInTheDocument();
+    await userEvent.click(within(screen.getByRole("list", { name: "Podpowiedzi" })).getByRole("button", { name: "Odrzuć" }));
+    expect(screen.queryByRole("list", { name: "Podpowiedzi" })).not.toBeInTheDocument();
   });
 });
 

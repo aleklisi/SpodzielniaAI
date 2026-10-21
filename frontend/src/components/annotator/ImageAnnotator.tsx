@@ -77,6 +77,7 @@ export function ImageAnnotator({
   onSelect,
   onChange,
   readOnly = false,
+  ghosts = [],
 }: {
   src: string;
   alt: string;
@@ -86,6 +87,8 @@ export function ImageAnnotator({
   onSelect: (key: string | null) => void;
   onChange: (marks: Mark[]) => void;
   readOnly?: boolean;
+  /** Suggestions (dashed, not editable) until accepted or dismissed. */
+  ghosts?: { key: string; label: string; x: number; y: number; w: number; h: number }[];
 }) {
   const surface = useRef<HTMLDivElement>(null);
   const [drag, setDrag] = useState<Drag | null>(null);
@@ -237,6 +240,17 @@ export function ImageAnnotator({
               if (img.naturalWidth && img.naturalHeight) setNatural(img.naturalWidth / img.naturalHeight);
             }}
           />
+          {ghosts.map((g) => (
+            <div
+              key={g.key}
+              aria-label={`Podpowiedź: ${g.label}`}
+              role="img"
+              className="pointer-events-none absolute border-2 border-dashed border-white/90 bg-primary/10"
+              style={{ left: `${g.x * 100}%`, top: `${g.y * 100}%`, width: `${g.w * 100}%`, height: `${g.h * 100}%` }}
+            >
+              <span className="absolute -top-5 left-0 whitespace-nowrap rounded bg-surface px-1 text-xs text-text">{g.label}?</span>
+            </div>
+          ))}
           {marks.map((mark, index) => {
             const color = markColor(index);
             const active = mark.key === selected;

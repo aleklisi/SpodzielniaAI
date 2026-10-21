@@ -5,6 +5,7 @@ from __future__ import annotations
 import datetime as dt
 import io
 import json
+import math
 from dataclasses import dataclass, field
 from typing import IO, TYPE_CHECKING, Any
 
@@ -20,10 +21,11 @@ from tests.fixtures.llm import Call, FakeLLMGateway
 from tests.fixtures.pl_ids import make_pesel
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
     from uuid import UUID
 
     from spoldzielnia_ai.db.session import SessionFactory
-    from spoldzielnia_ai.workers.jobs import AtlasJob, ExportJob
+    from spoldzielnia_ai.workers.jobs import AtlasJob, DerivativeJob, ExportJob
     from tests.fixtures.app import Harness, LoggedIn
 
 MFA: dict[str, Any] = {"amr": ["pwd", "otp"]}
@@ -54,6 +56,11 @@ class RecordingQueue(NoProcessing):
 
     async def atlas_canonical(self, image_id: UUID) -> None:
         self.indexed.append(image_id)
+
+    recognitions: list[DerivativeJob] = field(default_factory=lambda: list[Any]())
+
+    async def recognition_requested(self, job: DerivativeJob) -> None:
+        self.recognitions.append(job)
 
 
 def privacy_reply(flags: dict[str, bool]) -> Any:
@@ -215,3 +222,21 @@ async def approve_all(h: Harness, image_id: str, quorum: int = 1) -> None:
         version = (await expert.client.get(f"/atlas/review/{image_id}")).json()["version"]
         response = await decide(expert, image_id, "APPROVE", version)
         assert response.status_code == 200, response.text
+
+
+DIM = 8
+
+
+class ColourEmbedder:
+    """Brightness of a 4x2 grid, normalised: enough to tell the test photos apart."""
+
+    dimension = DIM
+
+    def embed(self, images: Sequence[Image.Image]) -> list[list[float]]:
+        out: list[list[float]] = []
+        for image in images:
+            small = image.convert("L").resize((4, 2)).tobytes()
+            values = [b / 255 + 0.01 for b in small]
+            norm = math.sqrt(sum(v * v for v in values))
+            out.append([v / norm for v in values])
+        return out

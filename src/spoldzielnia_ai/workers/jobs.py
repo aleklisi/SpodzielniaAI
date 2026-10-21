@@ -33,6 +33,7 @@ class TaskName(StrEnum):
     SCAN_DERIVATIVE = "core.scan_derivative"
     PROMOTE_NOTES = "promotion.promote_notes"
     PREPARE_ATLAS = "promotion.prepare_atlas"  # 9.4: shared copy, PII scrub, checks
+    RECOGNIZE_ATLAS = "promotion.recognize_atlas"  # 9.9: „Rozpoznaj” on a notebook photo
     EXPORT_ATLAS = "promotion.export_atlas"  # 9.7: dataset archive
     INDEX_DERIVATIVE = "index.private_derivative"
     INDEX_ARTICLE = "index.canonical_article"
@@ -50,6 +51,7 @@ TASK_QUEUE: dict[TaskName, Queue] = {
     TaskName.SCAN_DERIVATIVE: Queue.CORE_SCAN,
     TaskName.PROMOTE_NOTES: Queue.PROMOTION,
     TaskName.PREPARE_ATLAS: Queue.PROMOTION,
+    TaskName.RECOGNIZE_ATLAS: Queue.PROMOTION,
     TaskName.EXPORT_ATLAS: Queue.PROMOTION,
     TaskName.INDEX_DERIVATIVE: Queue.INDEX,
     TaskName.INDEX_ARTICLE: Queue.INDEX,
@@ -59,8 +61,9 @@ TASK_QUEUE: dict[TaskName, Queue] = {
     TaskName.REFRESH_CLUSTERS: Queue.INDEX,
 }
 
-# Written by the owner, not produced by a media worker: it goes straight to screening (9.2).
-OWNER_WRITTEN_KINDS = frozenset({DerivativeKind.ANNOTATIONS})
+# Not produced by a media worker: the owner's own annotation text (9.2, screened then indexed)
+# and recognition results (9.9, produced by worker-core, never indexed).
+NO_MEDIA_TASK_KINDS = frozenset({DerivativeKind.ANNOTATIONS, DerivativeKind.RECOGNITION})
 
 KIND_TASK: dict[DerivativeKind, TaskName] = {
     DerivativeKind.TRANSCRIPT: TaskName.TRANSCRIBE_AUDIO,
@@ -78,6 +81,7 @@ TIME_LIMITS: dict[TaskName, tuple[int, int]] = {
     TaskName.SCAN_DERIVATIVE: (300, 330),
     TaskName.PROMOTE_NOTES: (1800, 1860),  # local LLM generation can be slow on CPU
     TaskName.PREPARE_ATLAS: (600, 660),
+    TaskName.RECOGNIZE_ATLAS: (600, 660),
     TaskName.EXPORT_ATLAS: (1800, 1860),
     TaskName.INDEX_DERIVATIVE: (600, 660),
     TaskName.INDEX_ARTICLE: (600, 660),

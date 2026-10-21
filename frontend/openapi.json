@@ -724,6 +724,40 @@
         "title": "Citation",
         "type": "object"
       },
+      "CitationOut": {
+        "properties": {
+          "author_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Author Name"
+          },
+          "image_id": {
+            "format": "uuid",
+            "title": "Image Id",
+            "type": "string"
+          },
+          "labels": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Labels",
+            "type": "array"
+          }
+        },
+        "required": [
+          "image_id",
+          "labels",
+          "author_name"
+        ],
+        "title": "CitationOut",
+        "type": "object"
+      },
       "ConnectionOut": {
         "properties": {
           "error": {
@@ -1171,7 +1205,8 @@
           "IMAGE_DESCRIPTION",
           "PARSED_DOC",
           "FETCHED_LINK",
-          "ANNOTATIONS"
+          "ANNOTATIONS",
+          "RECOGNITION"
         ],
         "title": "DerivativeKind",
         "type": "string"
@@ -4103,6 +4138,127 @@
         "title": "ReadinessResponse",
         "type": "object"
       },
+      "RecognitionOut": {
+        "properties": {
+          "answer": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Answer"
+          },
+          "citations": {
+            "items": {
+              "$ref": "#/components/schemas/CitationOut"
+            },
+            "title": "Citations",
+            "type": "array"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "grounded": {
+            "title": "Grounded",
+            "type": "boolean"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "question": {
+            "title": "Question",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/DerivativeStatus"
+          },
+          "suggestions": {
+            "items": {
+              "$ref": "#/components/schemas/SuggestionOut"
+            },
+            "title": "Suggestions",
+            "type": "array"
+          },
+          "vlm": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vlm"
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "error",
+          "question",
+          "answer",
+          "grounded",
+          "vlm",
+          "suggestions",
+          "citations",
+          "created_at"
+        ],
+        "title": "RecognitionOut",
+        "type": "object"
+      },
+      "RecognizeIn": {
+        "properties": {
+          "all_domains": {
+            "default": false,
+            "title": "All Domains",
+            "type": "boolean"
+          },
+          "domain_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Domain Id"
+          },
+          "question": {
+            "anyOf": [
+              {
+                "maxLength": 300,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Question"
+          }
+        },
+        "title": "RecognizeIn",
+        "type": "object"
+      },
       "RegionEditIn": {
         "properties": {
           "description": {
@@ -5130,6 +5286,50 @@
           "version"
         ],
         "title": "SubmitOut",
+        "type": "object"
+      },
+      "SuggestionOut": {
+        "properties": {
+          "confidence": {
+            "title": "Confidence",
+            "type": "number"
+          },
+          "h": {
+            "title": "H",
+            "type": "number"
+          },
+          "label_id": {
+            "format": "uuid",
+            "title": "Label Id",
+            "type": "string"
+          },
+          "label_name": {
+            "title": "Label Name",
+            "type": "string"
+          },
+          "w": {
+            "title": "W",
+            "type": "number"
+          },
+          "x": {
+            "title": "X",
+            "type": "number"
+          },
+          "y": {
+            "title": "Y",
+            "type": "number"
+          }
+        },
+        "required": [
+          "label_id",
+          "label_name",
+          "x",
+          "y",
+          "w",
+          "h",
+          "confidence"
+        ],
+        "title": "SuggestionOut",
         "type": "object"
       },
       "SyncOut": {
@@ -10132,6 +10332,128 @@
           }
         },
         "summary": "Photo Image",
+        "tags": [
+          "photos"
+        ]
+      }
+    },
+    "/notes/{note_id}/attachments/{attachment_id}/recognitions": {
+      "get": {
+        "description": "The photo's recognitions, newest first (pending ones without a result).",
+        "operationId": "recognitions_notes__note_id__attachments__attachment_id__recognitions_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "note_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Note Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "attachment_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Attachment Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/RecognitionOut"
+                  },
+                  "title": "Response Recognitions Notes  Note Id  Attachments  Attachment Id  Recognitions Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Recognitions",
+        "tags": [
+          "photos"
+        ]
+      }
+    },
+    "/notes/{note_id}/attachments/{attachment_id}/recognize": {
+      "post": {
+        "description": "Ask what's on the photo, answered from verified atlas examples by a local model.",
+        "operationId": "recognize_notes__note_id__attachments__attachment_id__recognize_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "note_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Note Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "attachment_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Attachment Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecognizeIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecognitionOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Recognize",
         "tags": [
           "photos"
         ]

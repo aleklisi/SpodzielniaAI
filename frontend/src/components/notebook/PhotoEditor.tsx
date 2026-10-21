@@ -3,14 +3,16 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
-import { ImageAnnotator, markColor } from "@/components/annotator/ImageAnnotator";
+import { ImageAnnotator, markColor, newMarkKey } from "@/components/annotator/ImageAnnotator";
 import { AtlasSubmissionPanel } from "@/components/notebook/AtlasSubmissionPanel";
+import { RecognitionPanel, suggestionKey } from "@/components/notebook/RecognitionPanel";
 import { LabelCombobox } from "@/components/atlas/LabelCombobox";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { cn } from "@/components/ui/cn";
 import { useToast } from "@/components/ui/Toast";
 import { useDomains } from "@/lib/atlas";
+import { useRecognitions, type Suggestion } from "@/lib/recognition";
 import {
   imageUrl,
   MAX_MARKS,
@@ -49,6 +51,23 @@ function Editor({ noteId, attachmentId, photo, onReload }: { noteId: string; att
   const [selected, setSelected] = useState<string | null>(null);
   const [dirty, setDirty] = useState(false);
   const [error, setError] = useState<{ message: string; stale: boolean } | null>(null);
+  const [dismissed, setDismissed] = useState<Set<string>>(() => new Set());
+  const recognitions = useRecognitions(noteId, attachmentId);
+  const latestRecognition = recognitions.data?.[0];
+  const ghosts =
+    latestRecognition?.status === "DONE"
+      ? latestRecognition.suggestions
+          .filter((s) => !dismissed.has(suggestionKey(s)))
+          .map((s) => ({ key: suggestionKey(s), label: s.label_name, x: s.x, y: s.y, w: s.w, h: s.h }))
+      : [];
+
+  function accept(s: Suggestion) {
+    change([
+      ...marks,
+      { key: newMarkKey(), label: { id: s.label_id, name: s.label_name, status: "ACTIVE" }, x: s.x, y: s.y, w: s.w, h: s.h, description: "", source: "SUGGESTED" },
+    ]);
+    setDismissed((d) => new Set(d).add(suggestionKey(s)));
+  }
 
   const domain = domains.data?.find((d) => d.id === domainId) ?? null;
   const archived = domain?.status === "ARCHIVED";
@@ -112,6 +131,7 @@ function Editor({ noteId, attachmentId, photo, onReload }: { noteId: string; att
           onSelect={setSelected}
           onChange={change}
           readOnly={!domainId || archived}
+          ghosts={ghosts}
         />
         {!domainId && <p className="text-sm text-warn">Najpierw wybierz dziedzinę zdjęcia: od niej zależą dostępne etykiety.</p>}
       </section>
@@ -230,6 +250,14 @@ function Editor({ noteId, attachmentId, photo, onReload }: { noteId: string; att
         <Button onClick={() => void submit()} busy={save.isPending} disabled={!domainId || archived || unlabeled > 0 || !dirty}>
           Zapisz
         </Button>
+        <RecognitionPanel
+          noteId={noteId}
+          attachmentId={attachmentId}
+          domainId={domainId}
+          dismissed={dismissed}
+          onAccept={accept}
+          onDismiss={(s) => setDismissed((d) => new Set(d).add(suggestionKey(s)))}
+        />
         <AtlasSubmissionPanel
           noteId={noteId}
           attachmentId={attachmentId}

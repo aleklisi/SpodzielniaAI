@@ -667,3 +667,40 @@ green; A1–A12 covered by tests; scenario 11 passes against the compose stack.
   Qdrant: approval → points with provenance, review photos not indexed, suspend/resume/revoke
   through the outbox + mandatory filter, merge re-points, consistency audit).
 
+### 9.9 (done)
+
+- Migration `0018_recognition`: `derivative_kind` + `RECOGNITION`. A recognition is a private,
+  encrypted derivative of the photo (request in `source`, result JSON in `content`); it is
+  never screened into the notebook index and never promoted (`_usable` →
+  `source_not_promotable`). `NO_MEDIA_TASK_KINDS` replaces `OWNER_WRITTEN_KINDS`.
+- **Fixed with this chunk:** promotion's kind-label map lacked `ANNOTATIONS` (9.2), so
+  promoting a photo's annotation text would have raised `KeyError`.
+- `atlas/recognition.py`: `RecognitionService` (request: photo must be an image; domain from
+  the request, else the photo's annotation domain, else `domain_required` unless
+  `all_domains`; one recognition at a time per photo) and `AtlasRecognizer` (worker-core, task
+  `promotion.recognize_atlas`): decrypt locally → ≤ 1280 px → whole photo + 13 overlapping
+  windows (2x2 at 60 %, 3x3 at 45 %) embedded with SigLIP → region search per window with the
+  mandatory filter, domain filter and `atlas.recognition_min_score` → up to
+  `recognition_max_labels` candidates. **No candidate → fixed "no verified examples" answer
+  and no model call.** Otherwise the local VLM (`RECOGNITION` prompt, `force_local_llm=True`)
+  gets the photo, candidate names + vocabulary descriptions and up to 3 verified reference
+  crops (from approved, ACTIVE photos only); its output keeps only candidate labels and sane
+  boxes; the answer passes the injection guard (`FILTERED_ANSWER` otherwise). VLM down or
+  invalid → retrieval-only answer with approximate window boxes, flagged `vlm: unavailable`.
+- **Deviation:** worker-core instead of worker-media (same reasons as 9.8).
+- API: `POST /notes/{note}/attachments/{id}/recognize` (202, 30/day),
+  `GET …/recognitions` (newest first). Citations are re-checked with `can_view` at read time
+  (a suspended photo disappears at once), carry the author's name only with `show_author`,
+  and spend the viewer's atlas coverage; responses hold no vectors and no hit scores.
+- `recognition_min_score` = 0.80 is **provisional**: calibrate with `spoldzielnia atlas
+  benchmark` once the atlas holds real photos.
+- Frontend: „Rozpoznaj” card in the photo editor (question, all-domains switch, polling),
+  answer, dashed suggestion boxes on the photo (`ImageAnnotator` `ghosts`), „Przyjmij” turns a
+  suggestion into a `SUGGESTED` mark to save, „Odrzuć” hides it, cited atlas thumbnails;
+  recognition derivatives are hidden from the note's materials list.
+- Tests: `test_atlas_recognition.py` (6 with real Qdrant and a fake local VLM: grounded local
+  answer with filtered suggestions and an anonymous citation and no raw scores; no examples →
+  no model call; VLM down → retrieval fallback; injected answer filtered; suspended photo drops
+  from citations and the index; RLS, domain rule, one-at-a-time, accepting a suggestion,
+  never promotable), 3 Vitest cases.
+

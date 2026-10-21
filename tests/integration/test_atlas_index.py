@@ -6,7 +6,6 @@ Real Postgres and Qdrant; a small fake image embedder (mean colour) instead of S
 
 from __future__ import annotations
 
-import math
 import time
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
@@ -22,8 +21,10 @@ from spoldzielnia_ai.vector.collections import recreate_atlas_collection
 from spoldzielnia_ai.vector.deps import get_vector_sync
 from tests.fixtures.app import harness
 from tests.fixtures.atlas import (
+    DIM,
     MFA,
     CleanScanner,
+    ColourEmbedder,
     RecordingQueue,
     World,
     approve_all,
@@ -32,7 +33,7 @@ from tests.fixtures.atlas import (
 )
 
 if TYPE_CHECKING:
-    from collections.abc import AsyncIterator, Sequence
+    from collections.abc import AsyncIterator
 
     from qdrant_client import AsyncQdrantClient
 
@@ -41,23 +42,6 @@ if TYPE_CHECKING:
     from tests.integration.conftest import QdrantInstance
 
 pytestmark = pytest.mark.integration
-
-DIM = 8
-
-
-class ColourEmbedder:
-    """Brightness of a 4x2 grid, normalised: enough to tell the test photos apart."""
-
-    dimension = DIM
-
-    def embed(self, images: Sequence[Image.Image]) -> list[list[float]]:
-        out: list[list[float]] = []
-        for image in images:
-            small = image.convert("L").resize((4, 2)).tobytes()
-            values = [b / 255 + 0.01 for b in small]
-            norm = math.sqrt(sum(v * v for v in values))
-            out.append([v / norm for v in values])
-        return out
 
 
 @pytest.fixture

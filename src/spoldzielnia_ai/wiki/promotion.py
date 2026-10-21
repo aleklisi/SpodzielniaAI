@@ -79,6 +79,7 @@ _KIND_LABEL = {
     DerivativeKind.IMAGE_DESCRIPTION: "opis zdjęcia",
     DerivativeKind.PARSED_DOC: "dokument",
     DerivativeKind.FETCHED_LINK: "strona internetowa",
+    DerivativeKind.ANNOTATIONS: "oznaczenia zdjęcia",
 }
 
 
@@ -112,6 +113,8 @@ def source_ids_hash(note_ids: list[UUID], derivative_ids: list[UUID]) -> str:
 
 def _usable(derivative: NoteDerivative) -> str | None:
     """None if the derivative may be promoted, else the reason it may not."""
+    if derivative.kind not in _KIND_LABEL:  # e.g. a recognition result: model output, not notes
+        return "source_not_promotable"
     if derivative.status == DerivativeStatus.DONE:
         return None
     if derivative.status == DerivativeStatus.QUARANTINED:

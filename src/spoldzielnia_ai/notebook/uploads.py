@@ -84,6 +84,8 @@ class ProcessingQueue(Protocol):
 
     async def atlas_canonical(self, image_id: UUID) -> None: ...
 
+    async def recognition_requested(self, job: DerivativeJob) -> None: ...
+
     async def promotion_requested(self, promotion_id: UUID, owner_id: UUID) -> None: ...
 
     async def article_canonical(self, article_id: UUID) -> None: ...
@@ -108,6 +110,9 @@ class NoProcessing:
         return None
 
     async def atlas_canonical(self, image_id: UUID) -> None:
+        return None
+
+    async def recognition_requested(self, job: DerivativeJob) -> None:
         return None
 
     async def promotion_requested(self, promotion_id: UUID, owner_id: UUID) -> None:

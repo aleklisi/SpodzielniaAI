@@ -53,6 +53,7 @@ class DerivativeKind(StrEnum):
     PARSED_DOC = "PARSED_DOC"
     FETCHED_LINK = "FETCHED_LINK"
     ANNOTATIONS = "ANNOTATIONS"  # 9.2: a photo's caption and marks as text (written by its owner)
+    RECOGNITION = "RECOGNITION"  # 9.9: „Rozpoznaj” result (JSON), never promoted or indexed
 
 
 class DerivativeStatus(StrEnum):

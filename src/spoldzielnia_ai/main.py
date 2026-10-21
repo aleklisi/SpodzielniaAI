@@ -32,6 +32,7 @@ from spoldzielnia_ai.api.photos import router as photos_router
 from spoldzielnia_ai.api.promotion import notes_router as promote_router
 from spoldzielnia_ai.api.promotion import router as promotions_router
 from spoldzielnia_ai.api.rag import router as rag_router
+from spoldzielnia_ai.api.recognition import router as recognition_router
 from spoldzielnia_ai.api.reviews import router as reviews_router
 from spoldzielnia_ai.api.wiki import router as wiki_router
 from spoldzielnia_ai.auth.crypto import CsrfTokens, TokenSealer, derive_key
@@ -151,6 +152,7 @@ def create_app(
     app.include_router(promotions_router)
     app.include_router(attachments_router)
     app.include_router(photos_router)
+    app.include_router(recognition_router)
     app.include_router(links_router)
     app.include_router(wiki_router)
     app.include_router(reviews_router)

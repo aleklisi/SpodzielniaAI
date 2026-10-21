@@ -35,6 +35,7 @@ export const DERIVATIVE_KIND: Record<string, string> = {
   PARSED_DOC: "Treść dokumentu",
   FETCHED_LINK: "Strona internetowa",
   ANNOTATIONS: "Oznaczenia zdjęcia",
+  RECOGNITION: "Rozpoznawanie",
 };
 
 export const DERIVATIVE_STATUS: Record<string, string> = {

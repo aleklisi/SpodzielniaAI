@@ -10,6 +10,7 @@ import asyncio
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from spoldzielnia_ai.atlas.recognition import AtlasRecognizer
 from spoldzielnia_ai.atlas.submissions import AtlasPreparer
 from spoldzielnia_ai.atlas.vectors import AtlasIndexer, AtlasVectorRepo
 from spoldzielnia_ai.auth.deps import DbAuditSink
@@ -46,6 +47,7 @@ if TYPE_CHECKING:
 
     from qdrant_client import AsyncQdrantClient
 
+    from spoldzielnia_ai.atlas.embedding import SiglipEmbedder
     from spoldzielnia_ai.core.settings import WorkerSettings
     from spoldzielnia_ai.db.session import SessionFactory
     from spoldzielnia_ai.llm.injection_guard import Classifier
@@ -83,6 +85,8 @@ class WorkerRuntime:
         self._promoter: PromotionProcessor | None = None
         self._atlas: AtlasPreparer | None = None
         self._atlas_index: AtlasIndexer | None = None
+        self._recognizer: AtlasRecognizer | None = None
+        self._embedder: SiglipEmbedder | None = None
         self._indexer: Indexer | None = None
         self._sync: VectorSync | None = None
         self._qdrant_client: AsyncQdrantClient | None = None
@@ -297,22 +301,52 @@ class WorkerRuntime:
         self._loop().run(builder.handle(job.export_id))
         return False
 
-    def _atlas_indexer(self) -> AtlasIndexer:
-        """worker-core: SigLIP from the models volume (loaded on first use), storage, Qdrant."""
-        if self._atlas_index is None:
+    def _image_embedder(self) -> SiglipEmbedder:
+        """One SigLIP per process (loaded on first use), shared by indexing and recognition."""
+        if self._embedder is None:
             from spoldzielnia_ai.atlas.embedding import SiglipEmbedder
 
+            self._embedder = SiglipEmbedder(Path(self._settings.models.image_embed_dir))
+        return self._embedder
+
+    def _atlas_indexer(self) -> AtlasIndexer:
+        """worker-core: SigLIP from the models volume, storage, Qdrant."""
+        if self._atlas_index is None:
             factory, cipher = self._shared()
             settings = self._settings
-            embedder = SiglipEmbedder(Path(settings.models.image_embed_dir))
             self._atlas_index = AtlasIndexer(
                 factory,
                 cipher,
                 S3ObjectStorage(settings.s3),
-                embedder,
+                self._image_embedder(),
                 AtlasVectorRepo(self._qdrant()),
             )
         return self._atlas_index
+
+    def _build_recognizer(self) -> AtlasRecognizer:
+        """worker-core: SigLIP, Qdrant, storage, the local VLM and the injection guard (9.9)."""
+        factory, cipher = self._shared()
+        settings = self._settings
+        guard, _ = self._injection_guard()
+        return AtlasRecognizer(
+            factory,
+            cipher,
+            S3ObjectStorage(settings.s3),
+            self._image_embedder(),
+            AtlasVectorRepo(self._qdrant()),
+            self._gateway(),
+            guard,
+            settings.atlas,
+            max_pixels=settings.uploads.max_image_pixels,
+            tmp_dir=settings.uploads.tmp_dir,
+        )
+
+    def recognize(self, job: DerivativeJob, attempt: int) -> bool:
+        runner = self._loop()
+        if self._recognizer is None:
+            self._recognizer = runner.run(_construct(self._build_recognizer))
+        runner.run(self._llm_store().current())
+        return runner.run(self._recognizer.handle(job, final_attempt=attempt >= MAX_RETRIES))
 
     def index_atlas(self, job: AtlasIndexJob, _attempt: int) -> bool:
         indexer = self._loop().run(_construct(self._atlas_indexer))
@@ -373,6 +407,7 @@ class WorkerRuntime:
         handlers: dict[TaskName, Callable[[Any, int], bool]] = {
             TaskName.PROMOTE_NOTES: self.promote,
             TaskName.PREPARE_ATLAS: self.prepare_atlas,
+            TaskName.RECOGNIZE_ATLAS: self.recognize,
             TaskName.EXPORT_ATLAS: self.export_atlas,
             TaskName.SCAN_DERIVATIVE: self.scan,
             TaskName.INDEX_DERIVATIVE: self.index_derivative,

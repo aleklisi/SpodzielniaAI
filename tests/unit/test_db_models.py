@@ -184,6 +184,7 @@ def test_migrations_form_a_single_linear_history() -> None:
         "0015_image_annotation",
         "0016_atlas",
         "0017_atlas_export",
+        "0018_recognition",
     ]
 
 
@@ -205,4 +206,5 @@ def test_migration_enum_types_match_python_enums() -> None:
     }
     migrated["derivative_status"].append("QUARANTINED")  # added by 0005_quarantine
     migrated["derivative_kind"].append("ANNOTATIONS")  # added by 0015_image_annotation
+    migrated["derivative_kind"].append("RECOGNITION")  # added by 0018_recognition
     assert migrated == {name: [m.value for m in enum] for enum, name in PG_ENUM_NAMES.items()}
