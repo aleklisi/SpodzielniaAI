@@ -107,7 +107,7 @@ published="$("${COMPOSE[@]}" ps --format json | python3 -c '
 import json, sys
 raw = sys.stdin.read().strip()
 rows = json.loads(raw) if raw.startswith("[") else [json.loads(l) for l in raw.splitlines() if l]
-dev_debug = {"postgres", "redis", "qdrant", "minio", "clamav", "mailpit"}
+dev_debug = {"postgres", "redis", "qdrant", "minio", "clamav", "mailpit", "keycloak"}
 offenders = sorted({r["Service"] for r in rows for p in (r.get("Publishers") or [])
                     if p.get("PublishedPort") and r["Service"] != "proxy"
                     and not (r["Service"] in dev_debug and p.get("URL") == "127.0.0.1")})

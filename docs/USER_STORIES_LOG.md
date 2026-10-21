@@ -16,7 +16,7 @@ committed, add the commit hash to the story's *Delivery* list.
 | ID | Story | Status | Plan | Added |
 |----|-------|--------|------|-------|
 | [US-01](#us-01) | Administrator configures LLM models (local / cloud) in the UI and tests them | DONE | [07_LLM_MODEL_CONFIG.md](implementation/07_LLM_MODEL_CONFIG.md) · Etap 7 | 2026-10-20 |
-| [US-02](#us-02) | Administrator manages users: create accounts, reset passwords, block access, force password change, manage roles | IN PROGRESS | [08_USER_MANAGEMENT.md](implementation/08_USER_MANAGEMENT.md) · Etap 8 | 2026-10-21 |
+| [US-02](#us-02) | Administrator manages users: create accounts, reset passwords, block access, force password change, manage roles | DONE | [08_USER_MANAGEMENT.md](implementation/08_USER_MANAGEMENT.md) · Etap 8 | 2026-10-21 |
 
 ---
 
@@ -62,7 +62,8 @@ way to change the configuration.
 reset passwords, block access for a user, force a password change and manage user roles.
 
 - **Source:** product owner request, 2026-10-21.
-- **Status:** IN PROGRESS 2026-10-21 (Etap 8, chunks 8.1–8.6).
+- **Status:** DONE 2026-10-21 (Etap 8, chunks 8.1–8.6). Implemented on request while 6.7 and
+  6.8 are still open.
 - **Plan:** [docs/implementation/08_USER_MANAGEMENT.md](implementation/08_USER_MANAGEMENT.md)
 - **Acceptance criteria:**
   1. An admin (with MFA) can create an account with username, email, name and roles in
@@ -79,7 +80,16 @@ reset passwords, block access for a user, force a password change and manage use
   6. Every action is recorded in the security audit log.
 - **Out of scope / follow-ups:** deleting users / GDPR erasure; resetting a user's TOTP device;
   bulk import and invitations; a separate user-admin role.
-- **Delivery:** —
+- **Delivery:**
+  - 8.1 Keycloak admin client, `spoldzielnia-admin` service account, realm setup: `a535b6e`
+  - 8.2 block columns, per-user session index, audit events: `936306a`
+  - 8.3 `UserAdminService` and guardrails: `2cc0003`
+  - 8.4 `/admin/users` API: `f877919`
+  - 8.5 `/admin/users` console: `4149fe7`
+  - 8.6 E2E scenario 10, security review, docs: the `feat(stage-8.6)` commit
+- **Found while implementing:** the realm's user profile requires e-mail, first and last name;
+  an account created without them is stopped at its first login by Keycloak's profile form, so
+  the console now requires all three (acceptance criterion 1 reads "username, email, name").
 
 ---
 

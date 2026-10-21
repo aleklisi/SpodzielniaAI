@@ -50,9 +50,9 @@ export function CreateUserDialog({ open, onClose, onCreated }: { open: boolean; 
     try {
       const created = await create.mutateAsync({
         username: draft.username.trim(),
-        email: draft.email.trim() || null,
-        first_name: draft.firstName.trim() || null,
-        last_name: draft.lastName.trim() || null,
+        email: draft.email.trim(),
+        first_name: draft.firstName.trim(),
+        last_name: draft.lastName.trim(),
         roles: draft.roles,
         password_mode: draft.mode,
       });
@@ -107,7 +107,7 @@ export function CreateUserDialog({ open, onClose, onCreated }: { open: boolean; 
               className={INPUT}
               type="email"
               autoComplete="off"
-              required={draft.mode === "email"}
+              required
               value={draft.email}
               onChange={(e) => setDraft({ ...draft, email: e.target.value })}
             />
@@ -115,11 +115,23 @@ export function CreateUserDialog({ open, onClose, onCreated }: { open: boolean; 
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="flex flex-col gap-1">
               Imię
-              <input className={INPUT} maxLength={100} value={draft.firstName} onChange={(e) => setDraft({ ...draft, firstName: e.target.value })} />
+              <input
+                className={INPUT}
+                required
+                maxLength={100}
+                value={draft.firstName}
+                onChange={(e) => setDraft({ ...draft, firstName: e.target.value })}
+              />
             </label>
             <label className="flex flex-col gap-1">
               Nazwisko
-              <input className={INPUT} maxLength={100} value={draft.lastName} onChange={(e) => setDraft({ ...draft, lastName: e.target.value })} />
+              <input
+                className={INPUT}
+                required
+                maxLength={100}
+                value={draft.lastName}
+                onChange={(e) => setDraft({ ...draft, lastName: e.target.value })}
+              />
             </label>
           </div>
           <fieldset className="flex flex-col gap-1">

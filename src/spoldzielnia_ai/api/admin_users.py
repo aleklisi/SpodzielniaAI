@@ -191,10 +191,10 @@ class UserPageOut(BaseModel):
 
 class CreateUserIn(BaseModel):
     username: str = Field(min_length=3, max_length=64)
-    # A shape check only; Keycloak validates the address too.
-    email: str | None = Field(default=None, max_length=254, pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
-    first_name: str | None = Field(default=None, max_length=100)
-    last_name: str | None = Field(default=None, max_length=100)
+    # Required by the realm's user profile. A shape check only; Keycloak validates the address.
+    email: str = Field(max_length=254, pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+    first_name: str = Field(min_length=1, max_length=100)
+    last_name: str = Field(min_length=1, max_length=100)
     roles: list[Role] = Field(default_factory=lambda: [Role.MEMBER], max_length=3)
     password_mode: PasswordMode = PasswordMode.EMAIL
 
@@ -301,9 +301,9 @@ async def create_user(
         await _temporary_password_limit(request, principal)
     account = NewAccount(
         username=payload.username,
-        email=payload.email or None,
-        first_name=(payload.first_name or "").strip() or None,
-        last_name=(payload.last_name or "").strip() or None,
+        email=payload.email.strip(),
+        first_name=payload.first_name.strip() or None,
+        last_name=payload.last_name.strip() or None,
         roles=frozenset(payload.roles),
         password_mode=payload.password_mode,
     )

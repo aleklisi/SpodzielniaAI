@@ -17,6 +17,15 @@ export function secret(name: string): string {
 
 export const email = (user: string) => `${user}@spoldzielnia.localhost`;
 
+/** `make mfa-off` is in effect (MFA_REQUIRED=false in `.env`). */
+export function mfaOff(): boolean {
+  try {
+    return /^MFA_REQUIRED=false\s*$/m.test(readFileSync(resolve(REPO, ".env"), "utf8"));
+  } catch {
+    return false;
+  }
+}
+
 // --- TOTP (RFC 6238, as Keycloak: HMAC-SHA1 keyed with the raw secret, 6 digits, 30 s) ----
 
 const step = () => Math.floor(Date.now() / 30_000);

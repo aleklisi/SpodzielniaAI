@@ -23,7 +23,7 @@ from sqlalchemy import text
 from sqlalchemy.engine import URL
 from sqlalchemy.ext.asyncio import create_async_engine
 
-from tests.integration.stack import compose, require_port, secret
+from tests.integration.stack import compose, mfa_off, require_port, secret
 
 pytestmark = pytest.mark.integration
 
@@ -131,7 +131,8 @@ def test_member_password_login_session_and_logout(caddy_ca: Path) -> None:
         me = client.get(f"{SITE}/api/me")
         assert me.status_code == 200, me.text
         assert me.json()["roles"] == ["MEMBER"]
-        assert me.json()["mfa_satisfied"] is False
+        # `make mfa-off` treats every session as MFA-satisfied (dev only).
+        assert me.json()["mfa_satisfied"] is mfa_off()
 
         csrf = client.cookies.get("__Host-csrf")
         assert csrf
@@ -152,6 +153,8 @@ def test_member_password_login_session_and_logout(caddy_ca: Path) -> None:
 
 
 def test_expert_login_with_otp_satisfies_mfa(caddy_ca: Path) -> None:
+    if mfa_off():
+        pytest.skip("the OTP step is switched off (make mfa-off)")
     with _client(caddy_ca) as client:
         callback = _login(client, "expert1", otp_seed=secret("dev_totp_seed"))
         assert callback.status_code == 303, callback.text

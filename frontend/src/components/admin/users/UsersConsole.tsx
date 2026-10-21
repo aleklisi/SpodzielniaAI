@@ -1,5 +1,6 @@
 "use client";
 
+import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 
 import { CreateUserDialog } from "@/components/admin/users/CreateUserDialog";
@@ -44,6 +45,13 @@ export function UsersConsole() {
   const users = useUsers(filters);
   const sync = useSyncUsers();
   const toast = useToast();
+  const client = useQueryClient();
+
+  /** Opening a user (again) always shows fresh data: logins and Keycloak change it meanwhile. */
+  function show(id: string) {
+    setSelected(id);
+    void client.invalidateQueries({ queryKey: ["admin", "users", "detail", id] });
+  }
 
   // Search as you type, without a request per keystroke.
   useEffect(() => {
@@ -154,7 +162,7 @@ export function UsersConsole() {
                           type="button"
                           className="text-left font-medium text-primary-strong hover:underline"
                           aria-label={`Szczegóły: ${displayName(u)}`}
-                          onClick={() => setSelected(u.id)}
+                          onClick={() => show(u.id)}
                         >
                           {displayName(u)}
                         </button>

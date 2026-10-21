@@ -128,7 +128,14 @@ describe("UsersConsole", () => {
     mount([
       http.post(`${API}/admin/users`, async ({ request }) => {
         const body = (await request.json()) as Record<string, unknown>;
-        expect(body).toMatchObject({ username: "nowa", password_mode: "temporary", roles: ["MEMBER"] });
+        expect(body).toMatchObject({
+          username: "nowa",
+          email: "nowa@example.test",
+          first_name: "Nowa",
+          last_name: "Osoba",
+          password_mode: "temporary",
+          roles: ["MEMBER"],
+        });
         return HttpResponse.json(
           { user: summary("01900000-0000-7000-8000-0000000000d1", "nowa", { status: "pending_setup" }), temporary_password: "Xy7-pQ3rTz9kWm2a" },
           { status: 201 },
@@ -144,6 +151,9 @@ describe("UsersConsole", () => {
     await user.click(await screen.findByRole("button", { name: "Dodaj użytkownika" }));
     const form = screen.getByRole("form", { name: "Nowe konto" });
     await user.type(within(form).getByLabelText(/Nazwa użytkownika/), "nowa");
+    await user.type(within(form).getByLabelText("E-mail"), "nowa@example.test");
+    await user.type(within(form).getByLabelText("Imię"), "Nowa");
+    await user.type(within(form).getByLabelText("Nazwisko"), "Osoba");
     await user.click(within(form).getByLabelText(/Hasło tymczasowe/));
     await user.click(within(form).getByRole("button", { name: "Utwórz konto" }));
 

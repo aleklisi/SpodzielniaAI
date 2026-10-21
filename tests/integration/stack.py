@@ -45,6 +45,12 @@ def secret(name: str) -> str:
     return path.read_text().strip()
 
 
+def mfa_off() -> bool:
+    """`make mfa-off` is in effect: Keycloak skips the OTP step (MFA_REQUIRED=false in `.env`)."""
+    env = REPO_ROOT / ".env"
+    return env.is_file() and "MFA_REQUIRED=false" in env.read_text().splitlines()
+
+
 def require_port(port: int, host: str = "127.0.0.1") -> None:
     try:
         with socket.create_connection((host, port), timeout=1):

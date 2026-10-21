@@ -1366,11 +1366,11 @@ export interface components {
         /** CreateUserIn */
         CreateUserIn: {
             /** Email */
-            email?: string | null;
+            email: string;
             /** First Name */
-            first_name?: string | null;
+            first_name: string;
             /** Last Name */
-            last_name?: string | null;
+            last_name: string;
             /** @default email */
             password_mode: components["schemas"]["PasswordMode"];
             /** Roles */

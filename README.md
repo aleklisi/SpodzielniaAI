@@ -113,6 +113,31 @@ treats every session as MFA-satisfied (`MFA_REQUIRED=false` in `.env`, rebuilds 
 mfa-on` restores both. Log in again after switching. The API refuses to start with MFA off when
 `SPOLDZIELNIA_ENVIRONMENT=prod`. While MFA is off, the E2E step-up scenario is skipped.
 
+### Managing users in the admin console (Stage 8)
+
+`/admin/users` (ADMIN with MFA, nav "Użytkownicy") creates accounts, resets passwords, forces a
+password change, blocks and unblocks users, ends their sessions and manages the `MEMBER`,
+`EXPERT` and `ADMIN` roles. Keycloak keeps every password; the API works through a dedicated
+service account, `spoldzielnia-admin`, which can manage users and nothing else in the realm.
+
+- **Existing stacks** (created before Stage 8) need the client once: `make secrets` (adds
+  `keycloak_admin_client_secret`), recreate `keycloak` and `api` (`make up`), then
+  `make keycloak-setup`. Fresh dev realms get it from the realm export; run the setup anyway, it
+  is idempotent.
+- **New accounts** need an e-mail, first and last name (the realm's user profile requires them).
+  The user sets their own password: from an e-mail link (needs SMTP in Keycloak; dev uses
+  Mailpit, `--profile tools`) or a 16-character temporary password shown to the admin once.
+  New experts and admins must set up TOTP at their first login (unless `make mfa-off`).
+- **Guardrails:** nobody can block themselves or remove their own admin role, the last active
+  admin can't be demoted or blocked, and granting EXPERT/ADMIN, creating such an account or
+  unblocking needs a login with a second factor in the last 5 minutes.
+- **Blocking** disables the Keycloak user and ends every session at once. It is separate from the
+  security shield's lock, which is lifted in the security console after reviewing the risk
+  history.
+- **Users created in the Keycloak console** appear after "Synchronizuj z Keycloak"; a user
+  disabled there is shown as blocked.
+- Dev only: Keycloak's internal port is on `127.0.0.1:8180` for `tests/integration/test_keycloak_admin.py`.
+
 ## Private notebook & media pipeline (Stage 2)
 
 Notes, attachments and derivatives are encrypted per row (envelope encryption, KEK = Docker

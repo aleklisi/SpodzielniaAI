@@ -22,9 +22,12 @@ fi
 
 # 1. Keycloak: the "browser-amr conditional otp" step of the login flow.
 flow="authentication/flows/browser-amr%20forms/executions"
-id="$(kcadm get "$flow" | jq -r '.[] | select(.displayName == "browser-amr conditional otp") | .id')"
-[[ -n "$id" ]] || { echo "OTP step not found in the browser-amr flow" >&2; exit 1; }
-kcadm update "$flow" -b "{\"id\":\"$id\",\"requirement\":\"$requirement\"}"
+# Send the whole execution back with only the requirement changed: Keycloak treats a missing
+# `priority` as 0, which would move the OTP step in front of the password form.
+execution="$(kcadm get "$flow" | jq -c --arg r "$requirement" \
+  '.[] | select(.displayName == "browser-amr conditional otp") | .requirement = $r | .priority = 20')"
+[[ -n "$execution" ]] || { echo "OTP step not found in the browser-amr flow" >&2; exit 1; }
+kcadm update "$flow" -b "$execution"
 
 # 2. API and workers: SPOLDZIELNIA_SECURITY__MFA_REQUIRED via MFA_REQUIRED in .env.
 touch .env

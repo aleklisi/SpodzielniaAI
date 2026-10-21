@@ -382,8 +382,10 @@ class UserAdminService:
         elevated = bool(roles & ELEVATED)
         if elevated:
             self._require_step_up(actor)
-        if account.password_mode is PasswordMode.EMAIL and not account.email:
-            raise UserAdminError("email_required", 422)
+        # The realm's user profile requires these; without them Keycloak stops the first login
+        # with a "complete your profile" form.
+        if not (account.email and account.first_name and account.last_name):
+            raise UserAdminError("profile_required", 422)
 
         actions = [UPDATE_PASSWORD]
         if elevated and self._needs_totp():

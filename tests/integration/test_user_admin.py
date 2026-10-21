@@ -182,9 +182,12 @@ async def test_create_by_email_link(
     assert created.temporary_password is None
     assert idp.emails_sent == [(created.user.oidc_subject, ("UPDATE_PASSWORD",))]
 
-    no_address = dataclasses.replace(_account("ewa", mode=PasswordMode.EMAIL), email=None)
-    with pytest.raises(UserAdminError, match="email_required"):
-        await service.create(_actor(admin), no_address)
+    # The realm's user profile needs e-mail, first and last name (else Keycloak asks at login).
+    for missing in ("email", "first_name", "last_name"):
+        incomplete = dataclasses.replace(_account("ewa"), **{missing: None})
+        with pytest.raises(UserAdminError, match="profile_required"):
+            await service.create(_actor(admin), incomplete)
+    assert all(u.username != "ewa" for u in idp.users.values())
 
 
 async def test_a_failed_email_undoes_the_keycloak_user(

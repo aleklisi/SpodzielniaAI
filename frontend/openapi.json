@@ -814,41 +814,22 @@
       "CreateUserIn": {
         "properties": {
           "email": {
-            "anyOf": [
-              {
-                "maxLength": 254,
-                "pattern": "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Email"
+            "maxLength": 254,
+            "pattern": "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$",
+            "title": "Email",
+            "type": "string"
           },
           "first_name": {
-            "anyOf": [
-              {
-                "maxLength": 100,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "First Name"
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "First Name",
+            "type": "string"
           },
           "last_name": {
-            "anyOf": [
-              {
-                "maxLength": 100,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Last Name"
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Last Name",
+            "type": "string"
           },
           "password_mode": {
             "$ref": "#/components/schemas/PasswordMode",
@@ -870,7 +851,10 @@
           }
         },
         "required": [
-          "username"
+          "username",
+          "email",
+          "first_name",
+          "last_name"
         ],
         "title": "CreateUserIn",
         "type": "object"

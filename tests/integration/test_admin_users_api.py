@@ -25,6 +25,7 @@ if TYPE_CHECKING:
 pytestmark = pytest.mark.integration
 
 MFA: dict[str, Any] = {"amr": ["pwd", "otp"]}
+PROFILE = {"email": "nowa@example.test", "first_name": "Nowa", "last_name": "Osoba"}
 
 
 @pytest.fixture
@@ -74,7 +75,7 @@ async def test_authorization_matrix(h: Harness, kc: FakeUserIdp) -> None:
     expert = await _login(h, kc, "expert1", "EXPERT", **MFA)
     admin_without_mfa = await _login(h, kc, "admin2", "ADMIN")
     admin = await _admin(h, kc)
-    body = {"username": "nowa", "password_mode": "temporary"}
+    body = {**PROFILE, "username": "nowa", "password_mode": "temporary"}
     for user in (member, expert, admin_without_mfa):
         assert (await user.client.get("/admin/users")).status_code == 403
         response = await user.client.post("/admin/users", json=body, headers=user.headers)
@@ -131,11 +132,13 @@ async def test_create_list_and_detail(h: Harness, kc: FakeUserIdp) -> None:
 @pytest.mark.parametrize(
     "body",
     [
-        {"username": "ok-name", "roles": ["SUPERUSER"]},
-        {"username": "ok-name", "roles": ["realm-admin"]},
-        {"username": "ok-name", "email": "not-an-address"},
-        {"username": "x"},
-        {"username": "ok-name", "password_mode": "plain"},
+        {**PROFILE, "username": "ok-name", "roles": ["SUPERUSER"]},
+        {**PROFILE, "username": "ok-name", "roles": ["realm-admin"]},
+        {**PROFILE, "username": "ok-name", "email": "not-an-address"},
+        {**PROFILE, "username": "x"},
+        {**PROFILE, "username": "ok-name", "password_mode": "plain"},
+        {"username": "ok-name", "email": "a@example.test", "first_name": "A"},
+        {**PROFILE, "username": "ok-name", "first_name": ""},
     ],
 )
 async def test_invalid_input_is_rejected(h: Harness, kc: FakeUserIdp, body: dict[str, Any]) -> None:

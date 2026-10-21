@@ -231,7 +231,7 @@ Each one is resolved (✅ = decision baked into the chunk plans) or needs your i
 - [x] 8.3 `UserAdminService` & guardrails (last admin, step-up, MFA on promotion)
 - [x] 8.4 Admin API `/admin/users`
 - [x] 8.5 Frontend `/admin/users`
-- [ ] 8.6 E2E, security review & docs
+- [x] 8.6 E2E, security review & docs
 
 ---
 

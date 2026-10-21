@@ -345,3 +345,29 @@ against the compose stack with MFA on and off.
 - Tests: `users.test.tsx` (9: list and filters, one-time password, grant confirmation,
   guardrails, step-up, external identity, block body, error mapping, helpers).
 
+### 8.6 (done)
+- E2E `10-user-admin.spec.ts`: a member gets "Brak dostępu" and 403s; an admin creates
+  `e2e-user-<ts>` with a temporary password (shown once), the user's first login goes through
+  Keycloak's update-password form into the app, a forced change with sign-out ends the open
+  session (401) and the next login asks for a new password again, a block ends the session and
+  Keycloak refuses the login (disabled-account message), the unblocked user logs in again, and a
+  grant of EXPERT is effective on the user's next request (with MFA on, Keycloak lists
+  `CONFIGURE_TOTP`; with `make mfa-off` it does not). The test user ends blocked; the audit log
+  has every event and not the password. `mfaOff()` in `e2e/support/stack.ts` reads `.env`.
+- **Found by the E2E run:** Keycloak's user profile requires e-mail, first and last name; an
+  account without them meets a "complete your profile" form at first login. Account creation now
+  requires all three (API 422, service `profile_required`, form `required`).
+- **Found by the E2E run:** the detail panel kept data loaded before the user's login; opening a
+  user from the list now always refetches it.
+- **Fixed on the way (`make mfa-on`):** `dev-mfa.sh` sent only `id` and `requirement` to
+  Keycloak, which reset the OTP step's priority to 0 and put it before the password form, so
+  every login failed after `mfa-on`. It now sends the whole execution (priority 20).
+  `tests/integration/test_keycloak_login.py` follows `make mfa-off` (skips the OTP login,
+  expects `mfa_satisfied` from `.env`); `smoke.sh` allows Keycloak's loopback dev port.
+- Gate: Python 1117 passed + the pre-existing smoke embedding check (6.7); E2E with MFA on
+  15 passed, scenario 4 skipped (pre-existing), scenario 5 passed on rerun (its seed hit the
+  180 s timeout once while the local model was busy); with `make mfa-off` scenarios 1 and 10
+  pass (step-up scenario skipped by design).
+- `SECURITY_REVIEW.md` (API2, API5, "Stage 8 additions", 10 E2E scenarios), README section,
+  `DEPLOYMENT_DOCKER.md` (new secret, `make keycloak-setup`), story log.
+

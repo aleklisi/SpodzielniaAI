@@ -163,6 +163,7 @@ const ERRORS: Record<string, string> = {
   user_exists: "Użytkownik o tej nazwie lub adresie e-mail już istnieje.",
   invalid_username: "Nazwa użytkownika: 3–64 znaki, małe litery, cyfry, kropka, myślnik lub podkreślenie.",
   email_required: "Do wysłania linku potrzebny jest adres e-mail.",
+  profile_required: "Podaj e-mail, imię i nazwisko (Keycloak wymaga ich od każdego użytkownika).",
   email_failed: "Nie udało się wysłać e-maila (sprawdź pocztę w Keycloak). Wybierz hasło tymczasowe.",
   password_policy: "Keycloak odrzucił wygenerowane hasło (polityka haseł). Spróbuj ponownie.",
   cannot_demote_self: "Nie możesz odebrać sobie roli administratora.",

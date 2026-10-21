@@ -201,7 +201,9 @@ make deploy VERSION=v1.0.0   # prod: pull, migrate, up (run on server)
   `qdrant_api_key`, `minio_root_password`, `oidc_client_secret`, `kek` (notebook encryption, 2.1),
   `watermark_key` (5.5), `honeypot_key` (5.4), `session_secret`.
   Also generated: `pg_superuser_password`, `minio_kms_key` (SSE-S3 master key),
-  `keycloak_admin_password`, dev-only `dev_user_password` / `dev_totp_seed`, and
+  `keycloak_admin_password`, `keycloak_admin_client_secret` (user-management service account,
+  Stage 8: mounted in `keycloak` and `api` only; run `make keycloak-setup` once on an existing
+  realm), dev-only `dev_user_password` / `dev_totp_seed`, and
   `secrets/tls/` (internal CA + Qdrant server cert, `gen-dev-certs.sh`).
 - **Secret file naming (implemented in 1.1/1.2):** compose secrets keep the flat names above;
   app containers mount them under the nested `Settings` path via the long syntax, e.g.
