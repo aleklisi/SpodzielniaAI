@@ -223,3 +223,20 @@ Rejestr historyjek dodanych poza Etapami 1–6: [docs/USER_STORIES_LOG.md](docs/
 - [x] 8.4 API administratora `/admin/users` (wyszukiwanie, akcje, limity, metryki)
 - [x] 8.5 Interfejs `/admin/users` (lista, tworzenie konta, szczegóły użytkownika, akcje)
 - [x] 8.6 Testy E2E Playwright, aktualizacja przeglądu bezpieczeństwa i dokumentacji
+
+### Etap 9: Atlas wizualny — zdjęcia z oznaczeniami, weryfikacja ekspercka i rozpoznawanie obrazów (US-03)
+*Dokumentacja: [docs/implementation/09_IMAGE_ATLAS.md](docs/implementation/09_IMAGE_ATLAS.md)*
+
+*Faza A — zweryfikowany zbiór danych*
+- [ ] 9.1 Słownik etykiet (kategorie, synonimy, propozycje członków, zarządzanie przez ekspertów)
+- [ ] 9.2 Prywatne oznaczenia zdjęć (prostokąty, opisy, RLS, szyfrowanie), bezpieczne serwowanie obrazów i podglądów
+- [ ] 9.3 Edytor oznaczeń w notatniku (mysz, dotyk, klawiatura)
+- [ ] 9.4 Przekazanie zdjęcia do atlasu (kopia bez metadanych, PII scrubbing, skan injection, flagi prywatności VLM, duplikaty)
+- [ ] 9.5 Weryfikacja ekspercka (korekty, kworum) i wspólny atlas `/atlas` z limitem pokrycia tarczy
+- [ ] 9.6 Zgody autora dla zdjęć atlasu (wstrzymaj, wznów, wycofaj, zgoda na eksport)
+- [ ] 9.7 Eksport zbioru danych (COCO/YOLO + manifest, domyślnie wyłączony, step-up MFA)
+
+*Faza B — rozpoznawanie*
+- [ ] 9.8 Lokalny model embeddingów obrazu i indeks `atlas_visual_index` (outbox, proweniencja)
+- [ ] 9.9 „Rozpoznaj” w notatniku (wyszukiwanie podobnych oznaczeń + lokalny VLM, cytowania, sugestie oznaczeń)
+- [ ] 9.10 Testy E2E Playwright, aktualizacja przeglądu bezpieczeństwa i dokumentacji

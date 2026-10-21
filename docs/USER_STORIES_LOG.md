@@ -17,6 +17,7 @@ committed, add the commit hash to the story's *Delivery* list.
 |----|-------|--------|------|-------|
 | [US-01](#us-01) | Administrator configures LLM models (local / cloud) in the UI and tests them | DONE | [07_LLM_MODEL_CONFIG.md](implementation/07_LLM_MODEL_CONFIG.md) · Etap 7 | 2026-10-20 |
 | [US-02](#us-02) | Administrator manages users: create accounts, reset passwords, block access, force password change, manage roles | DONE | [08_USER_MANAGEMENT.md](implementation/08_USER_MANAGEMENT.md) · Etap 8 | 2026-10-21 |
+| [US-03](#us-03) | Member adds photos with a description, marks and describes elements on them; experts verify; the atlas powers image recognition | PLANNED | [09_IMAGE_ATLAS.md](implementation/09_IMAGE_ATLAS.md) · Etap 9 | 2026-10-21 |
 
 ---
 
@@ -90,6 +91,43 @@ reset passwords, block access for a user, force a password change and manage use
 - **Found while implementing:** the realm's user profile requires e-mail, first and last name;
   an account created without them is stopped at its first login by Keycloak's profile form, so
   the console now requires all three (acceptance criterion 1 reads "username, email, name").
+
+---
+
+## US-03
+
+**Story:** As a member I want to add a photo with a description, mark one or more elements on it
+and describe them, so that the cooperative builds verified knowledge for image recognition (for
+example, a beekeeper adds photos of queen bees).
+
+- **Source:** product owner request, 2026-10-21 (refinement session).
+- **Status:** PLANNED 2026-10-21 (Etap 9, chunks 9.1–9.10). Not started; waits for an explicit
+  instruction.
+- **Plan:** [docs/implementation/09_IMAGE_ATLAS.md](implementation/09_IMAGE_ATLAS.md)
+- **Refinement decisions:** both a dataset and in-app recognition, phased (Phase A dataset,
+  Phase B recognition); photos are annotated privately and then contributed to a shared atlas
+  through expert review; labels come from an expert-curated vocabulary (members propose) plus a
+  free-text description; rectangles only.
+- **Acceptance criteria:**
+  1. A member can open a photo in their private notebook, write a caption, draw rectangles on
+     elements, and give each one a label from the vocabulary and a description (mouse, touch and
+     keyboard). Nobody else can see the photo or its annotations.
+  2. Experts curate the label vocabulary; members can propose a missing label.
+  3. A member can send an annotated photo to the atlas. The shared copy has no metadata
+     (including GPS), texts are PII-scrubbed and scanned for injection, and photos showing
+     people or documents are flagged before sending.
+  4. Two experts verify a photo (they can correct boxes and labels) before it appears in the
+     shared atlas; members browse approved photos by label.
+  5. The author can suspend, resume or revoke each atlas photo and separately allow or refuse
+     its use in dataset exports; revoke removes the image, its marks and its vectors.
+  6. An admin can export the verified, consented dataset (COCO/YOLO + manifest) only if the
+     operator enabled it, with step-up MFA; every export is audited.
+  7. (Phase B) „Rozpoznaj” on a notebook photo suggests marked elements with boxes, citing
+     verified atlas photos, using local models only; with no similar verified examples it says
+     so instead of guessing. Suggestions can be accepted as the member's own annotations.
+- **Out of scope / follow-ups:** polygons and points; automatic face blurring; training a
+  detector inside the app; video frames; per-domain vocabularies.
+- **Delivery:** (commits added per chunk)
 
 ---
 
