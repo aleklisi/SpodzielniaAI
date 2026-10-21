@@ -53,6 +53,9 @@ TASK_QUEUE: dict[TaskName, Queue] = {
     TaskName.REFRESH_CLUSTERS: Queue.INDEX,
 }
 
+# Written by the owner, not produced by a media worker: it goes straight to screening (9.2).
+OWNER_WRITTEN_KINDS = frozenset({DerivativeKind.ANNOTATIONS})
+
 KIND_TASK: dict[DerivativeKind, TaskName] = {
     DerivativeKind.TRANSCRIPT: TaskName.TRANSCRIBE_AUDIO,
     DerivativeKind.IMAGE_DESCRIPTION: TaskName.DESCRIBE_IMAGE,

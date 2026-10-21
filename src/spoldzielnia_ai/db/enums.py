@@ -52,6 +52,7 @@ class DerivativeKind(StrEnum):
     IMAGE_DESCRIPTION = "IMAGE_DESCRIPTION"
     PARSED_DOC = "PARSED_DOC"
     FETCHED_LINK = "FETCHED_LINK"
+    ANNOTATIONS = "ANNOTATIONS"  # 9.2: a photo's caption and marks as text (written by its owner)
 
 
 class DerivativeStatus(StrEnum):
@@ -127,6 +128,13 @@ class VisualLabelStatus(StrEnum):
     REJECTED = "REJECTED"
 
 
+class AnnotationSource(StrEnum):
+    """Who drew a mark: the member, or a recognition suggestion they accepted (9.9)."""
+
+    USER = "USER"
+    SUGGESTED = "SUGGESTED"
+
+
 PG_ENUM_NAMES: dict[type[StrEnum], str] = {
     Role: "user_role",
     ConsentStatus: "consent_status",
@@ -144,6 +152,7 @@ PG_ENUM_NAMES: dict[type[StrEnum], str] = {
     LlmRoutePurpose: "llm_route_purpose",
     VisualDomainStatus: "visual_domain_status",
     VisualLabelStatus: "visual_label_status",
+    AnnotationSource: "annotation_source",
 }
 
 

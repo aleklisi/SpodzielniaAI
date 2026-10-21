@@ -24,6 +24,7 @@ from spoldzielnia_ai.api.contributions import router as contributions_router
 from spoldzielnia_ai.api.links import router as links_router
 from spoldzielnia_ai.api.me import router as me_router
 from spoldzielnia_ai.api.notes import router as notes_router
+from spoldzielnia_ai.api.photos import router as photos_router
 from spoldzielnia_ai.api.promotion import notes_router as promote_router
 from spoldzielnia_ai.api.promotion import router as promotions_router
 from spoldzielnia_ai.api.rag import router as rag_router
@@ -144,6 +145,7 @@ def create_app(
     app.include_router(notes_router)
     app.include_router(promotions_router)
     app.include_router(attachments_router)
+    app.include_router(photos_router)
     app.include_router(links_router)
     app.include_router(wiki_router)
     app.include_router(reviews_router)

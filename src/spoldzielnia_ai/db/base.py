@@ -12,6 +12,7 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 from spoldzielnia_ai.core.ids import uuid7
 from spoldzielnia_ai.db.enums import (
+    AnnotationSource,
     ArticleStatus,
     ConsentStatus,
     DerivativeKind,
@@ -63,6 +64,7 @@ class Base(DeclarativeBase):
         LlmRoutePurpose: pg_enum(LlmRoutePurpose),
         VisualDomainStatus: pg_enum(VisualDomainStatus),
         VisualLabelStatus: pg_enum(VisualLabelStatus),
+        AnnotationSource: pg_enum(AnnotationSource),
     }
 
 

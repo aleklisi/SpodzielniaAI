@@ -7,7 +7,8 @@ Order (each failure audited as ``UPLOAD_REJECTED`` with a reason code, never con
 3. type validation by content (415/413) and 4. archive guard (422) — ``files.validation``
 5. ClamAV (422 infected, 503 scanner down; fail-closed)
 6. metadata stripping — ``files.sanitize``
-7. client-side encryption → object storage → ``NoteAttachment(scan_status=CLEAN)``
+7. client-side encryption → object storage (+ an encrypted JPEG preview for images, 9.2) →
+   ``NoteAttachment(scan_status=CLEAN)``
 8. processing task enqueued (2.5)
 
 No database transaction is held while bytes stream or scan: the row is inserted in a short RLS
@@ -31,9 +32,11 @@ from spoldzielnia_ai.db.enums import ScanStatus
 from spoldzielnia_ai.db.models import NoteAttachment, PrivateNote
 from spoldzielnia_ai.db.rls import rls_session
 from spoldzielnia_ai.files.antivirus import ScannerUnavailable
+from spoldzielnia_ai.files.preview import PREVIEW_SIDE, render_jpeg
 from spoldzielnia_ai.files.sanitize import sanitize
 from spoldzielnia_ai.files.storage import new_object_key
 from spoldzielnia_ai.files.validation import FileRejected, validate_file
+from spoldzielnia_ai.notebook.images import SealedPreview, seal_preview
 from spoldzielnia_ai.notebook.service import ATTACHMENT, NotebookService
 
 if TYPE_CHECKING:
@@ -52,6 +55,7 @@ if TYPE_CHECKING:
     from spoldzielnia_ai.files.storage import ObjectStorage
     from spoldzielnia_ai.files.validation import FileKind
     from spoldzielnia_ai.notebook.service import AttachmentView
+    from spoldzielnia_ai.workers.jobs import DerivativeJob
 
 log = get_logger(__name__)
 
@@ -72,6 +76,8 @@ class ProcessingQueue(Protocol):
 
     async def link_added(self, derivative_id: UUID, owner_id: UUID) -> None: ...
 
+    async def annotations_saved(self, job: DerivativeJob) -> None: ...
+
     async def promotion_requested(self, promotion_id: UUID, owner_id: UUID) -> None: ...
 
     async def article_canonical(self, article_id: UUID) -> None: ...
@@ -84,6 +90,9 @@ class NoProcessing:
         return []
 
     async def link_added(self, derivative_id: UUID, owner_id: UUID) -> None:
+        return None
+
+    async def annotations_saved(self, job: DerivativeJob) -> None:
         return None
 
     async def promotion_requested(self, promotion_id: UUID, owner_id: UUID) -> None:
@@ -206,6 +215,18 @@ class UploadPipeline:
         object_key = new_object_key()
         with sealed_path.open("rb") as sealed:
             await self._storage.put(object_key, sealed, sealed_size)
+        preview: SealedPreview | None = None
+        if kind.category == "image":  # display rendition for the photo editor (9.2)
+            try:
+                rendition = await asyncio.to_thread(
+                    render_jpeg, result.path, PREVIEW_SIDE, self._settings.max_image_pixels
+                )
+                preview = await seal_preview(
+                    self._cipher, self._storage, rendition, attachment_id, owner_id, key.key
+                )
+            except BaseException:
+                await self._storage.delete(object_key)
+                raise
 
         row = NoteAttachment(
             id=attachment_id,
@@ -221,6 +242,9 @@ class UploadPipeline:
                 key.key, upload.filename.encode(), aad, "filename"
             ),
             dek_wrapped=key.wrapped,
+            width=preview.width if preview else None,
+            height=preview.height if preview else None,
+            preview_object_key=preview.object_key if preview else None,
         )
         try:
             async with rls_session(self._factory, owner_id) as session:
@@ -239,6 +263,8 @@ class UploadPipeline:
                 view = NotebookService(session, self._cipher).attachment_view(row)
         except BaseException:
             await self._storage.delete(object_key)  # no orphaned object
+            if preview is not None:
+                await self._storage.delete(preview.object_key)
             raise
 
         # 8. Processing (2.5).

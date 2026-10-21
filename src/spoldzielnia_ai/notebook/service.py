@@ -318,11 +318,12 @@ class NotebookService:
         note = await self._note(note_id)
         if note is None:
             return None
-        keys = list(
-            await self._session.scalars(
-                select(NoteAttachment.object_key).where(NoteAttachment.note_id == note_id)
+        rows = await self._session.execute(
+            select(NoteAttachment.object_key, NoteAttachment.preview_object_key).where(
+                NoteAttachment.note_id == note_id
             )
         )
+        keys = [key for pair in rows.tuples() for key in pair if key is not None]
         await self._session.delete(note)
         await self._session.flush()
         return keys

@@ -1,6 +1,15 @@
 {
   "components": {
     "schemas": {
+      "AnnotationSource": {
+        "description": "Who drew a mark: the member, or a recognition suggestion they accepted (9.9).",
+        "enum": [
+          "USER",
+          "SUGGESTED"
+        ],
+        "title": "AnnotationSource",
+        "type": "string"
+      },
       "ArticleOut": {
         "properties": {
           "approving_experts": {
@@ -978,7 +987,8 @@
           "TRANSCRIPT",
           "IMAGE_DESCRIPTION",
           "PARSED_DOC",
-          "FETCHED_LINK"
+          "FETCHED_LINK",
+          "ANNOTATIONS"
         ],
         "title": "DerivativeKind",
         "type": "string"
@@ -1622,6 +1632,29 @@
           }
         },
         "title": "LabelPatch",
+        "type": "object"
+      },
+      "LabelRefOut": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/VisualLabelStatus"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "status"
+        ],
+        "title": "LabelRefOut",
         "type": "object"
       },
       "LinkIn": {
@@ -2272,6 +2305,149 @@
           "temporary_password"
         ],
         "title": "PasswordResetOut",
+        "type": "object"
+      },
+      "PhotoIn": {
+        "properties": {
+          "caption": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Caption"
+          },
+          "domain_id": {
+            "format": "uuid",
+            "title": "Domain Id",
+            "type": "string"
+          },
+          "regions": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/RegionIn_"
+            },
+            "maxItems": 50,
+            "title": "Regions",
+            "type": "array"
+          },
+          "version": {
+            "description": "The version the editor loaded (0 for a new photo)",
+            "minimum": 0.0,
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "domain_id",
+          "version"
+        ],
+        "title": "PhotoIn",
+        "type": "object"
+      },
+      "PhotoOut": {
+        "properties": {
+          "attachment_id": {
+            "format": "uuid",
+            "title": "Attachment Id",
+            "type": "string"
+          },
+          "caption": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Caption"
+          },
+          "domain_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Domain Id"
+          },
+          "height": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Height"
+          },
+          "mime_type": {
+            "title": "Mime Type",
+            "type": "string"
+          },
+          "note_id": {
+            "format": "uuid",
+            "title": "Note Id",
+            "type": "string"
+          },
+          "regions": {
+            "items": {
+              "$ref": "#/components/schemas/RegionOut"
+            },
+            "title": "Regions",
+            "type": "array"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          },
+          "version": {
+            "description": "0 until the first save; send it back as `version`",
+            "title": "Version",
+            "type": "integer"
+          },
+          "width": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Width"
+          }
+        },
+        "required": [
+          "attachment_id",
+          "note_id",
+          "mime_type",
+          "width",
+          "height",
+          "domain_id",
+          "caption",
+          "version",
+          "regions",
+          "updated_at"
+        ],
+        "title": "PhotoOut",
         "type": "object"
       },
       "PlaygroundIn": {
@@ -3029,6 +3205,118 @@
           "schema_revision"
         ],
         "title": "ReadinessResponse",
+        "type": "object"
+      },
+      "RegionIn_": {
+        "properties": {
+          "description": {
+            "anyOf": [
+              {
+                "maxLength": 1000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "h": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "H",
+            "type": "number"
+          },
+          "label_id": {
+            "format": "uuid",
+            "title": "Label Id",
+            "type": "string"
+          },
+          "source": {
+            "$ref": "#/components/schemas/AnnotationSource",
+            "default": "USER"
+          },
+          "w": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "W",
+            "type": "number"
+          },
+          "x": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "X",
+            "type": "number"
+          },
+          "y": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Y",
+            "type": "number"
+          }
+        },
+        "required": [
+          "label_id",
+          "x",
+          "y",
+          "w",
+          "h"
+        ],
+        "title": "RegionIn_",
+        "type": "object"
+      },
+      "RegionOut": {
+        "properties": {
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "h": {
+            "title": "H",
+            "type": "number"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "$ref": "#/components/schemas/LabelRefOut"
+          },
+          "source": {
+            "$ref": "#/components/schemas/AnnotationSource"
+          },
+          "w": {
+            "title": "W",
+            "type": "number"
+          },
+          "x": {
+            "title": "X",
+            "type": "number"
+          },
+          "y": {
+            "title": "Y",
+            "type": "number"
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "x",
+          "y",
+          "w",
+          "h",
+          "description",
+          "source"
+        ],
+        "title": "RegionOut",
         "type": "object"
       },
       "RejectIn": {
@@ -7423,6 +7711,187 @@
         "summary": "Attachment Status",
         "tags": [
           "attachments"
+        ]
+      }
+    },
+    "/notes/{note_id}/attachments/{attachment_id}/annotations": {
+      "get": {
+        "operationId": "get_annotations_notes__note_id__attachments__attachment_id__annotations_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "note_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Note Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "attachment_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Attachment Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PhotoOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Annotations",
+        "tags": [
+          "photos"
+        ]
+      },
+      "put": {
+        "description": "Replace the caption and every mark (the editor sends all of them). 409\n``stale_version`` if the photo changed since the editor loaded it.",
+        "operationId": "save_annotations_notes__note_id__attachments__attachment_id__annotations_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "note_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Note Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "attachment_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Attachment Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PhotoIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PhotoOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Save Annotations",
+        "tags": [
+          "photos"
+        ]
+      }
+    },
+    "/notes/{note_id}/attachments/{attachment_id}/image": {
+      "get": {
+        "description": "The photo for display: ``preview`` (JPEG, ≤ 1600 px) or ``full`` (the stored image;\nHEIC as a JPEG of ≤ 4096 px).",
+        "operationId": "photo_image_notes__note_id__attachments__attachment_id__image_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "note_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Note Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "attachment_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Attachment Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "size",
+            "required": false,
+            "schema": {
+              "default": "preview",
+              "enum": [
+                "preview",
+                "full"
+              ],
+              "title": "Size",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "image/jpeg": {},
+              "image/png": {},
+              "image/webp": {}
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Photo Image",
+        "tags": [
+          "photos"
         ]
       }
     },

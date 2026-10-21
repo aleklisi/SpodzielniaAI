@@ -1081,6 +1081,49 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/notes/{note_id}/attachments/{attachment_id}/annotations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Annotations */
+        get: operations["get_annotations_notes__note_id__attachments__attachment_id__annotations_get"];
+        /**
+         * Save Annotations
+         * @description Replace the caption and every mark (the editor sends all of them). 409
+         *     ``stale_version`` if the photo changed since the editor loaded it.
+         */
+        put: operations["save_annotations_notes__note_id__attachments__attachment_id__annotations_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/notes/{note_id}/attachments/{attachment_id}/image": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Photo Image
+         * @description The photo for display: ``preview`` (JPEG, ≤ 1600 px) or ``full`` (the stored image;
+         *     HEIC as a JPEG of ≤ 4096 px).
+         */
+        get: operations["photo_image_notes__note_id__attachments__attachment_id__image_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/notes/{note_id}/derivatives/{derivative_id}/confirm-quarantine": {
         parameters: {
             query?: never;
@@ -1275,6 +1318,12 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /**
+         * AnnotationSource
+         * @description Who drew a mark: the member, or a recognition suggestion they accepted (9.9).
+         * @enum {string}
+         */
+        AnnotationSource: "USER" | "SUGGESTED";
         /** ArticleOut */
         ArticleOut: {
             /** Approving Experts */
@@ -1616,7 +1665,7 @@ export interface components {
          * DerivativeKind
          * @enum {string}
          */
-        DerivativeKind: "TRANSCRIPT" | "IMAGE_DESCRIPTION" | "PARSED_DOC" | "FETCHED_LINK";
+        DerivativeKind: "TRANSCRIPT" | "IMAGE_DESCRIPTION" | "PARSED_DOC" | "FETCHED_LINK" | "ANNOTATIONS";
         /** DerivativeOut */
         DerivativeOut: {
             /** Attachment Id */
@@ -1824,6 +1873,17 @@ export interface components {
             name?: string | null;
             /** Synonyms */
             synonyms?: string[] | null;
+        };
+        /** LabelRefOut */
+        LabelRefOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            status: components["schemas"]["VisualLabelStatus"];
         };
         /** LinkIn */
         LinkIn: {
@@ -2066,6 +2126,58 @@ export interface components {
             mode: components["schemas"]["PasswordMode"];
             /** Temporary Password */
             temporary_password: string | null;
+        };
+        /** PhotoIn */
+        PhotoIn: {
+            /** Caption */
+            caption?: string | null;
+            /**
+             * Domain Id
+             * Format: uuid
+             */
+            domain_id: string;
+            /**
+             * Regions
+             * @default []
+             */
+            regions: components["schemas"]["RegionIn_"][];
+            /**
+             * Version
+             * @description The version the editor loaded (0 for a new photo)
+             */
+            version: number;
+        };
+        /** PhotoOut */
+        PhotoOut: {
+            /**
+             * Attachment Id
+             * Format: uuid
+             */
+            attachment_id: string;
+            /** Caption */
+            caption: string | null;
+            /** Domain Id */
+            domain_id: string | null;
+            /** Height */
+            height: number | null;
+            /** Mime Type */
+            mime_type: string;
+            /**
+             * Note Id
+             * Format: uuid
+             */
+            note_id: string;
+            /** Regions */
+            regions: components["schemas"]["RegionOut"][];
+            /** Updated At */
+            updated_at: string | null;
+            /**
+             * Version
+             * @description 0 until the first save; send it back as `version`
+             */
+            version: number;
+            /** Width */
+            width: number | null;
         };
         /** PlaygroundIn */
         PlaygroundIn: {
@@ -2345,6 +2457,46 @@ export interface components {
              * @enum {string}
              */
             status: "ok" | "unavailable";
+        };
+        /** RegionIn_ */
+        RegionIn_: {
+            /** Description */
+            description?: string | null;
+            /** H */
+            h: number;
+            /**
+             * Label Id
+             * Format: uuid
+             */
+            label_id: string;
+            /** @default USER */
+            source: components["schemas"]["AnnotationSource"];
+            /** W */
+            w: number;
+            /** X */
+            x: number;
+            /** Y */
+            y: number;
+        };
+        /** RegionOut */
+        RegionOut: {
+            /** Description */
+            description: string | null;
+            /** H */
+            h: number;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            label: components["schemas"]["LabelRefOut"];
+            source: components["schemas"]["AnnotationSource"];
+            /** W */
+            w: number;
+            /** X */
+            x: number;
+            /** Y */
+            y: number;
         };
         /** RejectIn */
         RejectIn: {
@@ -4831,6 +4983,110 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AttachmentStatusOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_annotations_notes__note_id__attachments__attachment_id__annotations_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                note_id: string;
+                attachment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PhotoOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    save_annotations_notes__note_id__attachments__attachment_id__annotations_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                note_id: string;
+                attachment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PhotoIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PhotoOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    photo_image_notes__note_id__attachments__attachment_id__image_get: {
+        parameters: {
+            query?: {
+                size?: "preview" | "full";
+            };
+            header?: never;
+            path: {
+                note_id: string;
+                attachment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/jpeg": unknown;
+                    "image/png": unknown;
+                    "image/webp": unknown;
                 };
             };
             /** @description Validation Error */

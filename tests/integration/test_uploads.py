@@ -101,12 +101,20 @@ async def _audit(factory: SessionFactory, user_id: str, event: str) -> list[dict
 
 
 def _decrypt_object(
-    h: Harness, attachment: dict[str, Any], owner: str, dek_wrapped: bytes
+    h: Harness,
+    attachment: dict[str, Any],
+    owner: str,
+    dek_wrapped: bytes,
+    object_key: str | None = None,
 ) -> bytes:
+    """The stored original (images also have a preview object since 9.2: pass its key)."""
     cipher = h.app.state.cipher
     aad = row_aad("note_attachment", UUID(attachment["id"]), UUID(owner))
     dek = cipher.unwrap(dek_wrapped, aad)
-    (blob,) = h.storage.objects.values()
+    if object_key is None:
+        (blob,) = h.storage.objects.values()
+    else:
+        blob = h.storage.objects[object_key]
     return b"".join(cipher.decrypt_stream(dek, io.BytesIO(blob), aad))
 
 
@@ -230,13 +238,13 @@ async def test_gps_exif(h: Harness, factory: SessionFactory, keep: bool) -> None
     assert attachment["keep_location"] is keep
 
     async with rls_session(factory, UUID(alice.user_id)) as session:
-        dek_wrapped = (
+        dek_wrapped, object_key = (
             await session.execute(
-                text("SELECT dek_wrapped FROM note_attachment WHERE id = :id"),
+                text("SELECT dek_wrapped, object_key FROM note_attachment WHERE id = :id"),
                 {"id": attachment["id"]},
             )
-        ).scalar_one()
-    stored = _decrypt_object(h, attachment, alice.user_id, dek_wrapped)
+        ).one()
+    stored = _decrypt_object(h, attachment, alice.user_id, dek_wrapped, object_key)
     with Image.open(io.BytesIO(stored)) as image:
         exif = image.getexif()
     assert bool(exif.get_ifd(GPS_IFD)) is keep

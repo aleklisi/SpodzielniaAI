@@ -451,3 +451,32 @@ green; A1–A12 covered by tests; scenario 11 passes against the compose stack.
 - Tests: `tests/unit/test_atlas_text.py`, `tests/integration/test_atlas_labels.py` (authz
   matrix, diacritics search, per-domain uniqueness, private proposals + limit, merge/deprecate,
   archived domain, audit sequence, idempotent seed), `atlas-labels.test.tsx` (6).
+
+### 9.2 (done)
+
+- Migration `0015_image_annotation`: private `annotated_image` (domain, encrypted caption,
+  `version`) and `image_annotation` (normalised box with the A11 CHECK, label, encrypted
+  description, `source USER|SUGGESTED`), both RLS FORCE on `owner_id`; `note_attachment` +
+  `width`, `height`, `preview_object_key`; `derivative_kind` + `ANNOTATIONS`.
+- **Preview on upload, not in a worker:** the upload pipeline already decodes the image to
+  sanitise it, so it also renders the ≤ 1600 px JPEG preview (`files/preview.py`) and stores it
+  encrypted under the attachment's DEK with AAD `…|preview`. Photos from before 9.2 get their
+  preview on first view (`notebook/images.py`, race-safe), so **no backfill CLI** is needed.
+  Previews carry no metadata at all; the original keeps what the member chose. `size=full`
+  serves the original, or a ≤ 4096 px JPEG for HEIC (browsers can't show HEIC). Note deletion
+  removes previews too.
+- `atlas/annotations.py` → `AnnotationService`: full-replace save with optimistic locking,
+  label rules (usable in the photo's domain, own proposals allowed, a label already on the
+  photo stays allowed after deprecation), archived domain → read-only, limits (50 marks,
+  caption 2000, description 1000).
+- **Notebook text:** each save rewrites one `ANNOTATIONS` derivative (status DONE, scan flags
+  reset) and queues `annotations_saved` → `core.scan` → private index, like any derivative;
+  an emptied photo drops it and its vectors. `OWNER_WRITTEN_KINDS` marks the kind as having no
+  media task.
+- API (`api/photos.py`): `GET …/attachments/{id}/image?size=preview|full` (A2 headers:
+  `nosniff`, `inline`, `default-src 'none'; sandbox`, `private, no-store`, CORP same-origin),
+  `GET`/`PUT …/attachments/{id}/annotations`.
+- Tests: `tests/integration/test_photo_annotations.py` (11: safe serving, preview size and
+  metadata, lazy preview, deletion, RLS for rows/bytes/no-user session, ciphertext at rest,
+  save/load/409, box validation, limits, label rules, archived domain, derivative mirror).
+

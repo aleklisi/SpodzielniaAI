@@ -68,6 +68,10 @@ class CeleryProcessingQueue:
         """A derivative has content: screen it for prompt injection (worker-core)."""
         await self._send(TaskName.SCAN_DERIVATIVE, job)
 
+    async def annotations_saved(self, job: DerivativeJob) -> None:
+        """A photo's caption and marks changed (9.2): screen, then index, like any derivative."""
+        await self._send(TaskName.SCAN_DERIVATIVE, job)
+
     async def derivative_clean(self, job: DerivativeJob) -> None:
         """Screened and not quarantined: index it for "ask my notebook" (4.1)."""
         await self._send(TaskName.INDEX_DERIVATIVE, job)

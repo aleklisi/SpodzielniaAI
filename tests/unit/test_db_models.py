@@ -62,6 +62,8 @@ def test_tables_registered() -> None:
         "llm_routing",
         "visual_domain",
         "visual_label",
+        "annotated_image",
+        "image_annotation",
     }
 
 
@@ -174,6 +176,7 @@ def test_migrations_form_a_single_linear_history() -> None:
         "0012_llm_config",
         "0013_user_admin",
         "0014_visual_labels",
+        "0015_image_annotation",
     ]
 
 
@@ -187,8 +190,10 @@ def test_migration_enum_types_match_python_enums() -> None:
             "0009_vector_outbox",
             "0012_llm_config",
             "0014_visual_labels",
+            "0015_image_annotation",
         )
         for e in cast("tuple[SAEnum, ...]", _revision_module(revision).ENUMS)
     }
     migrated["derivative_status"].append("QUARANTINED")  # added by 0005_quarantine
+    migrated["derivative_kind"].append("ANNOTATIONS")  # added by 0015_image_annotation
     assert migrated == {name: [m.value for m in enum] for enum, name in PG_ENUM_NAMES.items()}

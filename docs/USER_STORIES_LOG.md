@@ -133,7 +133,8 @@ The solution is multi-domain: beekeeping is only an example use case.
 - **Out of scope / follow-ups:** polygons and points; automatic face blurring; training a
   detector inside the app; video frames; domain-scoped experts.
 - **Delivery:**
-  - 9.1 domains and label vocabulary: the `feat(stage-9.1)` commit
+  - 9.1 domains and label vocabulary: `588cd2c`
+  - 9.2 private photo annotations and image serving: the `feat(stage-9.2)` commit
 
 ---
 

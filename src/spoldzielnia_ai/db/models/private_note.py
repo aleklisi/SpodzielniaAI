@@ -52,6 +52,10 @@ class NoteAttachment(Entity):
     keep_location: Mapped[bool] = mapped_column(server_default=text("false"), default=False)
     filename_ciphertext: Mapped[bytes]
     dek_wrapped: Mapped[bytes]
+    # Images only (9.2): size of the stored image and its encrypted JPEG preview (≤ 1600 px).
+    width: Mapped[int | None]
+    height: Mapped[int | None]
+    preview_object_key: Mapped[str | None] = mapped_column(String(64), unique=True)
 
 
 class NoteDerivative(Entity):
