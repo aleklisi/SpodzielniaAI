@@ -25,6 +25,7 @@ class OidcIdentity:
     acr: str | None
     amr: tuple[str, ...]
     auth_time: int | None
+    username: str | None = None
 
 
 def _claim_at(claims: Mapping[str, Any], path: str) -> object:
@@ -73,4 +74,5 @@ def identity_from_token(token: VerifiedIdToken, roles_claim: str) -> OidcIdentit
         acr=_str(claims, "acr"),
         amr=amr,
         auth_time=auth_time if type(auth_time) is int else None,  # bool is an int subclass
+        username=_str(claims, "preferred_username"),
     )

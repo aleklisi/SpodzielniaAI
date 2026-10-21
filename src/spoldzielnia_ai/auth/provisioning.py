@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Protocol
 
-from sqlalchemy import Boolean, func, literal_column
+from sqlalchemy import Boolean, func, literal_column, or_
 from sqlalchemy.dialects.postgresql import insert
 
 from spoldzielnia_ai.audit.events import EventType
@@ -36,9 +36,11 @@ class UserProvisioner(Protocol):
 class DbUserProvisioner:
     """Upserts the user and audits the login in one transaction.
 
-    Profile and roles mirror the IdP on every login. ``is_locked`` and ``risk_score`` belong to
-    the application and are never touched here. A locked user is still upserted, but the login
-    is audited with ``outcome="locked"``, and the caller refuses it.
+    Profile and roles mirror the IdP on every login. ``is_locked``, the admin block and
+    ``risk_score`` belong to the application and are never touched here. A locked or blocked user
+    is still upserted, but the login is audited with ``outcome="locked"``, and the caller
+    refuses it. An account an admin created (8.3) is a row with the same ``(issuer, subject)``,
+    adopted here without a special case.
     """
 
     def __init__(self, factory: SessionFactory) -> None:
@@ -52,19 +54,25 @@ class DbUserProvisioner:
             oidc_subject=identity.subject,
             email=identity.email,
             display_name=identity.display_name,
+            username=identity.username,
             roles=roles,
+            last_login_at=func.now(),
         )
         stmt = stmt.on_conflict_do_update(
             index_elements=[User.oidc_issuer, User.oidc_subject],
             set_={
                 "email": stmt.excluded.email,
                 "display_name": stmt.excluded.display_name,
+                "username": stmt.excluded.username,
                 "roles": stmt.excluded.roles,
+                "last_login_at": func.now(),
+                # Keycloak issues tokens only after every required action is done.
+                "required_actions": [],
                 "updated_at": func.now(),
             },
         ).returning(
             User.id,
-            User.is_locked,
+            or_(User.is_locked, User.blocked_at.is_not(None)).label("is_locked"),
             # xmax is 0 only for a freshly inserted row version.
             literal_column("(xmax = 0)", Boolean).label("created"),
         )

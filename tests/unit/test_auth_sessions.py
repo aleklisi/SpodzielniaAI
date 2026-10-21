@@ -28,7 +28,7 @@ from spoldzielnia_ai.auth.deps import (
     is_mfa_satisfied,
 )
 from spoldzielnia_ai.auth.provisioning import ProvisionedUser
-from spoldzielnia_ai.auth.sessions import SessionData, SessionStore
+from spoldzielnia_ai.auth.sessions import SessionData, SessionManager, SessionStore
 from spoldzielnia_ai.auth.users import UserRecord
 from spoldzielnia_ai.db.enums import Role
 from spoldzielnia_ai.main import create_app
@@ -501,3 +501,69 @@ def test_mfa_switched_off_satisfies_every_session(settings: Settings) -> None:
 def test_elevated_router_refuses_member_role() -> None:
     with pytest.raises(ValueError, match="elevated_router"):
         elevated_router(Role.MEMBER)
+
+
+# --- Per-user revocation (8.2) ----------------------------------------------------------------
+
+
+async def test_revoke_user_ends_every_family_of_that_user_only(redis: FakeAsyncRedis) -> None:
+    from spoldzielnia_ai.auth.sessions import FamilyData
+
+    store = SessionStore(redis)
+    alice, bob = uuid4(), uuid4()
+    now = int(time.time())
+
+    async def open_session(user: UUID, family_id: str, lifetime: int) -> str:
+        sid = f"{family_id}-sid".ljust(43, "x")
+        session = SessionData(
+            user_id=user,
+            family_id=family_id,
+            acr=None,
+            amr=["pwd"],
+            auth_time=now,
+            created_at=now,
+            expires_at=now + lifetime,
+        )
+        family = FamilyData(
+            user_id=user,
+            refresh_token=None,
+            id_token=None,
+            access_expires_at=now + 60,
+            expires_at=now + lifetime,
+        )
+        await store.create(sid, session, family, f"rt-{family_id}")
+        return sid
+
+    laptop = await open_session(alice, "fam-a1", 3600)
+    phone = await open_session(alice, "fam-a2", 7200)
+    other = await open_session(bob, "fam-b1", 3600)
+    # The index lives as long as the longest family.
+    assert await redis.expiretime(f"user:{alice}:families") == now + 7200
+
+    assert await store.delete_user_families(alice) == 2
+
+    assert await store.get_session(laptop) is None
+    assert await store.get_session(phone) is None
+    assert await store.get_family("fam-a1") is None
+    assert await store.get_session(other) is not None
+    assert not await redis.exists(f"user:{alice}:families")
+    assert await store.delete_user_families(alice) == 0
+
+
+async def test_a_revoked_user_is_signed_out_on_the_next_request(
+    client: AsyncClient, idp: FakeIdP, app: FastAPI
+) -> None:
+    await _login(client, idp, subject="revoked-user")
+    me = await client.get("/me")
+    assert me.status_code == 200
+    user_id = UUID(me.json()["id"])
+
+    manager = SessionManager(
+        SessionStore(app.state.redis),
+        app.state.oidc_client,
+        app.state.token_sealer,
+        app.state.settings.security,
+        app.state.audit_sink,
+    )
+    assert await manager.revoke_user(user_id) == 1
+    assert (await client.get("/me")).status_code == 401

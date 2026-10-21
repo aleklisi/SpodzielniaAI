@@ -6,6 +6,9 @@ Redis layout (keys of secrets are their SHA-256, so a Redis dump yields no usabl
 - ``family:{family_id}``           → ``FamilyData``: the current refresh token (sealed), the
                                      ID token for logout (sealed) and when to re-check the IdP
 - ``family:{family_id}:sessions``  → keys of the sessions in this family
+- ``user:{user_id}:families``      → the user's family ids (8.2: sign a user out everywhere).
+                                     Expires with the longest-lived family; stale ids are
+                                     harmless (deleting a missing family is a no-op).
 - ``rt:{H(refresh_token)}``        → ``{family_id, used}``. A used token presented again is
                                      treated as theft: the whole family is revoked.
 - ``lock:family:{family_id}``      → per-family refresh lock, so parallel requests never
@@ -118,6 +121,10 @@ def _members_key(family_id: str) -> str:
     return f"family:{family_id}:sessions"
 
 
+def _user_families_key(user_id: UUID) -> str:
+    return f"user:{user_id}:families"
+
+
 def _rt_key(refresh_token: str) -> str:
     return f"rt:{digest(refresh_token)}"
 
@@ -164,6 +171,11 @@ class SessionStore:
         pipe.set(_family_key(session.family_id), family.model_dump_json(), exat=family.expires_at)
         pipe.sadd(_members_key(session.family_id), _session_key(sid))
         pipe.expireat(_members_key(session.family_id), family.expires_at)
+        user_key = _user_families_key(session.user_id)
+        pipe.sadd(user_key, session.family_id)
+        # A new key has no TTL (NX sets it); an existing one only ever gets a later one (GT).
+        pipe.expireat(user_key, family.expires_at, nx=True)
+        pipe.expireat(user_key, family.expires_at, gt=True)
         if refresh_token is not None:
             record = _RefreshTokenRecord(family_id=session.family_id, used=False)
             pipe.set(_rt_key(refresh_token), record.model_dump_json(), exat=family.expires_at)
@@ -198,6 +210,18 @@ class SessionStore:
         members = await self._redis.smembers(_members_key(family_id))
         keys = [m.decode() if isinstance(m, bytes) else m for m in members]
         await self._redis.delete(_family_key(family_id), _members_key(family_id), *keys)
+
+    async def delete_user_families(self, user_id: UUID) -> int:
+        """Delete every family (and session) of ``user_id``. Returns how many were live."""
+        key = _user_families_key(user_id)
+        members = await self._redis.smembers(key)
+        live = 0
+        for member in members:
+            family_id = member.decode() if isinstance(member, bytes) else member
+            live += int(await self._redis.exists(_family_key(family_id)) > 0)
+            await self.delete_family(family_id)
+        await self._redis.delete(key)
+        return live
 
     @asynccontextmanager
     async def family_lock(self, family_id: str, wait_seconds: float) -> AsyncGenerator[None]:
@@ -356,6 +380,11 @@ class SessionManager:
 
     async def revoke_family(self, session: SessionData) -> None:
         await self._store.delete_family(session.family_id)
+
+    async def revoke_user(self, user_id: UUID) -> int:
+        """End every session of ``user_id`` in this app (admin block, sign-out, password reset).
+        The IdP side is ended separately (Keycloak ``logout``). Returns the live families."""
+        return await self._store.delete_user_families(user_id)
 
     async def logout(self, sid: str) -> str | None:
         """End the session's whole family, revoke the refresh token at the IdP and return the

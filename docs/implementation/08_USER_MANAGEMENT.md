@@ -270,3 +270,22 @@ against the compose stack with MFA on and off.
 - Dev only: Keycloak's internal port on `127.0.0.1:8180` for host-side integration tests.
 - Without the secret (`keycloak_admin.client_secret` unset) the client reports
   `configured = False` and every call raises `IdpUnavailable`; the API answers 503 (8.4).
+
+### 8.2 (done)
+- **Deviation from §3.2:** instead of one `lock_source` column, an admin block has its own
+  columns `blocked_at`, `blocked_by`, `blocked_reason` (+ optional `blocked_note`, CHECK: a
+  block always has a reason). The shield keeps `is_locked`/`locked_*`. `User.refused` (either
+  set) is what `UserDirectory` and the provisioner report as `is_locked`, so authorization code
+  did not change, and U8 holds by construction: neither path can clear the other's flag.
+- Also new: `username` (`preferred_username`, indexed lower-case), `created_by`,
+  `last_login_at`, `required_actions` (mirror for the list status; cleared on login because
+  Keycloak issues tokens only after required actions are done).
+- `OidcIdentity.username`; the provisioner sets `username`, `last_login_at`, clears
+  `required_actions`, and adopts a pre-created row through the existing `(issuer, subject)`
+  upsert.
+- Sessions: `user:{id}:families` set, TTL = the longest family (`EXPIREAT NX` then `GT`);
+  `SessionStore.delete_user_families`, `SessionManager.revoke_user`.
+- Audit events `USER_CREATED`, `USER_ROLES_CHANGED`, `USER_BLOCKED`, `USER_UNBLOCKED`,
+  `USER_PASSWORD_RESET`, `USER_PASSWORD_CHANGE_REQUIRED`, `USER_SESSIONS_REVOKED`,
+  `USERS_SYNCED`.
+

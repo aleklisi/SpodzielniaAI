@@ -170,6 +170,7 @@ def test_migrations_form_a_single_linear_history() -> None:
         "0010_account_lock",
         "0011_hidden_articles",
         "0012_llm_config",
+        "0013_user_admin",
     ]
 
 

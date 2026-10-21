@@ -233,3 +233,72 @@ async def test_session_drives_rls_and_logout_is_audited(
         )
     assert logouts == 1
     assert (await verify_chain(app_engine)).ok
+
+
+# --- Stage 8: admin-created accounts and admin blocks ------------------------------------
+
+
+async def test_login_adopts_an_account_created_by_an_admin(factory: SessionFactory) -> None:
+    from spoldzielnia_ai.core.ids import uuid7
+
+    subject = secrets.token_hex(8)
+    created_id = uuid7()
+    async with factory() as session, session.begin():
+        session.add(
+            User(
+                id=created_id,
+                oidc_issuer=ISSUER,
+                oidc_subject=subject,
+                username="nowa",
+                display_name="Nowa Osoba",
+                roles=[Role.MEMBER],
+                required_actions=["UPDATE_PASSWORD"],
+            )
+        )
+
+    identity = dataclasses.replace(_identity(subject, Role.MEMBER), username="nowa")
+    user = await DbUserProvisioner(factory).provision(identity, "keycloak")
+
+    assert user.id == created_id
+    assert not user.created
+    async with factory() as session:
+        row = await session.scalar(select(User).where(User.id == created_id))
+    assert row is not None
+    assert row.username == "nowa"
+    assert row.last_login_at is not None
+    assert row.required_actions == []
+
+
+async def test_an_admin_block_refuses_the_login_and_survives_it(factory: SessionFactory) -> None:
+    from sqlalchemy import func
+
+    provisioner = DbUserProvisioner(factory)
+    subject = secrets.token_hex(8)
+    user = await provisioner.provision(_identity(subject), "keycloak")
+    async with factory() as session, session.begin():
+        await session.execute(
+            update(User)
+            .where(User.id == user.id)
+            .values(blocked_at=func.now(), blocked_reason="left_cooperative")
+        )
+
+    again = await provisioner.provision(_identity(subject), "keycloak")
+    assert again.is_locked
+    async with factory() as session:
+        row = await session.scalar(select(User).where(User.id == user.id))
+    assert row is not None
+    assert row.refused
+    assert not row.is_locked  # the shield's lock is untouched
+    assert row.blocked_reason == "left_cooperative"
+
+
+async def test_a_block_needs_a_reason(factory: SessionFactory) -> None:
+    from sqlalchemy import func
+    from sqlalchemy.exc import IntegrityError
+
+    user = await DbUserProvisioner(factory).provision(_identity(secrets.token_hex(8)), "keycloak")
+    with pytest.raises(IntegrityError):
+        async with factory() as session, session.begin():
+            await session.execute(
+                update(User).where(User.id == user.id).values(blocked_at=func.now())
+            )

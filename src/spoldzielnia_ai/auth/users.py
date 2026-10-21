@@ -1,5 +1,6 @@
 """Reading the authenticated user. The database row, not the session, is the authority for roles
-and the lock flag, so an admin lock takes effect on the user's next request."""
+and the lock flag, so an admin lock takes effect on the user's next request. ``is_locked`` covers
+both the shield's lock and an admin block (8.2)."""
 
 from __future__ import annotations
 
@@ -42,7 +43,7 @@ class DbUserDirectory:
         return UserRecord(
             id=user.id,
             roles=tuple(user.roles),
-            is_locked=user.is_locked,
+            is_locked=user.refused,
             email=user.email,
             display_name=user.display_name,
         )
