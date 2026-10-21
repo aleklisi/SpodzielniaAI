@@ -480,3 +480,25 @@ green; A1–A12 covered by tests; scenario 11 passes against the compose stack.
   metadata, lazy preview, deletion, RLS for rows/bytes/no-user session, ciphertext at rest,
   save/load/409, box validation, limits, label rules, archived domain, derivative mirror).
 
+### 9.3 (done)
+
+- `components/annotator/ImageAnnotator.tsx`: marks are **positioned HTML boxes** (percent of
+  the image) over the `<img>`, not an SVG overlay: equally crisp, each box is a focusable
+  `role="button"`, and resize handles keep a fixed pixel size at any zoom. Pointer events
+  (mouse, pen, touch; `touch-none` on the surface), pointer capture, drag-to-draw (a click or
+  tiny drag makes no box), move, 8 resize handles, clamping to the photo and the 0.5 % minimum.
+  Keyboard: Tab to a box, arrows move 1 % (Shift 0.2 %), Alt+arrows resize, Delete removes,
+  Escape deselects. Zoom 100–400 % inside a scrolling viewport (pan by scrolling).
+- `components/notebook/PhotoEditor.tsx` at `/notebook/[noteId]/photos/[attachmentId]`: domain
+  first (changing it clears labels after a confirm), caption, numbered marks list (colour chip
+  matching the box, `LabelCombobox` scoped to the domain, description, delete), save disabled
+  until every mark has a label, `stale_version` → „Wczytaj ponownie”, archived domain →
+  read-only, unsaved-changes guard (`beforeunload` + confirm on the back link), link to the
+  full-resolution image.
+- `PhotosPanel` in the note: thumbnails of the note's photos with „Oznacz: <plik>”.
+- `lib/photos.ts`: queries, `toInput`/`toMarks`, `clampBox`, error copy.
+- Tests: `photos.test.tsx` (10: draw/click, move to edge, handle resize, keyboard, read-only,
+  clamp, save body with loaded version, 409 reload, domain-first + label required, archived,
+  photo panel). The project has no axe tooling; accessibility is asserted through role and
+  label queries (every control is reachable by its accessible name).
+

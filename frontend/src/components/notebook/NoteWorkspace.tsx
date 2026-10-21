@@ -7,6 +7,7 @@ import { useState } from "react";
 
 import { AskPanel } from "@/components/notebook/AskPanel";
 import { DerivativesPanel } from "@/components/notebook/DerivativesPanel";
+import { PhotosPanel } from "@/components/notebook/PhotosPanel";
 import { LinkDialog } from "@/components/notebook/LinkDialog";
 import { UploadZone } from "@/components/notebook/UploadZone";
 import { Button } from "@/components/ui/Button";
@@ -94,6 +95,7 @@ export function NoteWorkspace({ noteId }: { noteId: string }) {
           </Button>
         </div>
         <UploadZone noteId={noteId} />
+        <PhotosPanel noteId={noteId} attachments={data.attachments} />
         <DerivativesPanel noteId={noteId} derivatives={data.derivatives} />
       </div>
       <aside className="flex flex-col gap-4">

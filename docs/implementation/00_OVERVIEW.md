@@ -236,7 +236,7 @@ Each one is resolved (✅ = decision baked into the chunk plans) or needs your i
 ### Stage 9 — Visual atlas: annotated photos, expert verification, image recognition (beyond the original plan, [US-03](../USER_STORIES_LOG.md#us-03))
 - [x] 9.1 Domains & label vocabulary (multi-domain)
 - [x] 9.2 Private photo annotations & image serving
-- [ ] 9.3 Annotator UI in the notebook
+- [x] 9.3 Annotator UI in the notebook
 - [ ] 9.4 Contribute to the atlas (shared copy, PII, injection, privacy flags)
 - [ ] 9.5 Expert review & shared `/atlas`
 - [ ] 9.6 Consent, attribution & export opt-in for atlas photos
