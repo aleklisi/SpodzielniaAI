@@ -241,7 +241,7 @@ Each one is resolved (✅ = decision baked into the chunk plans) or needs your i
 - [x] 9.5 Expert review & shared `/atlas`
 - [x] 9.6 Consent, attribution & export opt-in for atlas photos
 - [x] 9.7 Dataset export (COCO/YOLO)
-- [ ] 9.8 Visual embeddings & `atlas_visual_index` (Phase B)
+- [x] 9.8 Visual embeddings & `atlas_visual_index` (Phase B)
 - [ ] 9.9 Recognition „Rozpoznaj” (Phase B)
 - [ ] 9.10 E2E, security review & docs
 

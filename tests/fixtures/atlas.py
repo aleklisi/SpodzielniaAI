@@ -20,6 +20,8 @@ from tests.fixtures.llm import Call, FakeLLMGateway
 from tests.fixtures.pl_ids import make_pesel
 
 if TYPE_CHECKING:
+    from uuid import UUID
+
     from spoldzielnia_ai.db.session import SessionFactory
     from spoldzielnia_ai.workers.jobs import AtlasJob, ExportJob
     from tests.fixtures.app import Harness, LoggedIn
@@ -47,6 +49,11 @@ class RecordingQueue(NoProcessing):
 
     async def export_requested(self, job: ExportJob) -> None:
         self.exports.append(job)
+
+    indexed: list[UUID] = field(default_factory=lambda: list[Any]())
+
+    async def atlas_canonical(self, image_id: UUID) -> None:
+        self.indexed.append(image_id)
 
 
 def privacy_reply(flags: dict[str, bool]) -> Any:

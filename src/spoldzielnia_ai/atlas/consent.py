@@ -22,9 +22,10 @@ from typing import TYPE_CHECKING
 
 from sqlalchemy import select, update
 
+from spoldzielnia_ai.atlas.vectors import AtlasOp, delete_image, resume_image, suspend_image
 from spoldzielnia_ai.audit.events import EventType
 from spoldzielnia_ai.audit.service import AuditService, AuditTarget
-from spoldzielnia_ai.db.enums import ConsentStatus
+from spoldzielnia_ai.db.enums import AtlasImageStatus, ConsentStatus
 from spoldzielnia_ai.db.models import AtlasImage, AtlasRegion
 
 if TYPE_CHECKING:
@@ -70,6 +71,7 @@ class PhotoConsentResult:
     action: PhotoConsentAction
     image: AtlasImage
     object_keys: list[str] = field(default_factory=list[str])  # delete after commit (revoke)
+    ops: list[AtlasOp] = field(default_factory=lambda: list[AtlasOp]())  # visual index (9.8)
 
 
 class AtlasConsentService:
@@ -126,7 +128,14 @@ class AtlasConsentService:
             AuditTarget(TARGET, str(image.id)),
             {"kind": "atlas_image", "status": image.status.value},
         )
-        return PhotoConsentResult(action, image, keys)
+        match action:
+            case PhotoConsentAction.SUSPEND:
+                ops = [suspend_image(image.id)]
+            case PhotoConsentAction.RESUME:
+                ops = [resume_image(image.id, approved=image.status == AtlasImageStatus.APPROVED)]
+            case PhotoConsentAction.REVOKE:
+                ops = [delete_image(image.id)]
+        return PhotoConsentResult(action, image, keys, ops)
 
     async def preferences(
         self,

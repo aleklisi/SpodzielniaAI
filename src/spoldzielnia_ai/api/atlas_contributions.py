@@ -25,11 +25,13 @@ from spoldzielnia_ai.db.enums import (
     ConsentStatus,
 )
 from spoldzielnia_ai.notebook.deps import CipherDep, StorageDep  # noqa: TC001
+from spoldzielnia_ai.vector.deps import VectorSyncDep  # noqa: TC001 - FastAPI resolves it
 
 if TYPE_CHECKING:
     from spoldzielnia_ai.core.settings import Settings
     from spoldzielnia_ai.db.models import AtlasImage
     from spoldzielnia_ai.db.session import SessionFactory
+    from spoldzielnia_ai.vector.sync import VectorSync
 
 router = APIRouter(prefix="/me/contributions/atlas", tags=["contributions"])
 
@@ -100,14 +102,18 @@ async def _apply(
     cipher: CipherDep,
     storage: StorageDep,
     background: BackgroundTasks,
+    sync: VectorSync,
 ) -> MyPhotoOut:
     factory: SessionFactory = request.app.state.session_factory
     try:
         async with factory() as session, session.begin():
             result = await AtlasConsentService(session).change(action, user_id, image_id)
             [out] = await _out(AtlasGallery(session), [result.image])
+            seqs = await sync.record(session, result.ops)
     except PhotoConsentError as exc:
         raise _fail(exc) from None
+    # The visual index follows at once (suspended or revoked photos stop being cited).
+    await sync.flush(seqs)
     # After commit: the objects of a revoked photo, and the coverage denominator.
     if result.object_keys:
         background.add_task(AtlasObjects(cipher, storage).delete, result.object_keys)
@@ -123,10 +129,11 @@ async def suspend_photo(
     cipher: CipherDep,
     storage: StorageDep,
     background: BackgroundTasks,
+    sync: VectorSyncDep,
 ) -> MyPhotoOut:
     """Hide the photo from the atlas, recognition and exports until resumed."""
     return await _apply(
-        PhotoConsentAction.SUSPEND, image_id, request, user.id, cipher, storage, background
+        PhotoConsentAction.SUSPEND, image_id, request, user.id, cipher, storage, background, sync
     )
 
 
@@ -138,9 +145,10 @@ async def resume_photo(
     cipher: CipherDep,
     storage: StorageDep,
     background: BackgroundTasks,
+    sync: VectorSyncDep,
 ) -> MyPhotoOut:
     return await _apply(
-        PhotoConsentAction.RESUME, image_id, request, user.id, cipher, storage, background
+        PhotoConsentAction.RESUME, image_id, request, user.id, cipher, storage, background, sync
     )
 
 
@@ -153,6 +161,7 @@ async def revoke_photo(
     cipher: CipherDep,
     storage: StorageDep,
     background: BackgroundTasks,
+    sync: VectorSyncDep,
 ) -> JSONResponse | MyPhotoOut:
     """Irreversible: the image, its texts and its marks are deleted from the atlas."""
     del payload  # its validation is the confirmation
@@ -164,7 +173,7 @@ async def revoke_photo(
             status_code=status.HTTP_403_FORBIDDEN,
         )
     return await _apply(
-        PhotoConsentAction.REVOKE, image_id, request, user.id, cipher, storage, background
+        PhotoConsentAction.REVOKE, image_id, request, user.id, cipher, storage, background, sync
     )
 
 

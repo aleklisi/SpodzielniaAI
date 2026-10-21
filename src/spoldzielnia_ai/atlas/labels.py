@@ -71,6 +71,7 @@ class LabelService:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
         self._audit = AuditService(session)
+        self.outbox_seqs: list[int] = []  # to flush after commit (merge)
 
     async def _record(
         self,
@@ -351,6 +352,11 @@ class LabelService:
             await self._session.execute(
                 update(model).where(ref == source.id).values({column: target.id})
             )
+        # Points of re-pointed atlas marks follow them (9.8), in this transaction's outbox.
+        from spoldzielnia_ai.atlas.vectors import relabel
+        from spoldzielnia_ai.vector.sync import VectorSync
+
+        self.outbox_seqs = await VectorSync.record(self._session, [relabel(source.id, target.id)])
         await self._session.flush()
         await self._record(
             EventType.LABEL_MERGED,

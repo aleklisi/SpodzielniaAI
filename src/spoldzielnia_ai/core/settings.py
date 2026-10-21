@@ -124,6 +124,8 @@ class QdrantSettings(BaseModel):
     # Dimension of `llm.embed_model`. Bootstrap refuses an existing collection of another size,
     # and the embedder refuses vectors of another size (4.1).
     vector_size: int = Field(default=1024, ge=8, le=8192)
+    # Dimension of the atlas image model (SigLIP base: 768, 9.8).
+    image_vector_size: int = Field(default=768, ge=8, le=8192)
     # Bounded wait for synchronous index operations (consent propagation, 4.3).
     timeout_seconds: int = Field(default=10, ge=1, le=120)
 
@@ -199,6 +201,10 @@ class ModelSettings(BaseModel):
     @property
     def injection_dir(self) -> str:
         return f"{self.root}/injection/deberta-v3-base-prompt-injection-v2"
+
+    @property
+    def image_embed_dir(self) -> str:
+        return f"{self.root}/image-embed/siglip-base-patch16-224"
 
 
 class WorkerSecuritySettings(BaseModel):

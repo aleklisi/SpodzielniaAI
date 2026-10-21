@@ -139,7 +139,8 @@ The solution is multi-domain: beekeeping is only an example use case.
   - 9.4 contribute to the atlas: `38773d3`
   - 9.5 expert review and the shared atlas: `d889e77`
   - 9.6 consent, attribution and export opt-in: `d6ca6bf`
-  - 9.7 dataset export (COCO/YOLO): the `feat(stage-9.7)` commit
+  - 9.7 dataset export (COCO/YOLO): `7664724`
+  - 9.8 visual embeddings and `atlas_visual_index`: the `feat(stage-9.8)` commit
 
 ---
 

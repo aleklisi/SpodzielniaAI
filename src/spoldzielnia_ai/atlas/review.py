@@ -12,12 +12,13 @@
 from __future__ import annotations
 
 import datetime as dt
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from sqlalchemy import func, select, update
 
 from spoldzielnia_ai.atlas.labels import LabelService
+from spoldzielnia_ai.atlas.vectors import AtlasOp, index_images
 from spoldzielnia_ai.audit.events import EventType
 from spoldzielnia_ai.audit.service import AuditService, AuditTarget
 from spoldzielnia_ai.db.enums import (
@@ -67,6 +68,7 @@ class Outcome:
     version: int
     approvals: int
     quorum: int
+    ops: list[AtlasOp] = field(default_factory=lambda: list[AtlasOp]())  # visual index (9.8)
 
 
 def _box_ok(e: RegionEdit) -> bool:
@@ -326,7 +328,8 @@ class AtlasReviewService:
                 {"from": previous.value, "to": image.status.value},
             )
         await self._session.flush()
-        return Outcome(previous, image.status, image.version, approvals, self._quorum)
+        ops = [index_images([image.id])] if image.status == AtlasImageStatus.APPROVED else []
+        return Outcome(previous, image.status, image.version, approvals, self._quorum, ops)
 
 
 # --- Members' view --------------------------------------------------------------------------

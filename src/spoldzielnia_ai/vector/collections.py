@@ -6,6 +6,9 @@ Payloads hold identifiers and governance metadata only, never text (overview §2
   graph is off (``m=0``, ``payload_m=16``), so the graph is built per tenant. A search
   without the tenant filter can't use an index (``PrivateVectorRepo`` always adds it anyway).
 - ``canonical_wiki_index``: every field the mandatory filter and the consent operations use.
+- ``atlas_visual_index`` (9.8): image embeddings of approved atlas photos and their marks, with
+  the provenance and governance fields the mandatory filter needs. Its vector size is the image
+  model's (``qdrant.image_vector_size``), not the text model's.
 """
 
 from __future__ import annotations
@@ -50,6 +53,20 @@ COLLECTIONS: dict[str, dict[str, IndexSchema]] = {
     CANONICAL_COLLECTION: CANONICAL_INDEXES,
 }
 
+ATLAS_COLLECTION = "atlas_visual_index"
+ATLAS_INDEXES: dict[str, IndexSchema] = {
+    "atlas_image_id": KEYWORD,
+    "region_id": KEYWORD,
+    "label_id": KEYWORD,
+    "domain_id": KEYWORD,
+    "author_id": KEYWORD,
+    "consent_status": KEYWORD,
+    "is_active": models.PayloadSchemaType.BOOL,
+    "kind": KEYWORD,
+    "verified_at": models.PayloadSchemaType.DATETIME,
+}
+INDEXES: dict[str, dict[str, IndexSchema]] = {**COLLECTIONS, ATLAS_COLLECTION: ATLAS_INDEXES}
+
 
 class VectorSizeMismatch(RuntimeError):
     """An existing collection was created for another embedding model."""
@@ -80,15 +97,29 @@ async def ensure_collection(client: AsyncQdrantClient, name: str, vector_size: i
         raise VectorSizeMismatch(
             f"{name} has vector size {size}, settings say {vector_size}: run `reindex`"
         )
-    for field, schema in COLLECTIONS[name].items():
+    for field, schema in INDEXES[name].items():
         if field not in info.payload_schema:
             await client.create_payload_index(name, field, field_schema=schema, wait=True)
     log.info("bootstrap.collection_ready", collection=name, created=created, size=vector_size)
     return created
 
 
-async def ensure_collections(client: AsyncQdrantClient, vector_size: int) -> dict[str, bool]:
-    return {name: await ensure_collection(client, name, vector_size) for name in COLLECTIONS}
+async def ensure_collections(
+    client: AsyncQdrantClient, vector_size: int, image_vector_size: int | None = None
+) -> dict[str, bool]:
+    """The text collections, and the atlas one when ``image_vector_size`` is given."""
+    created = {name: await ensure_collection(client, name, vector_size) for name in COLLECTIONS}
+    if image_vector_size is not None:
+        created[ATLAS_COLLECTION] = await ensure_collection(
+            client, ATLAS_COLLECTION, image_vector_size
+        )
+    return created
+
+
+async def recreate_atlas_collection(client: AsyncQdrantClient, image_vector_size: int) -> None:
+    if await client.collection_exists(ATLAS_COLLECTION):
+        await client.delete_collection(ATLAS_COLLECTION)
+    await ensure_collection(client, ATLAS_COLLECTION, image_vector_size)
 
 
 async def recreate_collections(client: AsyncQdrantClient, vector_size: int) -> None:

@@ -14,6 +14,10 @@ points (say, a "resume" applied before the "suspend" it undoes).
 - ``DELETE``: delete the points in ``scope``.
 - ``UPSERT``: (re)index the articles in ``scope.article_ids``. Embedding is slow, so the API
   hands it to the ``index`` queue, and the indexer reads the current state itself.
+
+Atlas photos (9.8) share the outbox: their rows carry ``filter_json.target = "atlas"`` and go to
+``AtlasSink`` (the ``atlas_visual_index`` repository and its re-index hand-off), in the same
+``seq`` order as the wiki's operations.
 """
 
 from __future__ import annotations
@@ -27,6 +31,8 @@ from typing import TYPE_CHECKING, Any
 from sqlalchemy import delete, func, insert, select, text
 from sqlalchemy.exc import DBAPIError
 
+from spoldzielnia_ai.atlas.vectors import TARGET as ATLAS_TARGET
+from spoldzielnia_ai.atlas.vectors import AtlasOp, AtlasScope
 from spoldzielnia_ai.core.ids import uuid7
 from spoldzielnia_ai.core.logging import get_logger
 from spoldzielnia_ai.db.enums import ConsentStatus, OutboxStatus, VectorOpKind
@@ -39,6 +45,7 @@ if TYPE_CHECKING:
 
     from sqlalchemy.ext.asyncio import AsyncSession
 
+    from spoldzielnia_ai.atlas.vectors import AtlasVectorRepo
     from spoldzielnia_ai.db.enums import ArticleStatus
     from spoldzielnia_ai.db.session import SessionFactory
     from spoldzielnia_ai.vector.repositories import CanonicalVectorRepo
@@ -125,6 +132,23 @@ def delete_blocks(author_id: UUID, article_ids: tuple[UUID, ...] | None) -> Vect
 
 
 @dataclass(frozen=True, slots=True)
+class AtlasSink:
+    """Where atlas operations go: the repository and the re-index hand-off (worker-core)."""
+
+    repo: AtlasVectorRepo
+    reindex: Callable[[UUID], Awaitable[None]]
+
+
+type AnyOp = VectorOp | AtlasOp
+
+
+def _op_from_row(row: VectorOutbox) -> AnyOp:
+    if row.filter_json.get("target") == ATLAS_TARGET:
+        return AtlasOp(row.op, AtlasScope.from_json(row.filter_json), dict(row.payload_json))
+    return VectorOp(row.op, CanonicalScope.from_json(row.filter_json), dict(row.payload_json))
+
+
+@dataclass(frozen=True, slots=True)
 class DrainResult:
     applied: int = 0
     failed: bool = False  # stopped at an operation that failed (it stays pending)
@@ -149,15 +173,20 @@ class VectorSync:
         reindex: Callable[[UUID], Awaitable[None]],
         timeout_seconds: float,
         alert_after: int = 5,
+        atlas: AtlasSink | None = None,
     ) -> None:
         self._factory = factory
         self._repo = repo
         self._reindex = reindex
         self._timeout = timeout_seconds
         self._alert_after = alert_after
+        self._atlas = atlas
 
-    async def apply_one(self, op: VectorOp) -> None:
+    async def apply_one(self, op: AnyOp) -> None:
         """Apply ``op`` or raise. Every op is idempotent, so retrying it is safe."""
+        if isinstance(op, AtlasOp):
+            await self._apply_atlas(op)
+            return
         async with asyncio.timeout(self._timeout):
             match op.kind:
                 case OpKind.SET_PAYLOAD:
@@ -168,8 +197,23 @@ class VectorSync:
                     for article_id in op.scope.article_ids or ():
                         await self._reindex(article_id)
 
+    async def _apply_atlas(self, op: AtlasOp) -> None:
+        if self._atlas is None:
+            raise RuntimeError("no atlas sink configured")
+        async with asyncio.timeout(self._timeout):
+            match op.kind:
+                case OpKind.SET_PAYLOAD:
+                    await self._atlas.repo.set_payload(op.scope, op.payload)
+                case OpKind.DELETE:
+                    await self._atlas.repo.delete(op.scope)
+                case OpKind.UPSERT:
+                    for image_id in op.scope.image_ids or ():
+                        await self._atlas.reindex(image_id)
+
     @staticmethod
-    async def record(session: AsyncSession, ops: list[VectorOp]) -> list[int]:
+    async def record(
+        session: AsyncSession, ops: list[VectorOp] | list[AtlasOp] | list[AnyOp]
+    ) -> list[int]:
         """Add ``ops`` to the outbox in the caller's transaction. Returns their ``seq``s."""
         if not ops:
             return []
@@ -239,7 +283,7 @@ class VectorSync:
             return DrainResult(remaining=len(rows))
         applied, failed = 0, False
         for row in rows:
-            op = VectorOp(row.op, CanonicalScope.from_json(row.filter_json), dict(row.payload_json))
+            op = _op_from_row(row)
             try:
                 await self.apply_one(op)
             except Exception as exc:

@@ -70,7 +70,9 @@ def ensure_bucket(client: BucketClient, bucket: str, region: str) -> bool:
 async def _collections(settings: BootstrapSettings, qdrant: AsyncQdrantClient | None) -> None:
     client = qdrant or make_qdrant(settings.qdrant)
     try:
-        await ensure_collections(client, settings.qdrant.vector_size)
+        await ensure_collections(
+            client, settings.qdrant.vector_size, settings.qdrant.image_vector_size
+        )
     finally:
         if qdrant is None:
             await client.close()

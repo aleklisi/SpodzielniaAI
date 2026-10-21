@@ -6,6 +6,8 @@ from anyway.
 
 - Whisper (CTranslate2, ``Systran/faster-whisper-*``): pinned commit, and the weights are
   checked against SHA-256 values pinned **here** (not taken from the hub at download time).
+- Image embeddings (9.8, ``google/siglip-base-patch16-224``): pinned commit and weight hash,
+  vision tower and preprocessing only (no tokenizer: the atlas searches by image).
 - Docling: its own downloader (layout, TableFormer, RapidOCR), without the unused enrichment
   models.
 - Afterwards ``MANIFEST.sha256`` records every file. ``verify`` re-checks the volume
@@ -61,6 +63,15 @@ INJECTION_FILES = [
 ]
 INJECTION_DIR = "injection/deberta-v3-base-prompt-injection-v2"
 
+# Visual atlas image embeddings (9.8).
+IMAGE_EMBED_REPO = "google/siglip-base-patch16-224"
+IMAGE_EMBED_REVISION = "7fd15f0689c79d79e38b1c2e2e2370a7bf2761ed"
+IMAGE_EMBED_HASHES = {
+    "model.safetensors": "2c63cb7d1f2e95ba501893cbb8faeb4ea9a3af295498d35097126228659c2af8",
+}
+IMAGE_EMBED_FILES = ["config.json", "preprocessor_config.json", "model.safetensors"]
+IMAGE_EMBED_DIR = "image-embed/siglip-base-patch16-224"
+
 
 class ModelIntegrityError(Exception):
     pass
@@ -113,6 +124,24 @@ def download_injection(root: Path) -> Path:
     return target
 
 
+def download_image_embed(root: Path) -> Path:
+    from huggingface_hub import snapshot_download  # pyright: ignore[reportUnknownVariableType]
+
+    target = root / IMAGE_EMBED_DIR
+    snapshot_download(
+        IMAGE_EMBED_REPO,
+        revision=IMAGE_EMBED_REVISION,
+        local_dir=target,
+        allow_patterns=IMAGE_EMBED_FILES,
+    )
+    for name, expected in IMAGE_EMBED_HASHES.items():
+        actual = sha256_file(target / name)
+        if actual != expected:
+            raise ModelIntegrityError(f"{IMAGE_EMBED_REPO}/{name}: sha256 {actual} != {expected}")
+    log.info("models.image_embed_ready", revision=IMAGE_EMBED_REVISION)
+    return target
+
+
 def download_docling(root: Path) -> Path:
     from docling.utils.model_downloader import download_models
 
@@ -155,7 +184,11 @@ def verify(root: Path) -> list[str]:
 
 
 def download_all(
-    root: Path, whisper_sizes: list[str], docling: bool, injection: bool = True
+    root: Path,
+    whisper_sizes: list[str],
+    docling: bool,
+    injection: bool = True,
+    image_embed: bool = True,
 ) -> None:
     root.mkdir(parents=True, exist_ok=True)
     for size in whisper_sizes:
@@ -164,5 +197,7 @@ def download_all(
         download_docling(root)
     if injection:
         download_injection(root)
+    if image_embed:
+        download_image_embed(root)
     count = write_manifest(root)
     log.info("models.manifest_written", files=count)

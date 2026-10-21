@@ -36,6 +36,7 @@ class TaskName(StrEnum):
     EXPORT_ATLAS = "promotion.export_atlas"  # 9.7: dataset archive
     INDEX_DERIVATIVE = "index.private_derivative"
     INDEX_ARTICLE = "index.canonical_article"
+    INDEX_ATLAS = "index.atlas_image"  # 9.8: image embeddings of an approved atlas photo
     RECONCILE_OUTBOX = "index.reconcile_outbox"  # Celery beat, every 30 s (4.4)
     CONSISTENCY_AUDIT = "index.consistency_audit"  # Celery beat, nightly (4.4)
     REFRESH_CLUSTERS = "index.refresh_clusters"  # Celery beat, nightly (5.3)
@@ -52,6 +53,7 @@ TASK_QUEUE: dict[TaskName, Queue] = {
     TaskName.EXPORT_ATLAS: Queue.PROMOTION,
     TaskName.INDEX_DERIVATIVE: Queue.INDEX,
     TaskName.INDEX_ARTICLE: Queue.INDEX,
+    TaskName.INDEX_ATLAS: Queue.INDEX,
     TaskName.RECONCILE_OUTBOX: Queue.INDEX,
     TaskName.CONSISTENCY_AUDIT: Queue.INDEX,
     TaskName.REFRESH_CLUSTERS: Queue.INDEX,
@@ -79,6 +81,7 @@ TIME_LIMITS: dict[TaskName, tuple[int, int]] = {
     TaskName.EXPORT_ATLAS: (1800, 1860),
     TaskName.INDEX_DERIVATIVE: (600, 660),
     TaskName.INDEX_ARTICLE: (600, 660),
+    TaskName.INDEX_ATLAS: (600, 660),
     TaskName.RECONCILE_OUTBOX: (120, 150),
     TaskName.CONSISTENCY_AUDIT: (3600, 3660),
     TaskName.REFRESH_CLUSTERS: (1800, 1860),
@@ -128,6 +131,17 @@ class ExportJob(BaseModel):
         return {"export_id": str(self.export_id)}
 
 
+class AtlasIndexJob(BaseModel):
+    """(Re)index one atlas photo (9.8). Shared data: no owner, no RLS."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid", strict=False)
+
+    image_id: UUID
+
+    def to_message(self) -> dict[str, str]:
+        return {"image_id": str(self.image_id)}
+
+
 class ArticleJob(BaseModel):
     """(Re)index a canonical article (4.1). Wiki articles are public: no owner, no RLS."""
 
@@ -148,12 +162,21 @@ class MaintenanceJob(BaseModel):
         return {}
 
 
-type Job = DerivativeJob | PromotionJob | AtlasJob | ExportJob | ArticleJob | MaintenanceJob
+type Job = (
+    DerivativeJob
+    | PromotionJob
+    | AtlasJob
+    | ExportJob
+    | AtlasIndexJob
+    | ArticleJob
+    | MaintenanceJob
+)
 type JobModel = (
     type[DerivativeJob]
     | type[PromotionJob]
     | type[AtlasJob]
     | type[ExportJob]
+    | type[AtlasIndexJob]
     | type[ArticleJob]
     | type[MaintenanceJob]
 )
@@ -163,6 +186,7 @@ _SPECIAL_JOBS: dict[TaskName, JobModel] = {
     TaskName.PREPARE_ATLAS: AtlasJob,
     TaskName.EXPORT_ATLAS: ExportJob,
     TaskName.INDEX_ARTICLE: ArticleJob,
+    TaskName.INDEX_ATLAS: AtlasIndexJob,
     TaskName.RECONCILE_OUTBOX: MaintenanceJob,
     TaskName.CONSISTENCY_AUDIT: MaintenanceJob,
     TaskName.REFRESH_CLUSTERS: MaintenanceJob,

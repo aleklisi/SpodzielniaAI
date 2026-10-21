@@ -726,7 +726,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Merge Label */
+        /**
+         * Merge Label
+         * @description Atlas marks with the merged label are re-pointed, and so are their index points.
+         */
         post: operations["merge_label_atlas_curation_labels__label_id__merge_post"];
         delete?: never;
         options?: never;
@@ -913,7 +916,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Decide */
+        /**
+         * Decide
+         * @description An approval that completes the quorum also queues the photo for the visual index.
+         */
         post: operations["decide_atlas_review__image_id__decision_post"];
         delete?: never;
         options?: never;

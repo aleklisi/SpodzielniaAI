@@ -630,3 +630,40 @@ green; A1–A12 covered by tests; scenario 11 passes against the compose stack.
   consent filtering, no account/atlas ids in the archive, single-use download, archive deleted,
   audit; YOLO + label filter; revoke after export + expiry; daily limit), 3 Vitest cases.
 
+### 9.8 (done)
+
+- **Model:** `google/siglip-base-patch16-224`, revision `7fd15f06…`, `model.safetensors`
+  SHA-256 pinned in `workers/models.py` (vision tower + preprocessing only; no tokenizer), into
+  `models/image-embed/…` by `spoldzielnia models download` (`--no-image-embed` to skip),
+  covered by the manifest. `atlas/embedding.py` → `SiglipEmbedder` (offline,
+  `local_files_only`, L2-normalised 768-d vectors, CPU ≈ 30 ms per image) and `crop` (10 %
+  margin, ≥ 64 px, shifted inward at the border).
+- **Runs in worker-core, not worker-media** (deviation): worker-core already has transformers +
+  torch (core group), object storage (9.4) and Qdrant; worker-media has no Qdrant access.
+- `atlas_visual_index` (`vector/collections.py`, own size `qdrant.image_vector_size` = 768,
+  created by `bootstrap`): one `image` point per approved photo and one `region` point per mark;
+  payload ids + governance only (A4); deterministic point ids.
+- `atlas/vectors.py`: `AtlasVectorRepo` (search always ANDs `consent_status = ACTIVE` and
+  `is_active`, A5), `AtlasScope` (never the whole collection), ops `index_images`,
+  `suspend_image`, `resume_image`, `delete_image`, `relabel`, and `AtlasIndexer`.
+- **Shared outbox:** atlas ops are rows of `vector_outbox` with `filter_json.target = "atlas"`
+  (`VectorSync` routes them to `AtlasSink`), so they apply in commit order with the wiki's.
+  Produced by: the approval that completes the quorum (UPSERT → `index.atlas_image` task),
+  suspend/resume/revoke (applied before the response), label merge (relabel).
+- Nightly audit: `atlas/consistency.py` (`AtlasConsistency`) deletes points of photos that are
+  gone/revoked/not approved, fixes consent/`is_active` drift, queues approved photos without
+  points; `VECTOR_DRIFT_DETECTED` with counts. `spoldzielnia reindex` also rebuilds the atlas
+  collection when the image model is present.
+- `spoldzielnia atlas benchmark` (`atlas/benchmark.py`): leave-one-out top-1/top-3 label
+  accuracy over the indexed marks and the lowest score keeping ≥ 90 % top-1 precision.
+  **Not run on real data yet:** the dev atlas holds only synthetic E2E photos, so the 9.9
+  threshold default is provisional and must be calibrated with the cooperative's photos.
+- Smoke: "worker-core: image model separates unrelated images, atlas collection ready".
+  Existing stacks: `make models` (downloads the pinned model into the volume), then `make up`;
+  the nightly audit (or `spoldzielnia reindex`) indexes photos approved before 9.8.
+- Tests: `tests/unit/test_atlas_vectors.py` (crop, scope, payload without text, benchmark),
+  `tests/ml/test_image_embeddings.py` (real SigLIP: dimension, normalisation, same object
+  closer, crop matches its object), `tests/integration/test_atlas_index.py` (5 with real
+  Qdrant: approval → points with provenance, review photos not indexed, suspend/resume/revoke
+  through the outbox + mandatory filter, merge re-points, consistency audit).
+

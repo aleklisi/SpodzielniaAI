@@ -16,6 +16,7 @@ from spoldzielnia_ai.workers.celery_adapter import send
 from spoldzielnia_ai.workers.jobs import (
     KIND_TASK,
     ArticleJob,
+    AtlasIndexJob,
     DerivativeJob,
     PromotionJob,
     TaskName,
@@ -80,6 +81,11 @@ class CeleryProcessingQueue:
     async def export_requested(self, job: ExportJob) -> None:
         """Build a dataset export (9.7, worker-core)."""
         await asyncio.to_thread(send, self._celery, TaskName.EXPORT_ATLAS, job)
+
+    async def atlas_canonical(self, image_id: UUID) -> None:
+        """An atlas photo was approved (or must be rebuilt): (re)index it (9.8)."""
+        job = AtlasIndexJob(image_id=image_id)
+        await asyncio.to_thread(send, self._celery, TaskName.INDEX_ATLAS, job)
 
     async def derivative_clean(self, job: DerivativeJob) -> None:
         """Screened and not quarantined: index it for "ask my notebook" (4.1)."""

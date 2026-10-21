@@ -21,6 +21,7 @@ from spoldzielnia_ai.db.enums import (
     Role,
     VisualLabelStatus,
 )
+from spoldzielnia_ai.vector.deps import VectorSyncDep  # noqa: TC001 - FastAPI resolves it
 
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator
@@ -245,23 +246,31 @@ async def correct_regions(
 
 @router.post("/{image_id}/decision", response_model=DecisionOut)
 async def decide(
-    image_id: UUID, payload: DecisionIn, request: Request, user: CurrentUser
+    image_id: UUID,
+    payload: DecisionIn,
+    request: Request,
+    user: CurrentUser,
+    sync: VectorSyncDep,
 ) -> DecisionOut:
-    async with _service(request) as service:
-        try:
+    """An approval that completes the quorum also queues the photo for the visual index."""
+    factory: SessionFactory = request.app.state.session_factory
+    try:
+        async with factory() as session, session.begin():
+            service = AtlasReviewService(session, _settings(request).governance.review_quorum)
             outcome = await service.decide(
                 user.id, image_id, payload.decision, payload.comment, payload.version
             )
-        except ReviewError as exc:
-            raise _fail(exc) from None
-        result = DecisionOut(
-            id=image_id,
-            previous=outcome.previous,
-            status=outcome.status,
-            version=outcome.version,
-            approvals=outcome.approvals,
-            quorum=outcome.quorum,
-        )
-    if result.status != result.previous:
+            seqs = await sync.record(session, outcome.ops)
+    except ReviewError as exc:
+        raise _fail(exc) from None
+    await sync.flush(seqs)
+    if outcome.status != outcome.previous:
         await invalidate_corpus(request.app.state.redis)  # after commit
-    return result
+    return DecisionOut(
+        id=image_id,
+        previous=outcome.previous,
+        status=outcome.status,
+        version=outcome.version,
+        approvals=outcome.approvals,
+        quorum=outcome.quorum,
+    )

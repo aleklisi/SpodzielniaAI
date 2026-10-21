@@ -7,6 +7,8 @@
    the embedding model).
 3. Every CANONICAL article is indexed, then every finished derivative of every member (read
    as its owner, through RLS).
+4. The atlas collection (9.8) is recreated and every APPROVED + ACTIVE photo re-embedded with
+   the local image model, when the models volume has it.
 
 Runs with the worker's settings: the KEK (private derivatives are decrypted to embed them) and
 the local embedding model.
@@ -15,6 +17,7 @@ the local embedding model.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from sqlalchemy import select, update
@@ -54,6 +57,7 @@ class ReindexReport:
     articles: int
     derivatives: int
     failed: int
+    atlas_photos: int = 0
 
 
 async def _no_reindex(_article_id: UUID) -> None:
@@ -125,13 +129,35 @@ async def run_reindex(settings: WorkerSettings) -> ReindexReport:
     factory = create_session_factory(engine)
     cipher = EnvelopeCipher(StaticKeyProvider(settings.security.kek.get_secret_value()))
     try:
-        return await rebuild(
+        report = await rebuild(
             factory,
             cipher,
             client,
             LiteLLMGateway(settings.llm, source=LlmConfigStore(factory, cipher, settings.llm)),
             settings.qdrant.vector_size,
             settings.qdrant.timeout_seconds,
+        )
+        model_dir = Path(settings.models.image_embed_dir)
+        if not (model_dir / "model.safetensors").is_file():
+            log.warning("reindex.atlas_skipped", reason="image model missing", path=str(model_dir))
+            return report
+        from spoldzielnia_ai.atlas.consistency import rebuild_atlas
+        from spoldzielnia_ai.atlas.embedding import SiglipEmbedder
+        from spoldzielnia_ai.atlas.vectors import AtlasIndexer, AtlasVectorRepo
+        from spoldzielnia_ai.files.storage import S3ObjectStorage
+
+        indexer = AtlasIndexer(
+            factory,
+            cipher,
+            S3ObjectStorage(settings.s3),
+            SiglipEmbedder(model_dir),
+            AtlasVectorRepo(client),
+        )
+        photos = await rebuild_atlas(
+            factory, client, settings.qdrant.image_vector_size, indexer.index_image
+        )
+        return ReindexReport(
+            report.superseded_ops, report.articles, report.derivatives, report.failed, photos
         )
     finally:
         await client.close()

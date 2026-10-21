@@ -22,6 +22,7 @@ from pydantic import BaseModel, Field
 from spoldzielnia_ai.atlas.labels import LabelError, LabelService
 from spoldzielnia_ai.auth.deps import CurrentUser, elevated_router
 from spoldzielnia_ai.db.enums import Role, VisualDomainStatus, VisualLabelStatus
+from spoldzielnia_ai.vector.deps import VectorSyncDep  # noqa: TC001 - FastAPI resolves it
 
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator, Sequence
@@ -272,13 +273,17 @@ async def reject_label(
 
 @curation_router.post("/labels/{label_id}/merge", response_model=LabelOut)
 async def merge_label(
-    label_id: UUID, payload: MergeIn, request: Request, user: CurrentUser
+    label_id: UUID, payload: MergeIn, request: Request, user: CurrentUser, sync: VectorSyncDep
 ) -> LabelOut:
+    """Atlas marks with the merged label are re-pointed, and so are their index points."""
     try:
         async with _transaction(request) as labels:
-            return _label(await labels.merge(user.id, label_id, payload.into_id), user.id)
+            out = _label(await labels.merge(user.id, label_id, payload.into_id), user.id)
+            seqs = labels.outbox_seqs
     except LabelError as exc:
         raise _fail(exc) from None
+    await sync.flush(seqs)
+    return out
 
 
 @curation_router.post("/labels/{label_id}/deprecate", response_model=LabelOut)

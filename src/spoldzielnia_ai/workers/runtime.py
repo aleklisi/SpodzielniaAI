@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from spoldzielnia_ai.atlas.submissions import AtlasPreparer
+from spoldzielnia_ai.atlas.vectors import AtlasIndexer, AtlasVectorRepo
 from spoldzielnia_ai.auth.deps import DbAuditSink
 from spoldzielnia_ai.core.crypto import EnvelopeCipher, StaticKeyProvider
 from spoldzielnia_ai.core.logging import get_logger
@@ -31,7 +32,7 @@ from spoldzielnia_ai.vector.consistency import ConsistencyAuditor
 from spoldzielnia_ai.vector.embedding import Embedder
 from spoldzielnia_ai.vector.indexing import Indexer
 from spoldzielnia_ai.vector.repositories import CanonicalVectorRepo
-from spoldzielnia_ai.vector.sync import VectorSync
+from spoldzielnia_ai.vector.sync import AtlasSink, VectorSync
 from spoldzielnia_ai.wiki.promotion import PromotionProcessor
 from spoldzielnia_ai.workers.celery_adapter import make_celery, register
 from spoldzielnia_ai.workers.engines.text import TextEngine
@@ -51,6 +52,7 @@ if TYPE_CHECKING:
     from spoldzielnia_ai.workers.engines.base import Engine
     from spoldzielnia_ai.workers.jobs import (
         ArticleJob,
+        AtlasIndexJob,
         AtlasJob,
         DerivativeJob,
         ExportJob,
@@ -80,6 +82,7 @@ class WorkerRuntime:
         self._scanner: DerivativeScanner | None = None
         self._promoter: PromotionProcessor | None = None
         self._atlas: AtlasPreparer | None = None
+        self._atlas_index: AtlasIndexer | None = None
         self._indexer: Indexer | None = None
         self._sync: VectorSync | None = None
         self._qdrant_client: AsyncQdrantClient | None = None
@@ -221,6 +224,7 @@ class WorkerRuntime:
             queue.article_canonical,
             settings.qdrant.timeout_seconds,
             settings.governance.outbox_alert_after,
+            atlas=AtlasSink(AtlasVectorRepo(self._qdrant()), queue.atlas_canonical),
         )
 
     def _build(self) -> DerivativeProcessor:
@@ -293,6 +297,28 @@ class WorkerRuntime:
         self._loop().run(builder.handle(job.export_id))
         return False
 
+    def _atlas_indexer(self) -> AtlasIndexer:
+        """worker-core: SigLIP from the models volume (loaded on first use), storage, Qdrant."""
+        if self._atlas_index is None:
+            from spoldzielnia_ai.atlas.embedding import SiglipEmbedder
+
+            factory, cipher = self._shared()
+            settings = self._settings
+            embedder = SiglipEmbedder(Path(settings.models.image_embed_dir))
+            self._atlas_index = AtlasIndexer(
+                factory,
+                cipher,
+                S3ObjectStorage(settings.s3),
+                embedder,
+                AtlasVectorRepo(self._qdrant()),
+            )
+        return self._atlas_index
+
+    def index_atlas(self, job: AtlasIndexJob, _attempt: int) -> bool:
+        indexer = self._loop().run(_construct(self._atlas_indexer))
+        self._loop().run(indexer.index_image(job.image_id))
+        return False
+
     def _index(self) -> Indexer:
         if self._indexer is None:
             self._indexer = self._loop().run(_construct(self._build_indexer))
@@ -316,9 +342,14 @@ class WorkerRuntime:
         return False  # the next beat tick is the retry
 
     def consistency_audit(self, _job: MaintenanceJob, _attempt: int) -> bool:
+        from spoldzielnia_ai.atlas.consistency import AtlasConsistency
+
         sync = self._vector_sync()
-        factory, _ = self._shared()
+        factory, cipher = self._shared()
         self._loop().run(ConsistencyAuditor(factory, self._qdrant(), sync).run())
+        queue = CeleryProcessingQueue(factory, cipher, self._celery)
+        atlas = AtlasConsistency(factory, self._qdrant(), sync, queue.atlas_canonical)
+        self._loop().run(atlas.run())
         return False
 
     def refresh_clusters(self, _job: MaintenanceJob, _attempt: int) -> bool:
@@ -346,6 +377,7 @@ class WorkerRuntime:
             TaskName.SCAN_DERIVATIVE: self.scan,
             TaskName.INDEX_DERIVATIVE: self.index_derivative,
             TaskName.INDEX_ARTICLE: self.index_article,
+            TaskName.INDEX_ATLAS: self.index_atlas,
             TaskName.RECONCILE_OUTBOX: self.reconcile,
             TaskName.CONSISTENCY_AUDIT: self.consistency_audit,
             TaskName.REFRESH_CLUSTERS: self.refresh_clusters,

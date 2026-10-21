@@ -251,6 +251,33 @@ assert "vector_outbox_backlog" in body and "consent_propagation_seconds" in body
 '
 check "api: /metrics served internally (outbox backlog, consent propagation)" \
   "${COMPOSE[@]}" exec -T api python -c "$METRICS_PY"
+ATLAS_PY='
+import asyncio
+from pathlib import Path
+from PIL import Image, ImageDraw
+from spoldzielnia_ai.atlas.embedding import SiglipEmbedder
+from spoldzielnia_ai.core.settings import WorkerSettings
+from spoldzielnia_ai.vector.client import make_qdrant
+from spoldzielnia_ai.vector.collections import ATLAS_COLLECTION, ensure_collection
+s = WorkerSettings()
+def pic(color, ellipse):
+    image = Image.new("RGB", (320, 240), "white")
+    draw = ImageDraw.Draw(image)
+    (draw.ellipse if ellipse else draw.rectangle)((60, 40, 260, 200), fill=color)
+    return image
+embedder = SiglipEmbedder(Path(s.models.image_embed_dir))
+a, b, c = embedder.embed([pic("red", True), pic("darkred", True), pic("blue", False)])
+dot = lambda u, v: sum(x * y for x, y in zip(u, v))
+assert len(a) == s.qdrant.image_vector_size, len(a)
+assert dot(a, b) > dot(a, c) + 0.1, (dot(a, b), dot(a, c))
+async def main():
+    client = make_qdrant(s.qdrant)
+    assert not await ensure_collection(client, ATLAS_COLLECTION, s.qdrant.image_vector_size)
+    await client.close()
+asyncio.run(main())
+'
+check "worker-core: image model separates unrelated images, atlas collection ready" \
+  "${COMPOSE[@]}" exec -T worker-core python -c "$ATLAS_PY"
 check "beat: scheduler running" bash -c \
   "${COMPOSE[*]} logs beat 2>&1 | grep -q 'beat: Starting'"
 check "worker-media: model volume is read-only" bash -c \

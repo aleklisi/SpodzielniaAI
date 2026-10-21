@@ -237,6 +237,6 @@ Rejestr historyjek dodanych poza Etapami 1–6: [docs/USER_STORIES_LOG.md](docs/
 - [x] 9.7 Eksport zbioru danych (COCO/YOLO + manifest, domyślnie wyłączony, step-up MFA)
 
 *Faza B — rozpoznawanie*
-- [ ] 9.8 Lokalny model embeddingów obrazu i indeks `atlas_visual_index` (outbox, proweniencja)
+- [x] 9.8 Lokalny model embeddingów obrazu i indeks `atlas_visual_index` (outbox, proweniencja)
 - [ ] 9.9 „Rozpoznaj” w notatniku (wyszukiwanie podobnych oznaczeń + lokalny VLM, cytowania, sugestie oznaczeń)
 - [ ] 9.10 Testy E2E Playwright, aktualizacja przeglądu bezpieczeństwa i dokumentacji

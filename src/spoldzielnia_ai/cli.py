@@ -12,7 +12,8 @@ Subcommands:
     honeypot   inject, list or trace canary blocks (5.4): `docker compose run --rm api honeypot …`
     openapi    write the API's OpenAPI schema (frontend type generation, 6.1)
     llm-egress run the CONNECT-only forward proxy to allowlisted cloud LLM APIs (7.3)
-    atlas      `atlas seed-example`: load the example atlas domain, not in prod (9.1)
+    atlas      `atlas seed-example`: load the example atlas domain, not in prod (9.1);
+               `atlas benchmark`: label accuracy of the visual index (9.8)
 """
 
 from __future__ import annotations
@@ -176,7 +177,11 @@ def _cmd_models(args: argparse.Namespace) -> int:
     if args.action == "download":
         sizes = [s for s in str(args.whisper).split(",") if s]
         models.download_all(
-            root, sizes, docling=not args.no_docling, injection=not args.no_injection
+            root,
+            sizes,
+            docling=not args.no_docling,
+            injection=not args.no_injection,
+            image_embed=not args.no_image_embed,
         )
     broken = models.verify(root)
     for path in broken:
@@ -224,6 +229,8 @@ def _cmd_atlas(args: argparse.Namespace) -> int:
     from spoldzielnia_ai.db.engine import create_app_engine
     from spoldzielnia_ai.db.session import create_session_factory
 
+    if args.action == "benchmark":
+        return _atlas_benchmark()
     settings = get_settings()
     configure_logging(settings.log_level, json=settings.environment != "dev")
     if args.action == "seed-example" and settings.environment == "prod":
@@ -245,6 +252,29 @@ def _cmd_atlas(args: argparse.Namespace) -> int:
         return 0
 
     return asyncio.run(run())
+
+
+def _atlas_benchmark() -> int:
+    """Read-only: runs where Qdrant is reachable with the worker's settings (worker-core)."""
+    import asyncio
+    import json
+
+    from spoldzielnia_ai.atlas.benchmark import run_benchmark
+    from spoldzielnia_ai.core.settings import WorkerSettings
+    from spoldzielnia_ai.vector.client import make_qdrant
+
+    settings = WorkerSettings()  # pyright: ignore[reportCallIssue]
+    configure_logging("INFO")
+
+    async def run() -> dict[str, object]:
+        client = make_qdrant(settings.qdrant)
+        try:
+            return (await run_benchmark(client)).to_json()
+        finally:
+            await client.close()
+
+    print(json.dumps(asyncio.run(run()), indent=2))
+    return 0
 
 
 def _cmd_openapi(args: argparse.Namespace) -> int:
@@ -322,6 +352,9 @@ def build_parser() -> argparse.ArgumentParser:
     models_cmd.add_argument(
         "--no-injection", action="store_true", help="skip the prompt-injection classifier"
     )
+    models_cmd.add_argument(
+        "--no-image-embed", action="store_true", help="skip the atlas image-embedding model"
+    )
     models_cmd.set_defaults(handler=_cmd_models)
 
     bootstrap = sub.add_parser("bootstrap", help="provision buckets and collections")
@@ -337,7 +370,7 @@ def build_parser() -> argparse.ArgumentParser:
     egress.set_defaults(handler=_cmd_llm_egress)
 
     atlas = sub.add_parser("atlas", help="visual atlas tools")
-    atlas.add_argument("action", choices=["seed-example"])
+    atlas.add_argument("action", choices=["seed-example", "benchmark"])
     atlas.set_defaults(handler=_cmd_atlas)
 
     openapi = sub.add_parser("openapi", help="write the OpenAPI schema (JSON)")
