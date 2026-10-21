@@ -289,3 +289,22 @@ against the compose stack with MFA on and off.
   `USER_PASSWORD_RESET`, `USER_PASSWORD_CHANGE_REQUIRED`, `USER_SESSIONS_REVOKED`,
   `USERS_SYNCED`.
 
+### 8.3 (done)
+- `auth/user_admin.py` (`UserAdminService`) with a `UserIdp` protocol (`KeycloakAdmin` in
+  production, `tests/fixtures/keycloak.py` in tests) and `UserAdminError(code, status)`.
+- Every account is a `MEMBER` (always added); usernames are lower-case `[a-z0-9._-]{3,64}`
+  and may not start with `service-account-`.
+- U4 locking: every ADMIN row is locked `FOR UPDATE` in id order **before** the target row,
+  so two admins demoting each other serialize (no deadlock); the second sees `last_admin`.
+  Tested with both transactions open at once.
+- `create` undoes the Keycloak user if roles, the password step or the mirror fail, so the
+  username stays free; a failed e-mail answers `502 email_failed` (use the temporary mode).
+- `CONFIGURE_TOTP` is added only while `security.mfa_required` is on (not with `make mfa-off`).
+- Removing a role takes effect on the next request (roles are read from `app_user`), so it
+  does not end sessions; a block, a password reset, sign-out and (optionally) a forced change do.
+- **Deviation from §3.3 (listing):** the list and its filters read `app_user`, not a Keycloak
+  search. Admin-created users are pre-provisioned, and `sync` (U10) imports users created in
+  the Keycloak console, mirrors roles/required actions and blocks users disabled there
+  (`idp_disabled`); it never lifts an app block. The detail view reads Keycloak live and falls
+  back to the mirror when Keycloak is down.
+
