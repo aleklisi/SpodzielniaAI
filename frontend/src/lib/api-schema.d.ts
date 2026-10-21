@@ -1093,6 +1093,103 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/me/contributions/atlas": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * My Atlas Photos
+         * @description Every atlas photo the member sent (drafts excluded), newest first.
+         */
+        get: operations["my_atlas_photos_me_contributions_atlas_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/contributions/atlas/{image_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Photo Preferences
+         * @description Name shown with the photo or not (A12); use in dataset exports or not (A9).
+         */
+        patch: operations["photo_preferences_me_contributions_atlas__image_id__patch"];
+        trace?: never;
+    };
+    "/me/contributions/atlas/{image_id}/resume": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Resume Photo */
+        post: operations["resume_photo_me_contributions_atlas__image_id__resume_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/contributions/atlas/{image_id}/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Revoke Photo
+         * @description Irreversible: the image, its texts and its marks are deleted from the atlas.
+         */
+        post: operations["revoke_photo_me_contributions_atlas__image_id__revoke_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/contributions/atlas/{image_id}/suspend": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Suspend Photo
+         * @description Hide the photo from the atlas, recognition and exports until resumed.
+         */
+        post: operations["suspend_photo_me_contributions_atlas__image_id__suspend_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/me/contributions/history": {
         parameters: {
             query?: never;
@@ -2341,6 +2438,30 @@ export interface components {
             /** Temperature */
             temperature?: number | null;
         };
+        /** MyPhotoOut */
+        MyPhotoOut: {
+            /** Allow Export */
+            allow_export: boolean;
+            /** Caption */
+            caption: string | null;
+            consent_status: components["schemas"]["ConsentStatus"];
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Labels */
+            labels: string[];
+            /** Review Alert */
+            review_alert: string | null;
+            /** Show Author */
+            show_author: boolean;
+            status: components["schemas"]["AtlasImageStatus"];
+            /** Submitted At */
+            submitted_at: string | null;
+            /** Verified At */
+            verified_at: string | null;
+        };
         /**
          * NoteAnswer
          * @description Private notebook Q&A: the member's own notes, still synthesis only.
@@ -2626,6 +2747,13 @@ export interface components {
              * @default false
              */
             truncated: boolean;
+        };
+        /** PreferencesIn */
+        PreferencesIn: {
+            /** Allow Export */
+            allow_export?: boolean | null;
+            /** Show Author */
+            show_author?: boolean | null;
         };
         /** PresetOut */
         PresetOut: {
@@ -3096,16 +3224,6 @@ export interface components {
             };
             status: components["schemas"]["LlmRevisionStatus"];
         };
-        /** RevokeIn */
-        RevokeIn: {
-            /** Article Ids */
-            article_ids?: string[] | null;
-            /**
-             * Confirm
-             * @constant
-             */
-            confirm: "REVOKE";
-        };
         /**
          * Role
          * @enum {string}
@@ -3460,6 +3578,24 @@ export interface components {
          * @enum {string}
          */
         VisualLabelStatus: "PROPOSED" | "ACTIVE" | "DEPRECATED" | "REJECTED";
+        /** RevokeIn */
+        spoldzielnia_ai__api__atlas_contributions__RevokeIn: {
+            /**
+             * Confirm
+             * @constant
+             */
+            confirm: "REVOKE";
+        };
+        /** RevokeIn */
+        spoldzielnia_ai__api__contributions__RevokeIn: {
+            /** Article Ids */
+            article_ids?: string[] | null;
+            /**
+             * Confirm
+             * @constant
+             */
+            confirm: "REVOKE";
+        };
     };
     responses: never;
     parameters: never;
@@ -5553,6 +5689,158 @@ export interface operations {
             };
         };
     };
+    my_atlas_photos_me_contributions_atlas_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MyPhotoOut"][];
+                };
+            };
+        };
+    };
+    photo_preferences_me_contributions_atlas__image_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                image_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PreferencesIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MyPhotoOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    resume_photo_me_contributions_atlas__image_id__resume_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                image_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MyPhotoOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    revoke_photo_me_contributions_atlas__image_id__revoke_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                image_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["spoldzielnia_ai__api__atlas_contributions__RevokeIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MyPhotoOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    suspend_photo_me_contributions_atlas__image_id__suspend_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                image_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MyPhotoOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     contribution_history_me_contributions_history_get: {
         parameters: {
             query?: never;
@@ -5615,7 +5903,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["RevokeIn"];
+                "application/json": components["schemas"]["spoldzielnia_ai__api__contributions__RevokeIn"];
             };
         };
         responses: {

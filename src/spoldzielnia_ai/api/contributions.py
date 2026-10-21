@@ -242,7 +242,7 @@ async def resume(
     return await _change(ConsentAction.RESUME, payload, request, principal, sync)
 
 
-def _recently_authenticated(principal: Principal, settings: Settings) -> bool:
+def recently_authenticated(principal: Principal, settings: Settings) -> bool:
     auth_time = principal.session.auth_time
     max_age = settings.governance.revoke_max_auth_age_seconds
     return auth_time is not None and time.time() - auth_time <= max_age
@@ -254,7 +254,7 @@ async def revoke(
 ) -> JSONResponse | ConsentOut:
     """Irreversible: the text is deleted and the vectors are hard-deleted."""
     settings: Settings = request.app.state.settings
-    if not _recently_authenticated(principal, settings):
+    if not recently_authenticated(principal, settings):
         step_up = f"{settings.root_path}/auth/login?prompt=login"
         return JSONResponse(
             {"detail": {"error": "reauthentication_required", "step_up": step_up}},

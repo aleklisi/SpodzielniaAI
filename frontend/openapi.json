@@ -2378,6 +2378,96 @@
         "title": "ModelPatch",
         "type": "object"
       },
+      "MyPhotoOut": {
+        "properties": {
+          "allow_export": {
+            "title": "Allow Export",
+            "type": "boolean"
+          },
+          "caption": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Caption"
+          },
+          "consent_status": {
+            "$ref": "#/components/schemas/ConsentStatus"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "labels": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Labels",
+            "type": "array"
+          },
+          "review_alert": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Review Alert"
+          },
+          "show_author": {
+            "title": "Show Author",
+            "type": "boolean"
+          },
+          "status": {
+            "$ref": "#/components/schemas/AtlasImageStatus"
+          },
+          "submitted_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Submitted At"
+          },
+          "verified_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verified At"
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "consent_status",
+          "labels",
+          "caption",
+          "show_author",
+          "allow_export",
+          "review_alert",
+          "submitted_at",
+          "verified_at"
+        ],
+        "title": "MyPhotoOut",
+        "type": "object"
+      },
       "NoteAnswer": {
         "description": "Private notebook Q&A: the member's own notes, still synthesis only.",
         "properties": {
@@ -3137,6 +3227,34 @@
           "ok"
         ],
         "title": "PlaygroundResultOut",
+        "type": "object"
+      },
+      "PreferencesIn": {
+        "properties": {
+          "allow_export": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Allow Export"
+          },
+          "show_author": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Show Author"
+          }
+        },
+        "title": "PreferencesIn",
         "type": "object"
       },
       "PresetOut": {
@@ -4415,37 +4533,6 @@
         "title": "RevisionOut",
         "type": "object"
       },
-      "RevokeIn": {
-        "properties": {
-          "article_ids": {
-            "anyOf": [
-              {
-                "items": {
-                  "format": "uuid",
-                  "type": "string"
-                },
-                "maxItems": 500,
-                "minItems": 1,
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Article Ids"
-          },
-          "confirm": {
-            "const": "REVOKE",
-            "title": "Confirm",
-            "type": "string"
-          }
-        },
-        "required": [
-          "confirm"
-        ],
-        "title": "RevokeIn",
-        "type": "object"
-      },
       "Role": {
         "enum": [
           "MEMBER",
@@ -5468,6 +5555,51 @@
         ],
         "title": "VisualLabelStatus",
         "type": "string"
+      },
+      "spoldzielnia_ai__api__atlas_contributions__RevokeIn": {
+        "properties": {
+          "confirm": {
+            "const": "REVOKE",
+            "title": "Confirm",
+            "type": "string"
+          }
+        },
+        "required": [
+          "confirm"
+        ],
+        "title": "RevokeIn",
+        "type": "object"
+      },
+      "spoldzielnia_ai__api__contributions__RevokeIn": {
+        "properties": {
+          "article_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "maxItems": 500,
+                "minItems": 1,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Article Ids"
+          },
+          "confirm": {
+            "const": "REVOKE",
+            "title": "Confirm",
+            "type": "string"
+          }
+        },
+        "required": [
+          "confirm"
+        ],
+        "title": "RevokeIn",
+        "type": "object"
       }
     }
   },
@@ -8727,6 +8859,227 @@
         ]
       }
     },
+    "/me/contributions/atlas": {
+      "get": {
+        "description": "Every atlas photo the member sent (drafts excluded), newest first.",
+        "operationId": "my_atlas_photos_me_contributions_atlas_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/MyPhotoOut"
+                  },
+                  "title": "Response My Atlas Photos Me Contributions Atlas Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "My Atlas Photos",
+        "tags": [
+          "contributions"
+        ]
+      }
+    },
+    "/me/contributions/atlas/{image_id}": {
+      "patch": {
+        "description": "Name shown with the photo or not (A12); use in dataset exports or not (A9).",
+        "operationId": "photo_preferences_me_contributions_atlas__image_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "image_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Image Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PreferencesIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyPhotoOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Photo Preferences",
+        "tags": [
+          "contributions"
+        ]
+      }
+    },
+    "/me/contributions/atlas/{image_id}/resume": {
+      "post": {
+        "operationId": "resume_photo_me_contributions_atlas__image_id__resume_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "image_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Image Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyPhotoOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Resume Photo",
+        "tags": [
+          "contributions"
+        ]
+      }
+    },
+    "/me/contributions/atlas/{image_id}/revoke": {
+      "post": {
+        "description": "Irreversible: the image, its texts and its marks are deleted from the atlas.",
+        "operationId": "revoke_photo_me_contributions_atlas__image_id__revoke_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "image_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Image Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/spoldzielnia_ai__api__atlas_contributions__RevokeIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyPhotoOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Revoke Photo",
+        "tags": [
+          "contributions"
+        ]
+      }
+    },
+    "/me/contributions/atlas/{image_id}/suspend": {
+      "post": {
+        "description": "Hide the photo from the atlas, recognition and exports until resumed.",
+        "operationId": "suspend_photo_me_contributions_atlas__image_id__suspend_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "image_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Image Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyPhotoOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Suspend Photo",
+        "tags": [
+          "contributions"
+        ]
+      }
+    },
     "/me/contributions/history": {
       "get": {
         "description": "The member's own consent changes (from the audit log), newest first. Only the counts\neach entry recorded, never anyone else's events.",
@@ -8803,7 +9156,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/RevokeIn"
+                "$ref": "#/components/schemas/spoldzielnia_ai__api__contributions__RevokeIn"
               }
             }
           },

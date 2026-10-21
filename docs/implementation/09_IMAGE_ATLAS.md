@@ -575,3 +575,25 @@ green; A1–A12 covered by tests; scenario 11 passes against the compose stack.
   image rate limit), `tests/fixtures/atlas.py` (shared helpers), 6 Vitest cases. Playwright
   scenario 11 started (Phase A part), finished in 9.10.
 
+### 9.6 (done)
+
+- **Separate service instead of generalising `ConsentService`:** `atlas/consent.py`
+  (`AtlasConsentService`) mirrors its rules for photos (scope in the query, audit with the
+  same `CONSENT_*` events and `kind: atlas_image`). The article cascade (degrade co-authored
+  articles) has no equivalent: a photo has one author and expert-added marks follow it.
+- Suspend/resume/revoke per photo (`POST /me/contributions/atlas/{id}/suspend|resume|revoke`);
+  revoke needs `confirm: "REVOKE"` and a recent login (`recently_authenticated`, now public in
+  `api/contributions.py`), deletes the three objects after commit, wipes caption and
+  descriptions, marks every region REVOKED and drops `allow_export`. A revoked photo can be
+  sent again from the notebook (it becomes a new atlas photo).
+- `PATCH /me/contributions/atlas/{id}` for `show_author` and `allow_export`, audited as
+  `ATLAS_ATTRIBUTION_CHANGED` / `ATLAS_EXPORT_CONSENT_CHANGED`; takes effect immediately.
+- `GET /me/contributions/atlas` lists the author's photos (drafts excluded) with labels.
+- Vector operations for suspend/resume/revoke are added with the visual index in 9.8.
+- Frontend: „Zdjęcia w atlasie” on `/me/contributions` (thumbnail, consent and review badges,
+  name and export switches, Wstrzymaj/Wznów, „Wycofaj trwale” with typed REVOKE and step-up).
+- Tests: `test_atlas_consent.py` (3: suspend/resume incl. expert-added marks and other
+  members, revoke with confirm + step-up + object deletion + tombstone + finality, name and
+  export choices with audit), 3 Vitest cases.
+- Fixed with this chunk: a ruff finding (S311) in the E2E seed script committed with 9.5.
+

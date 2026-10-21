@@ -233,7 +233,7 @@ Rejestr historyjek dodanych poza Etapami 1–6: [docs/USER_STORIES_LOG.md](docs/
 - [x] 9.3 Edytor oznaczeń w notatniku (mysz, dotyk, klawiatura)
 - [x] 9.4 Przekazanie zdjęcia do atlasu (kopia bez metadanych, PII scrubbing, skan injection, flagi prywatności VLM, duplikaty)
 - [x] 9.5 Weryfikacja ekspercka (korekty, kworum) i wspólny atlas `/atlas` z limitem pokrycia tarczy
-- [ ] 9.6 Zgody autora dla zdjęć atlasu (wstrzymaj, wznów, wycofaj, widoczność nazwiska, zgoda na eksport)
+- [x] 9.6 Zgody autora dla zdjęć atlasu (wstrzymaj, wznów, wycofaj, widoczność nazwiska, zgoda na eksport)
 - [ ] 9.7 Eksport zbioru danych (COCO/YOLO + manifest, domyślnie wyłączony, step-up MFA)
 
 *Faza B — rozpoznawanie*

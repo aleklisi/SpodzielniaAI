@@ -194,3 +194,12 @@ async def decide(
         json={"decision": decision, "version": version, "comment": comment},
         headers=expert.headers,
     )
+
+
+async def approve_all(h: Harness, image_id: str, quorum: int = 1) -> None:
+    """Enough distinct experts (with MFA) approve the photo's current version."""
+    for _ in range(quorum):
+        expert = await h.login(roles=["MEMBER", "EXPERT"], **MFA)
+        version = (await expert.client.get(f"/atlas/review/{image_id}")).json()["version"]
+        response = await decide(expert, image_id, "APPROVE", version)
+        assert response.status_code == 200, response.text

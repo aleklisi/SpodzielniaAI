@@ -98,3 +98,42 @@ export function submissionError(error: unknown, fallback = "Operacja nie powiodÅ
   if (error.status === 429) return ERRORS.rate_limited;
   return fallback;
 }
+
+// --- The author's atlas photos (9.6) -------------------------------------------------------------
+
+export type MyPhoto = components["schemas"]["MyPhotoOut"];
+export type PhotoConsentAction = "suspend" | "resume" | "revoke";
+
+const MINE = ["atlas", "mine"] as const;
+
+export function useMyAtlasPhotos() {
+  return useQuery({ queryKey: MINE, queryFn: async () => unwrap(await api.GET("/me/contributions/atlas")) });
+}
+
+export function usePhotoConsent() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, action }: { id: string; action: PhotoConsentAction }) => {
+      const path = { params: { path: { image_id: id } } };
+      if (action === "suspend") return unwrap(await api.POST("/me/contributions/atlas/{image_id}/suspend", path));
+      if (action === "resume") return unwrap(await api.POST("/me/contributions/atlas/{image_id}/resume", path));
+      return unwrap(await api.POST("/me/contributions/atlas/{image_id}/revoke", { ...path, body: { confirm: "REVOKE" } }));
+    },
+    onSettled: () => void client.invalidateQueries({ queryKey: ["atlas"] }),
+  });
+}
+
+export function usePhotoPreferences() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, ...body }: { id: string; show_author?: boolean; allow_export?: boolean }) =>
+      unwrap(await api.PATCH("/me/contributions/atlas/{image_id}", { params: { path: { image_id: id } }, body })),
+    onSettled: () => void client.invalidateQueries({ queryKey: ["atlas"] }),
+  });
+}
+
+export const CONSENT_LABEL: Record<MyPhoto["consent_status"], { label: string; tone: "ok" | "warn" | "neutral" }> = {
+  ACTIVE: { label: "UdostÄ™pnione", tone: "ok" },
+  SUSPENDED: { label: "Wstrzymane", tone: "warn" },
+  REVOKED: { label: "Wycofane trwale", tone: "neutral" },
+};

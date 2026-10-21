@@ -137,7 +137,8 @@ The solution is multi-domain: beekeeping is only an example use case.
   - 9.2 private photo annotations and image serving: `73cdd45`
   - 9.3 annotator UI in the notebook: `f2a93dd`
   - 9.4 contribute to the atlas: `38773d3`
-  - 9.5 expert review and the shared atlas: the `feat(stage-9.5)` commit
+  - 9.5 expert review and the shared atlas: `d889e77`
+  - 9.6 consent, attribution and export opt-in: the `feat(stage-9.6)` commit
 
 ---
 

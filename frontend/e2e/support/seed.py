@@ -160,7 +160,7 @@ async def atlas_jpeg(factory, settings, cipher, args) -> dict:
 
     from PIL import Image, ImageDraw
 
-    rng = random.Random(os.urandom(16))
+    rng = random.Random(os.urandom(16))  # noqa: S311 - test picture, not a secret
     image = Image.new("RGB", (1600, 1200), (rng.randrange(256), 180, 60))
     draw = ImageDraw.Draw(image)
     for _ in range(40):

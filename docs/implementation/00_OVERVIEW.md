@@ -239,7 +239,7 @@ Each one is resolved (✅ = decision baked into the chunk plans) or needs your i
 - [x] 9.3 Annotator UI in the notebook
 - [x] 9.4 Contribute to the atlas (shared copy, PII, injection, privacy flags)
 - [x] 9.5 Expert review & shared `/atlas`
-- [ ] 9.6 Consent, attribution & export opt-in for atlas photos
+- [x] 9.6 Consent, attribution & export opt-in for atlas photos
 - [ ] 9.7 Dataset export (COCO/YOLO)
 - [ ] 9.8 Visual embeddings & `atlas_visual_index` (Phase B)
 - [ ] 9.9 Recognition „Rozpoznaj” (Phase B)

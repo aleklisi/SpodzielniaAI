@@ -16,6 +16,7 @@ from spoldzielnia_ai.api.admin import router as admin_router
 from spoldzielnia_ai.api.admin_llm import router as admin_llm_router
 from spoldzielnia_ai.api.admin_users import router as admin_users_router
 from spoldzielnia_ai.api.atlas import router as atlas_router
+from spoldzielnia_ai.api.atlas_contributions import router as atlas_contributions_router
 from spoldzielnia_ai.api.atlas_labels import admin_router as atlas_admin_router
 from spoldzielnia_ai.api.atlas_labels import curation_router as atlas_curation_router
 from spoldzielnia_ai.api.atlas_labels import router as atlas_labels_router
@@ -141,6 +142,7 @@ def create_app(
     app.state.notifier = make_notifier(settings.shield)
     app.include_router(auth_router)
     app.include_router(me_router)
+    app.include_router(atlas_contributions_router)  # /me/contributions/atlas…
     app.include_router(contributions_router)
     app.include_router(promote_router)  # before /notes/{note_id}
     app.include_router(rag_router)  # /notes/ask, before /notes/{note_id}
