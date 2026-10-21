@@ -16,6 +16,7 @@ committed, add the commit hash to the story's *Delivery* list.
 | ID | Story | Status | Plan | Added |
 |----|-------|--------|------|-------|
 | [US-01](#us-01) | Administrator configures LLM models (local / cloud) in the UI and tests them | DONE | [07_LLM_MODEL_CONFIG.md](implementation/07_LLM_MODEL_CONFIG.md) · Etap 7 | 2026-10-20 |
+| [US-02](#us-02) | Administrator manages users: create accounts, reset passwords, block access, force password change, manage roles | PLANNED | [08_USER_MANAGEMENT.md](implementation/08_USER_MANAGEMENT.md) · Etap 8 | 2026-10-21 |
 
 ---
 
@@ -43,7 +44,7 @@ way to change the configuration.
      without using any knowledge-base or private content.
   6. Every change and playground use is recorded in the security audit log.
 - **Out of scope / follow-ups:** live switching of the embedding model (needs re-embedding of the
-  index, candidate US-02); per-user model choice; cost reporting.
+  index, candidate follow-up story); per-user model choice; cost reporting.
 - **Delivery:**
   - 7.1 data model, encrypted keys, locality triggers, seeding: `068ff49`
   - 7.2 config store, hot reload, per-purpose gateway: `9fca464`
@@ -52,6 +53,33 @@ way to change the configuration.
   - 7.5 playground and model comparison: `5849ac2`
   - 7.6 `/admin/llm` console: `d0173aa`
   - 7.7 E2E scenario 9, security review, docs: the `feat(stage-7.7)` commit
+
+---
+
+## US-02
+
+**Story:** As an administrator I want to manage users so that I can create new user accounts,
+reset passwords, block access for a user, force a password change and manage user roles.
+
+- **Source:** product owner request, 2026-10-21.
+- **Status:** PLANNED 2026-10-21 (Etap 8, chunks 8.1–8.6). Not started.
+- **Plan:** [docs/implementation/08_USER_MANAGEMENT.md](implementation/08_USER_MANAGEMENT.md)
+- **Acceptance criteria:**
+  1. An admin (with MFA) can create an account with username, email, name and roles in
+     `/admin/users`; the user sets their own password at first login (email link or a one-time
+     temporary password), and EXPERT/ADMIN users must also enrol TOTP.
+  2. An admin can reset a user's password by email link or temporary password; the app never
+     stores, logs or audits a password.
+  3. An admin can block and unblock a user: Keycloak refuses new logins and every live session
+     ends at once. Admin blocks and shield locks are kept apart.
+  4. An admin can force a password change at the next login, optionally signing the user out now.
+  5. An admin can grant and remove `MEMBER`, `EXPERT`, `ADMIN`, effective on the user's next
+     request. Granting EXPERT/ADMIN needs a fresh second factor; nobody can remove their own
+     ADMIN role, block themselves, or demote or block the last admin.
+  6. Every action is recorded in the security audit log.
+- **Out of scope / follow-ups:** deleting users / GDPR erasure; resetting a user's TOTP device;
+  bulk import and invitations; a separate user-admin role.
+- **Delivery:** —
 
 ---
 

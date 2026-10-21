@@ -225,6 +225,14 @@ Each one is resolved (✅ = decision baked into the chunk plans) or needs your i
 - [x] 7.6 Frontend `/admin/llm`
 - [x] 7.7 E2E, security review & docs
 
+### Stage 8 — Admin user management (beyond the original plan, [US-02](../USER_STORIES_LOG.md#us-02))
+- [ ] 8.1 Keycloak admin client (`spoldzielnia-admin` service account) & realm setup
+- [ ] 8.2 Data model, per-user session index, audit events
+- [ ] 8.3 `UserAdminService` & guardrails (last admin, step-up, MFA on promotion)
+- [ ] 8.4 Admin API `/admin/users`
+- [ ] 8.5 Frontend `/admin/users`
+- [ ] 8.6 E2E, security review & docs
+
 ---
 
 ## 5. Dependency Graph

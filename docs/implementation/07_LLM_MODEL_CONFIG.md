@@ -39,7 +39,7 @@ chunk 3.4 (`llm/gateway.py`) · chunk 6.6 (admin console) · gap G22.
 
 **Non-goals (v1)**
 - Live switching of the **embedding model** (vector dimension and the whole index change). Shown
-  read-only in v1; a guarded blue/green re-embedding flow is a follow-up story (US-02 candidate).
+  read-only in v1; a guarded blue/green re-embedding flow is a follow-up story (candidate).
 - Per-user or per-tenant model choice; cost dashboards / billing.
 - Fine-tuning or model downloads from the UI (`ollama pull` stays an operator task).
 

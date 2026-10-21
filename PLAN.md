@@ -214,3 +214,12 @@ Rejestr historyjek dodanych poza Etapami 1–6: [docs/USER_STORIES_LOG.md](docs/
 - [x] 7.5 Playground i porównanie modeli (bez retrievalu, syntetyczne zestawy promptów, limit zapytań)
 - [x] 7.6 Interfejs `/admin/llm` (Dostawcy, Modele, Przypisania, Playground, Historia)
 - [x] 7.7 Testy E2E Playwright, aktualizacja przeglądu bezpieczeństwa i dokumentacji
+
+### Etap 8: Zarządzanie użytkownikami w panelu administratora (US-02)
+*Dokumentacja: [docs/implementation/08_USER_MANAGEMENT.md](docs/implementation/08_USER_MANAGEMENT.md)*
+- [ ] 8.1 Klient Keycloak Admin API (konto serwisowe `spoldzielnia-admin` z minimalnymi uprawnieniami) i idempotentna konfiguracja realmu
+- [ ] 8.2 Model danych (źródło blokady, ostatnie logowanie), indeks sesji per użytkownik i zdarzenia audytu
+- [ ] 8.3 `UserAdminService`: tworzenie kont, reset hasła, blokada, wymuszenie zmiany hasła, role, zabezpieczenia (ostatni admin, step-up MFA)
+- [ ] 8.4 API administratora `/admin/users` (wyszukiwanie, akcje, limity, metryki)
+- [ ] 8.5 Interfejs `/admin/users` (lista, tworzenie konta, szczegóły użytkownika, akcje)
+- [ ] 8.6 Testy E2E Playwright, aktualizacja przeglądu bezpieczeństwa i dokumentacji
