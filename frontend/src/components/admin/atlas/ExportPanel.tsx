@@ -37,7 +37,7 @@ export function ExportPanel() {
           Eksport zbioru danych
         </h2>
         <Card className="text-sm text-text-muted">
-          Eksport jest wyłączony. Operator serwera może go włączyć ustawieniem <code>SPOLDZIELNIA_ATLAS__EXPORT_ENABLED=true</code>.
+          Eksport jest wyłączony. Operator serwera może go włączyć ustawieniem <code>ATLAS_EXPORT_ENABLED=true</code> w pliku <code>.env</code>.
         </Card>
       </section>
     );

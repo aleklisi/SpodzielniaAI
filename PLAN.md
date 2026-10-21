@@ -239,4 +239,4 @@ Rejestr historyjek dodanych poza Etapami 1–6: [docs/USER_STORIES_LOG.md](docs/
 *Faza B — rozpoznawanie*
 - [x] 9.8 Lokalny model embeddingów obrazu i indeks `atlas_visual_index` (outbox, proweniencja)
 - [x] 9.9 „Rozpoznaj” w notatniku (wyszukiwanie podobnych oznaczeń + lokalny VLM, cytowania, sugestie oznaczeń)
-- [ ] 9.10 Testy E2E Playwright, aktualizacja przeglądu bezpieczeństwa i dokumentacji
+- [x] 9.10 Testy E2E Playwright, aktualizacja przeglądu bezpieczeństwa i dokumentacji

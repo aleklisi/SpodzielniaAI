@@ -704,3 +704,25 @@ green; A1–A12 covered by tests; scenario 11 passes against the compose stack.
   from citations and the index; RLS, domain rule, one-at-a-time, accepting a suggestion,
   never promotable), 3 Vitest cases.
 
+### 9.10 (done)
+
+- Playwright scenario 11 (`frontend/e2e/11-atlas.spec.ts`, 6 steps, against the live stack
+  with the real worker-core, Presidio, SigLIP and the local VLM): annotate a photo (drag boxes,
+  labels from the example domain), send it anonymously after reviewing the shared copy, an
+  expert widens a box with the keyboard and approves, another member finds it by label without
+  the author's name, recognises their own copy of the photo (grounded answer citing the atlas
+  photo; suggestions accepted when the VLM sees something), the author suspends it and it
+  disappears, export refused while disabled. Seed actions `atlas_example` and `atlas_jpeg`
+  (unique pictures per run, so the duplicate check never trips across runs).
+- Observed live: on synthetic pictures the real VLM correctly reports "no queen visible", so
+  the scenario accepts a suggestion only when one is offered; accepting is covered by the
+  integration and component tests. Synthetic photos also look alike to SigLIP (citations from
+  earlier runs appear), which is why `recognition_min_score` must be calibrated on real photos.
+- `SECURITY_REVIEW.md` "Stage 9 additions" (A1–A12 → controls and tests, LLM01, worker-core's
+  new storage credential) and two accepted risks (exports can't be recalled; uncalibrated
+  threshold). README "The visual atlas (Stage 9)". `compose.yaml` passes
+  `ATLAS_EXPORT_ENABLED` and `ATLAS_RECOGNITION_MIN_SCORE` from `.env`.
+- Scenario 6 (lockout) now skips under `make mfa-off`, like the other step-up scenario: with
+  MFA off every fresh login counts as a fresh second factor, so the shield goes straight to the
+  lock without the challenge the scenario asserts (not a Stage 9 change).
+

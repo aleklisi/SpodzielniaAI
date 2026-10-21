@@ -17,7 +17,7 @@ committed, add the commit hash to the story's *Delivery* list.
 |----|-------|--------|------|-------|
 | [US-01](#us-01) | Administrator configures LLM models (local / cloud) in the UI and tests them | DONE | [07_LLM_MODEL_CONFIG.md](implementation/07_LLM_MODEL_CONFIG.md) · Etap 7 | 2026-10-20 |
 | [US-02](#us-02) | Administrator manages users: create accounts, reset passwords, block access, force password change, manage roles | DONE | [08_USER_MANAGEMENT.md](implementation/08_USER_MANAGEMENT.md) · Etap 8 | 2026-10-21 |
-| [US-03](#us-03) | Member adds photos with a description, marks and describes elements on them; experts verify; the atlas powers image recognition | PLANNED | [09_IMAGE_ATLAS.md](implementation/09_IMAGE_ATLAS.md) · Etap 9 | 2026-10-21 |
+| [US-03](#us-03) | Member adds photos with a description, marks and describes elements on them; experts verify; the atlas powers image recognition | DONE | [09_IMAGE_ATLAS.md](implementation/09_IMAGE_ATLAS.md) · Etap 9 | 2026-10-21 |
 
 ---
 
@@ -103,7 +103,8 @@ example, a beekeeper adds photos of queen bees).
 The solution is multi-domain: beekeeping is only an example use case.
 
 - **Source:** product owner request, 2026-10-21 (refinement session).
-- **Status:** IN PROGRESS since 2026-10-21 (Etap 9, chunks 9.1–9.10).
+- **Status:** DONE 2026-10-21 (Etap 9, chunks 9.1–9.10). Implemented on request while 6.7 and
+  6.8 are still open.
 - **Plan:** [docs/implementation/09_IMAGE_ATLAS.md](implementation/09_IMAGE_ATLAS.md)
 - **Refinement decisions:** both a dataset and in-app recognition, phased (Phase A dataset,
   Phase B recognition); photos are annotated privately and then contributed to a shared atlas
@@ -141,7 +142,8 @@ The solution is multi-domain: beekeeping is only an example use case.
   - 9.6 consent, attribution and export opt-in: `d6ca6bf`
   - 9.7 dataset export (COCO/YOLO): `7664724`
   - 9.8 visual embeddings and `atlas_visual_index`: `4a52f77`
-  - 9.9 recognition „Rozpoznaj”: the `feat(stage-9.9)` commit
+  - 9.9 recognition „Rozpoznaj”: `a9b9006`
+  - 9.10 E2E scenario 11, security review, docs: the `feat(stage-9.10)` commit
 
 ---
 

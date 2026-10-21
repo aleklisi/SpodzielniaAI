@@ -11,7 +11,7 @@
 
 import { expect, test } from "@playwright/test";
 
-import { apiCall, email, seed, session } from "./support/stack";
+import { apiCall, email, mfaOff, seed, session } from "./support/stack";
 
 const BOT = "member2";
 
@@ -20,6 +20,9 @@ test.afterAll(() => {
 });
 
 test("a scripted extraction loop ends locked, and the admin can see and lift it", async ({ browser }) => {
+  // With `make mfa-off` every fresh login counts as a fresh second factor, so the shield skips
+  // the step-up challenge this scenario expects before the lock.
+  test.skip(mfaOff(), "MFA is off (make mfa-off): no step-up challenge before the lock");
   test.setTimeout(900_000);
   seed({ action: "reset_shield", email: email(BOT) });
   const bot = await session(browser, BOT, "/chat");

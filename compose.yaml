@@ -26,6 +26,10 @@ x-app-env: &app-env
   SPOLDZIELNIA_ENVIRONMENT: ${SPOLDZIELNIA_ENVIRONMENT:-prod}
   SPOLDZIELNIA_SECURITY__MFA_REQUIRED: ${MFA_REQUIRED:-true}
   SPOLDZIELNIA_LOG_LEVEL: ${SPOLDZIELNIA_LOG_LEVEL:-INFO}
+  # Visual atlas (Stage 9): dataset export stays off unless the operator turns it on;
+  # the recognition threshold is calibrated with `spoldzielnia atlas benchmark`.
+  SPOLDZIELNIA_ATLAS__EXPORT_ENABLED: ${ATLAS_EXPORT_ENABLED:-false}
+  SPOLDZIELNIA_ATLAS__RECOGNITION_MIN_SCORE: ${ATLAS_RECOGNITION_MIN_SCORE:-0.80}
   # LiteLLM must not download its model price map at runtime (workers are offline).
   LITELLM_LOCAL_MODEL_COST_MAP: "True"
 

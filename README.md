@@ -199,3 +199,30 @@ route to the internet. Changing the embedding model is not possible from the con
 
 `integration` (Docker services), `ml` (heavy models), `e2e` (running stack). Run a subset with
 `uv run pytest -m "not integration"`.
+
+### The visual atlas (Stage 9)
+
+Members annotate photos in their notebook („Oznacz”: a domain, a caption, rectangles with a
+label from the expert vocabulary and a description), send them to the shared **Atlas**, and
+two experts (`governance.review_quorum`) verify them. „Rozpoznaj” on a notebook photo suggests
+marked elements from verified atlas photos, with local models only.
+
+- **Domains and labels:** admins create domains in `/admin/atlas` („Dziedziny atlasu”); experts
+  curate each domain's labels in `/review/labels`; members can propose labels. For a demo,
+  `docker compose exec api spoldzielnia atlas seed-example` loads an example beekeeping domain
+  (refused in prod).
+- **Sending to the atlas** makes a copy without metadata (no GPS), removes personal data from
+  the texts, screens them for prompt injection and checks the photo for people with the local
+  vision model. The member sees exactly what will be shared, chooses whether their name is
+  shown, and separately whether the photo may be exported. Experts review it in `/review/atlas`.
+- **Consent:** authors suspend, resume or revoke photos and change both choices any time in
+  „Moje kontrybucje”.
+- **Recognition** needs the image model in the models volume: `make models` (downloads the
+  pinned SigLIP model, ~800 MB), then `make up`. Photos approved before that are indexed by the
+  nightly audit or `spoldzielnia reindex`. Calibrate `ATLAS_RECOGNITION_MIN_SCORE` (`.env`)
+  with `docker compose exec worker-core spoldzielnia atlas benchmark` once the atlas holds real
+  photos.
+- **Dataset export** (COCO/YOLO) is off until the operator sets
+  `ATLAS_EXPORT_ENABLED=true` in `.env`; then admins export from `/admin/atlas` with a fresh
+  MFA login; each download link works once.
+

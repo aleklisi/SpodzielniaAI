@@ -15,7 +15,7 @@ Test locations: `tests/unit/…` and `tests/integration/…` (pytest), `frontend
 | Frontend | `cd frontend && npm run lint && npm run typecheck && npm test` | green |
 | Scanners | `make audit` (pip-audit, bandit, npm audit, gitleaks, trivy) | `audit: clean` |
 | Stack | `make build && make up && make smoke` | all checks OK |
-| E2E | `make e2e` | 10 scenarios green |
+| E2E | `make e2e` | 11 scenarios green |
 | Audit chain | `spoldzielnia audit-verify` or `GET /admin/audit-log/verify` | `ok: true` |
 
 ## OWASP API Security Top 10 (2023)
@@ -83,6 +83,32 @@ Test locations: `tests/unit/…` and `tests/integration/…` (pytest), `frontend
 - **Drift.** Keycloak is written first. If the mirror write fails afterwards, the next login or a
   sync reconciles roles; a user disabled in the Keycloak console becomes blocked on sync.
 
+## Stage 9 additions (visual atlas, US-03)
+
+Invariants A1–A12 of `docs/implementation/09_IMAGE_ATLAS.md` and their proof:
+
+| # | Control | Proof |
+|---|---|---|
+| A1 Private photos stay private (API1) | `annotated_image`, `image_annotation`, `atlas_submission` under RLS FORCE on `owner_id`; captions/descriptions are ciphertext; image bytes read through the owner's RLS session | `integration/test_photo_annotations.py::test_photos_and_annotations_are_private` (rows, bytes, no-user session, ciphertext at rest); `test_atlas_recognition.py::test_rules_and_accepting_a_suggestion` |
+| A2 Inert image bytes (API8) | `nosniff`, `inline`, `default-src 'none'; sandbox`, `private, no-store`, CORP same-origin; no SVG accepted | `test_preview_and_full_image_are_served_safely`; `test_prepare_preview_and_send` |
+| A3 Nothing identifying is shared (LLM02) | shared copies re-encoded from pixels (no EXIF/GPS/ICC/filename); Presidio scrub of caption and descriptions; local VLM privacy flags with explicit confirmation for people | `test_atlas_submissions.py::test_prepare_preview_and_send`, `test_people_need_confirmation_and_vlm_outage_is_visible`; E2E `11-atlas` |
+| A4 Block-level provenance | `author_id` + `consent_status` on `atlas_image`, every `atlas_region` and every Qdrant point; tombstone CHECKs on revoke | `test_prepare_preview_and_send`; `unit/test_atlas_vectors.py::test_payload_has_provenance_and_no_text`; `test_atlas_index.py::test_approval_indexes_photo_and_marks_with_provenance` |
+| A5 Only verified content is shared (API1/API5) | `atlas.access.can_view`; mandatory Qdrant filter (`consent_status = ACTIVE`, `is_active`) | `unit/test_atlas_rules.py::test_visibility_matrix`; `test_atlas_review.py::test_quorum_and_locking`; `test_atlas_index.py::test_consent_reaches_the_index_at_once` |
+| A6 Revoke really removes | objects deleted after commit, texts wiped, regions REVOKED, points deleted through the outbox, exports flag revoked photos | `test_atlas_consent.py::test_revoke_is_final_and_removes_everything`; `test_atlas_export.py::test_revokes_after_export_show_up_and_links_expire` |
+| A7 No scraping of the atlas (API4/API6, LLM10) | atlas coverage budget (`covatlas:` HLL, shield windows and floor), thumbnails only in lists, 48 per page, preview/full image rate limit; recognition returns answer, boxes and photo ids only (no vectors, no scores) | `test_atlas_review.py::test_viewing_the_atlas_spends_coverage`, `test_full_images_are_rate_limited`; `test_atlas_recognition.py::test_recognition_is_grounded_local_and_cites_visible_photos` |
+| A8 Recognition stays local (AGENTS.md §3.4) | photos decrypted only in worker-core; SigLIP offline; VLM purpose with `force_local_llm=True`; no examples → no model call | `test_recognition_is_grounded_local_and_cites_visible_photos`, `test_no_similar_examples_means_no_guess`; `tests/ml/test_image_embeddings.py` |
+| A9 Deliberate exports | `atlas.export_enabled=false` by default; ADMIN + MFA + login ≤ 5 min; 5 per day; per-photo opt-in; salted ids; token stored as SHA-256, single use, 24 h; audited with the manifest hash | `test_atlas_export.py` (all) |
+| A10 Governed labels | members only propose; EXPERT/ADMIN + MFA curate; ADMIN + MFA manage domains; merges re-point shared marks and their points | `test_atlas_labels.py::test_authorization_matrix`, `test_merge_deprecate_and_archived_domain`; `test_atlas_index.py::test_label_merge_repoints_points` |
+| A11 Hostile images and boxes (API4) | 2.2/2.3 rules on upload; Pillow pixel limit on every rendition; boxes validated in the API and by DB CHECKs; 50 marks per photo | `test_boxes_are_validated`, `test_limits_and_schema_bounds` |
+| A12 Author's choice of name | name only with `show_author`; reviewers never see authors; export authors are salted HMACs | `test_atlas_review.py::test_gallery_filters_and_author_choice`, `test_authorization_and_author_privacy_in_review`; `test_atlas_consent.py::test_name_and_export_choices`; `test_coco_export_contents_and_single_use_download` |
+
+- **LLM01 (prompt injection).** Captions and descriptions pass the injection guard before they
+  are shared; the VLM's recognition answer is scanned too and replaced if flagged. Text in
+  photos is declared data in both prompts.
+- **New privileges.** worker-core now holds the object-storage credential (it reads private
+  originals to make shared copies and to recognise photos). Same root-credential TODO as
+  worker-media.
+
 ## Accepted risks
 
 Every entry is the reason a scanner is told to stay quiet. Re-check each entry when its trigger changes.
@@ -98,6 +124,8 @@ Every entry is the reason a scanner is told to stay quiet. Re-check each entry w
 | `pl-core-news-lg` not audited | `pip-audit` | A spaCy model wheel from GitHub releases, not on PyPI, so there is no advisory feed. It is data (weights), pinned by URL and hash in `uv.lock` | spaCy model upgrade |
 | Coverage-ratio cut-off isn't shown end to end in E2E | E2E `6-lockout` | The dev corpus is tiny, so the absolute floor (gap G14) dominates the ratio. The ratio cut-off before 15% is proven on a 200-block corpus in `test_distillation_attack.py`; E2E proves the step-up → lock path and the admin view | — |
 | Client-side deterrents (lazy render, no bulk export, wiki watermark) | 6.3 | Deterrence only; the server-side shield is the control | — |
+| Exported datasets cannot be recalled | 9.7 | An archive already downloaded is outside the system. Export is off by default, needs a fresh MFA login and a per-photo opt-in, and every manifest is audited; later revokes are flagged on the export | the export policy changes |
+| Recognition threshold not calibrated on real photos | 9.9 `atlas.recognition_min_score` | Set to 0.80 provisionally; synthetic E2E photos look alike to the model. Calibrate with `spoldzielnia atlas benchmark` once the atlas holds real photos | the atlas has ~50 approved photos per domain |
 
 ## Environment-dependent checks
 
