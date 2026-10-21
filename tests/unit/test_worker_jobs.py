@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
 from uuid import UUID
 
 import pytest
@@ -19,6 +20,9 @@ from spoldzielnia_ai.workers.jobs import (
     Queue,
     TaskName,
 )
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 IDS = {"derivative_id": str(UUID(int=1)), "owner_id": str(UUID(int=2))}
 
@@ -110,3 +114,30 @@ def test_every_kind_has_a_task_and_queue() -> None:
 )
 def test_derivative_kinds_per_file_type(mime: str, kinds: list[DerivativeKind]) -> None:
     assert derivative_kinds(ALLOWED[mime]) == kinds
+
+
+def test_atlas_preparation_runs_in_worker_core(tmp_path: Path) -> None:
+    from pydantic import SecretStr
+
+    from spoldzielnia_ai.core.settings import (
+        DbSettings,
+        RedisSettings,
+        WorkerSecuritySettings,
+        WorkerSettings,
+    )
+    from spoldzielnia_ai.workers.jobs import JOB_MODEL, AtlasJob
+    from spoldzielnia_ai.workers.runtime import WorkerRuntime
+
+    assert TASK_QUEUE[TaskName.PREPARE_ATLAS] == Queue.PROMOTION  # worker-core consumes it
+    assert JOB_MODEL[TaskName.PREPARE_ATLAS] is AtlasJob
+    settings = WorkerSettings(
+        _env_file=None,  # pyright: ignore[reportCallIssue]
+        _secrets_dir=tmp_path,  # pyright: ignore[reportCallIssue]
+        db=DbSettings(app_password=SecretStr("pw")),
+        redis=RedisSettings(password=SecretStr("pw")),
+        security=WorkerSecuritySettings(
+            kek=SecretStr("MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=")
+        ),
+    )
+    runtime = WorkerRuntime(settings, make_celery("memory://", eager=True))
+    assert runtime.handler(TaskName.PREPARE_ATLAS) == runtime.prepare_atlas

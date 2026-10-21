@@ -190,6 +190,103 @@
         "title": "AskIn",
         "type": "object"
       },
+      "AtlasImageStatus": {
+        "description": "Review states of an atlas photo (9.4/9.5). Members see APPROVED photos only.",
+        "enum": [
+          "DRAFT",
+          "IN_REVIEW",
+          "APPROVED",
+          "REVISION_REQUIRED",
+          "REJECTED"
+        ],
+        "title": "AtlasImageStatus",
+        "type": "string"
+      },
+      "AtlasLabelOut": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/VisualLabelStatus"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "status"
+        ],
+        "title": "AtlasLabelOut",
+        "type": "object"
+      },
+      "AtlasRegionOut": {
+        "properties": {
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "h": {
+            "title": "H",
+            "type": "number"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "$ref": "#/components/schemas/AtlasLabelOut"
+          },
+          "w": {
+            "title": "W",
+            "type": "number"
+          },
+          "x": {
+            "title": "X",
+            "type": "number"
+          },
+          "y": {
+            "title": "Y",
+            "type": "number"
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "x",
+          "y",
+          "w",
+          "h",
+          "description"
+        ],
+        "title": "AtlasRegionOut",
+        "type": "object"
+      },
+      "AtlasSubmissionStatus": {
+        "description": "A member's request to send an annotated photo to the atlas (9.4): prepared by the worker\n(shared copy, PII scrub, checks), then sent by the member or withdrawn.",
+        "enum": [
+          "PENDING",
+          "PREPARED",
+          "SENT",
+          "WITHDRAWN",
+          "FAILED"
+        ],
+        "title": "AtlasSubmissionStatus",
+        "type": "string"
+      },
       "AttachmentOut": {
         "properties": {
           "created_at": {
@@ -1255,6 +1352,95 @@
           }
         },
         "title": "DraftIn",
+        "type": "object"
+      },
+      "DraftOut": {
+        "description": "What the atlas would show: the scrubbed texts and the checks.",
+        "properties": {
+          "allow_export": {
+            "title": "Allow Export",
+            "type": "boolean"
+          },
+          "caption": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Caption"
+          },
+          "height": {
+            "title": "Height",
+            "type": "integer"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "needs_people_confirmation": {
+            "title": "Needs People Confirmation",
+            "type": "boolean"
+          },
+          "privacy_check": {
+            "title": "Privacy Check",
+            "type": "string"
+          },
+          "privacy_flags": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Privacy Flags",
+            "type": "array"
+          },
+          "regions": {
+            "items": {
+              "$ref": "#/components/schemas/AtlasRegionOut"
+            },
+            "title": "Regions",
+            "type": "array"
+          },
+          "review_alert": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Review Alert"
+          },
+          "show_author": {
+            "title": "Show Author",
+            "type": "boolean"
+          },
+          "status": {
+            "$ref": "#/components/schemas/AtlasImageStatus"
+          },
+          "width": {
+            "title": "Width",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "width",
+          "height",
+          "caption",
+          "regions",
+          "privacy_check",
+          "privacy_flags",
+          "needs_people_confirmation",
+          "show_author",
+          "allow_export",
+          "review_alert"
+        ],
+        "title": "DraftOut",
         "type": "object"
       },
       "HTTPValidationError": {
@@ -3770,6 +3956,31 @@
         "title": "ScopeIn",
         "type": "object"
       },
+      "SendIn": {
+        "properties": {
+          "allow_export": {
+            "description": "Allow the photo in dataset exports (no default)",
+            "title": "Allow Export",
+            "type": "boolean"
+          },
+          "confirm_no_people": {
+            "default": false,
+            "title": "Confirm No People",
+            "type": "boolean"
+          },
+          "show_author": {
+            "description": "Show my name with the photo (no default: ask)",
+            "title": "Show Author",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "show_author",
+          "allow_export"
+        ],
+        "title": "SendIn",
+        "type": "object"
+      },
       "SignOutOut": {
         "properties": {
           "app_sessions": {
@@ -3887,6 +4098,83 @@
           "created_at"
         ],
         "title": "StoredCanaryOut",
+        "type": "object"
+      },
+      "SubmissionIn": {
+        "properties": {
+          "attachment_id": {
+            "format": "uuid",
+            "title": "Attachment Id",
+            "type": "string"
+          },
+          "note_id": {
+            "format": "uuid",
+            "title": "Note Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "note_id",
+          "attachment_id"
+        ],
+        "title": "SubmissionIn",
+        "type": "object"
+      },
+      "SubmissionOut": {
+        "properties": {
+          "atlas": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DraftOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "pii_replaced": {
+            "title": "Pii Replaced",
+            "type": "integer"
+          },
+          "status": {
+            "$ref": "#/components/schemas/AtlasSubmissionStatus"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "error",
+          "pii_replaced",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "SubmissionOut",
         "type": "object"
       },
       "SubmitOut": {
@@ -6733,6 +7021,61 @@
         ]
       }
     },
+    "/atlas/images/{image_id}/image": {
+      "get": {
+        "description": "An atlas photo (metadata-free JPEG) for whoever may see it (A5); 404 otherwise.",
+        "operationId": "atlas_image_bytes_atlas_images__image_id__image_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "image_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Image Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "size",
+            "required": false,
+            "schema": {
+              "default": "preview",
+              "enum": [
+                "thumb",
+                "preview",
+                "full"
+              ],
+              "title": "Size",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "image/jpeg": {}
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Atlas Image Bytes",
+        "tags": [
+          "atlas"
+        ]
+      }
+    },
     "/atlas/labels": {
       "get": {
         "description": "ACTIVE labels and the caller's own proposals, searched by name and synonyms (diacritics\ndon't matter).",
@@ -6835,6 +7178,234 @@
           }
         },
         "summary": "Propose Label",
+        "tags": [
+          "atlas"
+        ]
+      }
+    },
+    "/atlas/submissions": {
+      "get": {
+        "description": "The submissions of one of my photos, newest first.",
+        "operationId": "photo_submissions_atlas_submissions_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "attachment_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Attachment Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SubmissionOut"
+                  },
+                  "title": "Response Photo Submissions Atlas Submissions Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Photo Submissions",
+        "tags": [
+          "atlas"
+        ]
+      },
+      "post": {
+        "description": "Prepare an annotated photo for the atlas (worker-core). Nothing is shared until the\nmember sends the prepared result.",
+        "operationId": "request_submission_atlas_submissions_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubmissionIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubmissionOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Request Submission",
+        "tags": [
+          "atlas"
+        ]
+      }
+    },
+    "/atlas/submissions/{submission_id}": {
+      "get": {
+        "operationId": "get_submission_atlas_submissions__submission_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "submission_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Submission Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubmissionOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Submission",
+        "tags": [
+          "atlas"
+        ]
+      }
+    },
+    "/atlas/submissions/{submission_id}/send": {
+      "post": {
+        "description": "Send the prepared photo to the experts. ``show_author`` and ``allow_export`` must be\nanswered explicitly.",
+        "operationId": "send_submission_atlas_submissions__submission_id__send_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "submission_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Submission Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SendIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubmissionOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Send Submission",
+        "tags": [
+          "atlas"
+        ]
+      }
+    },
+    "/atlas/submissions/{submission_id}/withdraw": {
+      "post": {
+        "operationId": "withdraw_submission_atlas_submissions__submission_id__withdraw_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "submission_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Submission Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubmissionOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Withdraw Submission",
         "tags": [
           "atlas"
         ]

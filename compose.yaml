@@ -417,8 +417,8 @@ services:
       OLLAMA_HOST: 0.0.0.0:11434
       OLLAMA_NOPRUNE: "1"
 
-  # PII scrubbing, prompt-injection screening, promotion (Stage 3), indexing (Stage 4):
-  # `backend` only.
+  # PII scrubbing, prompt-injection screening, promotion (Stage 3), indexing (Stage 4),
+  # atlas preparation (9.4: reads the private photo, writes the shared copies): `backend` only.
   worker-core:
     <<: *hardening
     image: ${REGISTRY:-spoldzielnia}/worker-core:${VERSION:-dev}
@@ -433,6 +433,7 @@ services:
       postgres: { condition: service_healthy }
       redis: { condition: service_healthy }
       qdrant: { condition: service_healthy }
+      minio: { condition: service_healthy }
     environment:
       <<: [*app-env, *llm-env, *qdrant-env]
     volumes:
@@ -443,6 +444,8 @@ services:
       - { source: kek, target: security__kek }
       - { source: llm_api_key, target: llm__api_key }
       - { source: qdrant_api_key, target: qdrant__api_key }
+      # TODO(2.1 follow-up): scoped MinIO service account instead of the root credentials.
+      - { source: minio_root_password, target: s3__secret_key }
       - internal_ca
 
   # Celery beat (4.4): schedules the vector-outbox reconciliation (every 30 s) and the nightly

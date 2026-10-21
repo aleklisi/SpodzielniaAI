@@ -135,6 +135,27 @@ class AnnotationSource(StrEnum):
     SUGGESTED = "SUGGESTED"
 
 
+class AtlasSubmissionStatus(StrEnum):
+    """A member's request to send an annotated photo to the atlas (9.4): prepared by the worker
+    (shared copy, PII scrub, checks), then sent by the member or withdrawn."""
+
+    PENDING = "PENDING"
+    PREPARED = "PREPARED"
+    SENT = "SENT"
+    WITHDRAWN = "WITHDRAWN"
+    FAILED = "FAILED"
+
+
+class AtlasImageStatus(StrEnum):
+    """Review states of an atlas photo (9.4/9.5). Members see APPROVED photos only."""
+
+    DRAFT = "DRAFT"
+    IN_REVIEW = "IN_REVIEW"
+    APPROVED = "APPROVED"
+    REVISION_REQUIRED = "REVISION_REQUIRED"
+    REJECTED = "REJECTED"
+
+
 PG_ENUM_NAMES: dict[type[StrEnum], str] = {
     Role: "user_role",
     ConsentStatus: "consent_status",
@@ -153,6 +174,8 @@ PG_ENUM_NAMES: dict[type[StrEnum], str] = {
     VisualDomainStatus: "visual_domain_status",
     VisualLabelStatus: "visual_label_status",
     AnnotationSource: "annotation_source",
+    AtlasSubmissionStatus: "atlas_submission_status",
+    AtlasImageStatus: "atlas_image_status",
 }
 
 

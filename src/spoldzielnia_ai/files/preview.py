@@ -33,6 +33,8 @@ class Rendition:
     data: bytes
     width: int  # of the source image
     height: int
+    out_width: int  # of the rendition
+    out_height: int
 
 
 def render_jpeg(src: Path, max_side: int, max_pixels: int, quality: int = 85) -> Rendition:
@@ -52,4 +54,27 @@ def render_jpeg(src: Path, max_side: int, max_pixels: int, quality: int = 85) ->
     rgb.thumbnail((max_side, max_side), Image.Resampling.LANCZOS)
     buffer = io.BytesIO()
     rgb.save(buffer, "JPEG", quality=quality, optimize=True)
-    return Rendition(buffer.getvalue(), width, height)
+    return Rendition(buffer.getvalue(), width, height, rgb.width, rgb.height)
+
+
+def dhash(src: Path, max_pixels: int) -> str:
+    """64-bit difference hash (hex): near-identical photos (re-encoded, resized, slightly
+    cropped) are a few bits apart. Used to spot a photo already in the atlas."""
+    Image.MAX_IMAGE_PIXELS = max_pixels
+    try:
+        with Image.open(src) as image:
+            image.draft("L", (64, 64))
+            small = image.convert("L").resize((9, 8), Image.Resampling.LANCZOS)
+    except (OSError, SyntaxError, ValueError):
+        raise FileRejected("image_corrupt", status=422) from None
+    pixels = small.tobytes()  # one byte per pixel (mode L), row by row
+    bits = 0
+    for row in range(8):
+        for col in range(8):
+            left, right = pixels[row * 9 + col], pixels[row * 9 + col + 1]
+            bits = (bits << 1) | int(left > right)
+    return f"{bits:016x}"
+
+
+def hamming(a: str, b: str) -> int:
+    return (int(a, 16) ^ int(b, 16)).bit_count()

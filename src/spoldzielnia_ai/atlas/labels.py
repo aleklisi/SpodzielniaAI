@@ -21,7 +21,7 @@ from spoldzielnia_ai.atlas.text import clean_name, fold, search_key, slugify
 from spoldzielnia_ai.audit.events import EventType
 from spoldzielnia_ai.audit.service import AuditService, AuditTarget
 from spoldzielnia_ai.db.enums import VisualDomainStatus, VisualLabelStatus
-from spoldzielnia_ai.db.models import User, VisualDomain, VisualLabel
+from spoldzielnia_ai.db.models import AtlasRegion, User, VisualDomain, VisualLabel
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Sequence
@@ -34,8 +34,8 @@ SEARCH_LIMIT = 50
 MAX_SYNONYMS = 20
 MERGE_DEPTH = 10
 
-# Shared tables whose ``label_id`` a merge re-points (filled by later chunks of Stage 9).
-LABEL_REFERENCES: list[tuple[type, str]] = []
+# Shared tables whose ``label_id`` a merge re-points (private annotations resolve on read).
+LABEL_REFERENCES: list[tuple[type, str]] = [(AtlasRegion, "label_id")]
 
 
 class LabelError(Exception):
@@ -403,7 +403,7 @@ class LabelService:
         rows = await self._session.execute(
             select(User.id, User.display_name, User.username).where(User.id.in_(user_ids))
         )
-        return {uid: display or username for uid, display, username in rows.tuples()}
+        return {uid: display or username for uid, display, username in rows}
 
     async def usable(self, label_id: UUID, actor_id: UUID, domain_id: UUID) -> VisualLabel:
         """A label a member may put on a new mark in ``domain_id``: ACTIVE, or their own

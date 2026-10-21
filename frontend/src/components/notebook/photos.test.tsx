@@ -6,9 +6,11 @@ import { useState } from "react";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 
 import { ImageAnnotator } from "@/components/annotator/ImageAnnotator";
+import { AtlasSubmissionPanel } from "@/components/notebook/AtlasSubmissionPanel";
 import { PhotoEditor } from "@/components/notebook/PhotoEditor";
 import { PhotosPanel } from "@/components/notebook/PhotosPanel";
 import type { Domain, Label } from "@/lib/atlas";
+import type { Submission } from "@/lib/atlas-submissions";
 import { clampBox, type Mark, type Photo } from "@/lib/photos";
 import type { Attachment } from "@/lib/upload";
 import { API, renderWithClient } from "@/test/render";
@@ -168,6 +170,7 @@ function mountEditor(initial: Photo, put: (body: unknown) => Response | Promise<
     http.get(`${API}/atlas/labels`, () => HttpResponse.json([QUEEN])),
     http.get(`${API}/notes/n1/attachments/a1/annotations`, () => HttpResponse.json(initial)),
     http.get(`${API}/notes/n1`, () => HttpResponse.json({})),
+    http.get(`${API}/atlas/submissions`, () => HttpResponse.json([])),
     http.put(`${API}/notes/n1/attachments/a1/annotations`, async ({ request }) => put(await request.json())),
   );
   renderWithClient(<PhotoEditor noteId="n1" attachmentId="a1" />);
@@ -243,3 +246,96 @@ describe("PhotosPanel", () => {
     expect(screen.queryByText(/raport.pdf/)).not.toBeInTheDocument();
   });
 });
+
+// --- Atlas submission ---------------------------------------------------------------------------
+
+function submission(overrides: Partial<Submission> = {}): Submission {
+  return {
+    id: "s1",
+    status: "PREPARED",
+    error: null,
+    pii_replaced: 1,
+    created_at: "2026-10-21T10:00:00Z",
+    updated_at: "2026-10-21T10:00:00Z",
+    atlas: {
+      id: "i1",
+      status: "DRAFT",
+      width: 1200,
+      height: 800,
+      caption: "Matka z ula 7, właściciel <PESEL>",
+      regions: [{ id: "r1", label: { id: "l1", name: "Matka pszczela", status: "ACTIVE" }, x: 0.1, y: 0.2, w: 0.3, h: 0.4, description: "znaczona" }],
+      privacy_check: "ok",
+      privacy_flags: ["people"],
+      needs_people_confirmation: true,
+      show_author: false,
+      allow_export: false,
+      review_alert: null,
+    },
+    ...overrides,
+  };
+}
+
+describe("AtlasSubmissionPanel", () => {
+  it("shows what would be shared and sends only with explicit choices", async () => {
+    let sent: unknown = null;
+    server.use(
+      http.get(`${API}/atlas/submissions`, () => HttpResponse.json([submission()])),
+      http.post(`${API}/atlas/submissions/s1/send`, async ({ request }) => {
+        sent = await request.json();
+        return HttpResponse.json(submission({ status: "SENT" }));
+      }),
+    );
+    renderWithClient(<AtlasSubmissionPanel noteId="n1" attachmentId="a1" canSubmit reason={null} />);
+    await userEvent.click(await screen.findByRole("button", { name: "Sprawdź i wyślij" }));
+    const dialog = screen.getByRole("dialog", { name: "Tak zobaczą to inni" });
+    expect(within(dialog).getByText(/właściciel <PESEL>/)).toBeInTheDocument();
+    expect(within(dialog).getByText(/Zastąpiliśmy dane osobowe w opisach \(1\)/)).toBeInTheDocument();
+    expect(within(dialog).getByText(/Na zdjęciu mogą być: osoby lub części ciała/)).toBeInTheDocument();
+    const sendButton = within(dialog).getByRole("button", { name: "Wyślij do ekspertów" });
+    expect(sendButton).toBeDisabled(); // no default for the name question
+    await userEvent.click(within(dialog).getByLabelText(/Publikuj anonimowo/));
+    expect(sendButton).toBeDisabled(); // people still need confirming
+    await userEvent.click(within(dialog).getByLabelText(/zgodziły się na jego udostępnienie/));
+    await userEvent.click(sendButton);
+    await waitFor(() => expect(sent).toEqual({ show_author: false, allow_export: false, confirm_no_people: true }));
+  });
+
+  it("explains a refused preparation and lets the member try again", async () => {
+    server.use(http.get(`${API}/atlas/submissions`, () => HttpResponse.json([submission({ status: "FAILED", error: "duplicate_photo", atlas: null })])));
+    renderWithClient(<AtlasSubmissionPanel noteId="n1" attachmentId="a1" canSubmit reason={null} />);
+    expect(await screen.findByRole("alert")).toHaveTextContent("jest już w atlasie");
+    expect(screen.getByRole("button", { name: "Przekaż do atlasu" })).toBeEnabled();
+  });
+
+  it("starts preparation and waits for it", async () => {
+    let posted: unknown = null;
+    let list: Submission[] = [];
+    server.use(
+      http.get(`${API}/atlas/submissions`, () => HttpResponse.json(list)),
+      http.post(`${API}/atlas/submissions`, async ({ request }) => {
+        posted = await request.json();
+        list = [submission({ status: "PENDING", atlas: null })];
+        return HttpResponse.json(list[0], { status: 202 });
+      }),
+    );
+    renderWithClient(<AtlasSubmissionPanel noteId="n1" attachmentId="a1" canSubmit reason={null} />);
+    await userEvent.click(await screen.findByRole("button", { name: "Przekaż do atlasu" }));
+    expect(await screen.findByText(/Przygotowujemy kopię zdjęcia/)).toBeInTheDocument();
+    expect(posted).toEqual({ note_id: "n1", attachment_id: "a1" });
+  });
+
+  it("is disabled with a reason while changes are unsaved, and shows the review state", async () => {
+    server.use(http.get(`${API}/atlas/submissions`, () => HttpResponse.json([])));
+    const { unmount } = renderWithClient(<AtlasSubmissionPanel noteId="n1" attachmentId="a1" canSubmit={false} reason="Najpierw zapisz zmiany." />);
+    expect(await screen.findByRole("button", { name: "Przekaż do atlasu" })).toBeDisabled();
+    expect(screen.getByText("Najpierw zapisz zmiany.")).toBeInTheDocument();
+    unmount();
+    const inReview = submission({ status: "SENT" });
+    inReview.atlas = { ...inReview.atlas!, status: "IN_REVIEW" };
+    server.use(http.get(`${API}/atlas/submissions`, () => HttpResponse.json([inReview])));
+    renderWithClient(<AtlasSubmissionPanel noteId="n1" attachmentId="a1" canSubmit reason={null} />);
+    expect(await screen.findByText("W recenzji ekspertów")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Przekaż do atlasu" })).not.toBeInTheDocument();
+  });
+});
+

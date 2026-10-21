@@ -323,7 +323,7 @@ class NotebookService:
                 NoteAttachment.note_id == note_id
             )
         )
-        keys = [key for pair in rows.tuples() for key in pair if key is not None]
+        keys = [key for pair in rows for key in pair if key is not None]
         await self._session.delete(note)
         await self._session.flush()
         return keys

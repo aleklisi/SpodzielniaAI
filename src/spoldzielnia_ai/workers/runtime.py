@@ -10,6 +10,7 @@ import asyncio
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from spoldzielnia_ai.atlas.submissions import AtlasPreparer
 from spoldzielnia_ai.auth.deps import DbAuditSink
 from spoldzielnia_ai.core.crypto import EnvelopeCipher, StaticKeyProvider
 from spoldzielnia_ai.core.logging import get_logger
@@ -50,6 +51,7 @@ if TYPE_CHECKING:
     from spoldzielnia_ai.workers.engines.base import Engine
     from spoldzielnia_ai.workers.jobs import (
         ArticleJob,
+        AtlasJob,
         DerivativeJob,
         MaintenanceJob,
         PromotionJob,
@@ -76,6 +78,7 @@ class WorkerRuntime:
         self._processor: DerivativeProcessor | None = None
         self._scanner: DerivativeScanner | None = None
         self._promoter: PromotionProcessor | None = None
+        self._atlas: AtlasPreparer | None = None
         self._indexer: Indexer | None = None
         self._sync: VectorSync | None = None
         self._qdrant_client: AsyncQdrantClient | None = None
@@ -174,6 +177,26 @@ class WorkerRuntime:
         guard, _ = self._injection_guard()
         return PromotionProcessor(factory, cipher, scrubber, guard, self._gateway())
 
+    def _build_atlas(self) -> AtlasPreparer:
+        """worker-core: storage, Presidio, the guard and the local VLM (9.4)."""
+        from spoldzielnia_ai.privacy.presidio_adapter import PresidioAnalyzer
+
+        factory, cipher = self._shared()
+        settings = self._settings
+        scrubber = PiiScrubber(CombinedAnalyzer(PresidioAnalyzer.shared(), ChecksumAnalyzer()))
+        guard, _ = self._injection_guard()
+        return AtlasPreparer(
+            factory,
+            cipher,
+            S3ObjectStorage(settings.s3),
+            scrubber,
+            guard,
+            self._gateway(),
+            settings.atlas,
+            max_pixels=settings.uploads.max_image_pixels,
+            tmp_dir=settings.uploads.tmp_dir,
+        )
+
     def _qdrant(self) -> AsyncQdrantClient:
         if self._qdrant_client is None:
             self._qdrant_client = make_qdrant(self._settings.qdrant)
@@ -254,6 +277,13 @@ class WorkerRuntime:
             self._promoter = runner.run(_construct(self._build_promoter))
         return runner.run(self._promoter.handle(job, final_attempt=attempt >= MAX_RETRIES))
 
+    def prepare_atlas(self, job: AtlasJob, attempt: int) -> bool:
+        runner = self._loop()
+        if self._atlas is None:
+            self._atlas = runner.run(_construct(self._build_atlas))
+        runner.run(self._llm_store().current())
+        return runner.run(self._atlas.handle(job, final_attempt=attempt >= MAX_RETRIES))
+
     def _index(self) -> Indexer:
         if self._indexer is None:
             self._indexer = self._loop().run(_construct(self._build_indexer))
@@ -302,6 +332,7 @@ class WorkerRuntime:
     def handler(self, name: TaskName) -> Callable[[Any, int], bool]:
         handlers: dict[TaskName, Callable[[Any, int], bool]] = {
             TaskName.PROMOTE_NOTES: self.promote,
+            TaskName.PREPARE_ATLAS: self.prepare_atlas,
             TaskName.SCAN_DERIVATIVE: self.scan,
             TaskName.INDEX_DERIVATIVE: self.index_derivative,
             TaskName.INDEX_ARTICLE: self.index_article,

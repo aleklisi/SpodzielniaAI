@@ -502,3 +502,41 @@ green; A1–A12 covered by tests; scenario 11 passes against the compose stack.
   photo panel). The project has no axe tooling; accessibility is asserted through role and
   label queries (every control is reachable by its accessible name).
 
+### 9.4 (done)
+
+- Migration `0016_atlas`: private `atlas_submission` (RLS FORCE; `pii_stats` counts only),
+  shared `atlas_image` (provenance, per-photo DEK, three object keys, `sha256`, 64-bit
+  `phash`, scrubbed `caption`, `privacy_flags`, `allow_export`, `show_author`, `version`,
+  tombstone CHECK), `atlas_region` (own `author_id` + `consent_status`, `corrected_by`, box
+  CHECK, revoked-empty CHECK), `atlas_review` (created here for 9.5).
+- **Two-step flow instead of one request:** `POST /atlas/submissions` only *prepares*
+  (worker-core, task `promotion.prepare_atlas`); the member then reviews exactly what would be
+  shared and `POST …/send` with **explicit** `show_author` and `allow_export` (no defaults in
+  the API or the UI; `confirm_no_people` when the VLM saw people/faces), or `…/withdraw`. The
+  choices are asked once the privacy flags are known, not before.
+- `AtlasPreparer` (worker-core): decrypt the private original → three metadata-free JPEG
+  copies (`atlas/images.py`, ≤ 4096/1600/320 px, each encrypted with its own AAD) → duplicate
+  check in the domain (`sha256` or dHash distance ≤ `atlas.duplicate_max_distance`, default 6)
+  → Presidio scrub of caption and descriptions → injection guard (quarantine → FAILED
+  `injection_detected`, audited as `PROMPT_INJECTION_DETECTED`) → VLM privacy check
+  (`atlas/privacy.py`, `PRIVACY_CHECK` prompt, local only; unavailable → recorded and shown,
+  never "clean") → DRAFT atlas photo + regions in one transaction. A photo the experts sent
+  back is re-prepared **in place** (same id, `version + 1`, old objects deleted); withdrawing
+  that keeps it in REVISION_REQUIRED.
+- `atlas/access.py` `can_view`: one rule for bytes now and pages/citations later (author any
+  state; experts with MFA in review/approved; members approved + ACTIVE; nobody REVOKED).
+  `GET /atlas/images/{id}/image?size=thumb|preview|full` uses it (404 otherwise).
+- Label merges re-point `atlas_region` (`LABEL_REFERENCES`).
+- `IMAGE_DESCRIPTION` prompt made domain-neutral (it said "pszczelarz"), new version.
+- **worker-core gets object storage** (MinIO secret + `depends_on minio`): it reads the private
+  original and writes the shared copies. Same root-credential TODO as worker-media.
+- Limits: 20 submissions per member per day (`atlas.submissions_per_day`).
+- Frontend: `AtlasSubmissionPanel` in the photo editor (disabled with a reason while unsaved),
+  polling while preparing, review dialog with the shared copy and boxes, scrubbed caption and
+  PII notice, privacy warnings, name/anonymous radio with no default, export opt-in unchecked.
+- Tests: `test_atlas_submissions.py` (9: flow + metadata-free copies + provenance + A5 before
+  approval + explicit choices + audit; request rules; daily limit; duplicate; injection;
+  people confirmation and VLM outage; withdraw; re-prepare in place; merge re-points),
+  `tests/unit/test_atlas_rules.py` (visibility matrix, flags, dHash), worker routing test,
+  4 Vitest cases.
+

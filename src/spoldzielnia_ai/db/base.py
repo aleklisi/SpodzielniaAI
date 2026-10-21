@@ -14,6 +14,8 @@ from spoldzielnia_ai.core.ids import uuid7
 from spoldzielnia_ai.db.enums import (
     AnnotationSource,
     ArticleStatus,
+    AtlasImageStatus,
+    AtlasSubmissionStatus,
     ConsentStatus,
     DerivativeKind,
     DerivativeStatus,
@@ -65,6 +67,8 @@ class Base(DeclarativeBase):
         VisualDomainStatus: pg_enum(VisualDomainStatus),
         VisualLabelStatus: pg_enum(VisualLabelStatus),
         AnnotationSource: pg_enum(AnnotationSource),
+        AtlasSubmissionStatus: pg_enum(AtlasSubmissionStatus),
+        AtlasImageStatus: pg_enum(AtlasImageStatus),
     }
 
 

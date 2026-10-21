@@ -32,6 +32,7 @@ class TaskName(StrEnum):
     FETCH_LINK = "egress.fetch_link"
     SCAN_DERIVATIVE = "core.scan_derivative"
     PROMOTE_NOTES = "promotion.promote_notes"
+    PREPARE_ATLAS = "promotion.prepare_atlas"  # 9.4: shared copy, PII scrub, checks
     INDEX_DERIVATIVE = "index.private_derivative"
     INDEX_ARTICLE = "index.canonical_article"
     RECONCILE_OUTBOX = "index.reconcile_outbox"  # Celery beat, every 30 s (4.4)
@@ -46,6 +47,7 @@ TASK_QUEUE: dict[TaskName, Queue] = {
     TaskName.FETCH_LINK: Queue.FETCH,
     TaskName.SCAN_DERIVATIVE: Queue.CORE_SCAN,
     TaskName.PROMOTE_NOTES: Queue.PROMOTION,
+    TaskName.PREPARE_ATLAS: Queue.PROMOTION,
     TaskName.INDEX_DERIVATIVE: Queue.INDEX,
     TaskName.INDEX_ARTICLE: Queue.INDEX,
     TaskName.RECONCILE_OUTBOX: Queue.INDEX,
@@ -71,6 +73,7 @@ TIME_LIMITS: dict[TaskName, tuple[int, int]] = {
     TaskName.FETCH_LINK: (60, 90),
     TaskName.SCAN_DERIVATIVE: (300, 330),
     TaskName.PROMOTE_NOTES: (1800, 1860),  # local LLM generation can be slow on CPU
+    TaskName.PREPARE_ATLAS: (600, 660),
     TaskName.INDEX_DERIVATIVE: (600, 660),
     TaskName.INDEX_ARTICLE: (600, 660),
     TaskName.RECONCILE_OUTBOX: (120, 150),
@@ -99,6 +102,18 @@ class PromotionJob(BaseModel):
         return {"promotion_id": str(self.promotion_id), "owner_id": str(self.owner_id)}
 
 
+class AtlasJob(BaseModel):
+    """Prepare an atlas submission (9.4). Ids only."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid", strict=False)
+
+    submission_id: UUID
+    owner_id: UUID
+
+    def to_message(self) -> dict[str, str]:
+        return {"submission_id": str(self.submission_id), "owner_id": str(self.owner_id)}
+
+
 class ArticleJob(BaseModel):
     """(Re)index a canonical article (4.1). Wiki articles are public: no owner, no RLS."""
 
@@ -119,11 +134,18 @@ class MaintenanceJob(BaseModel):
         return {}
 
 
-type Job = DerivativeJob | PromotionJob | ArticleJob | MaintenanceJob
-type JobModel = type[DerivativeJob] | type[PromotionJob] | type[ArticleJob] | type[MaintenanceJob]
+type Job = DerivativeJob | PromotionJob | AtlasJob | ArticleJob | MaintenanceJob
+type JobModel = (
+    type[DerivativeJob]
+    | type[PromotionJob]
+    | type[AtlasJob]
+    | type[ArticleJob]
+    | type[MaintenanceJob]
+)
 
 _SPECIAL_JOBS: dict[TaskName, JobModel] = {
     TaskName.PROMOTE_NOTES: PromotionJob,
+    TaskName.PREPARE_ATLAS: AtlasJob,
     TaskName.INDEX_ARTICLE: ArticleJob,
     TaskName.RECONCILE_OUTBOX: MaintenanceJob,
     TaskName.CONSISTENCY_AUDIT: MaintenanceJob,

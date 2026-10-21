@@ -27,6 +27,7 @@ if TYPE_CHECKING:
     from spoldzielnia_ai.core.crypto import EnvelopeCipher
     from spoldzielnia_ai.db.session import SessionFactory
     from spoldzielnia_ai.files.validation import FileKind
+    from spoldzielnia_ai.workers.jobs import AtlasJob
 
 
 def derivative_kinds(kind: FileKind) -> list[DerivativeKind]:
@@ -71,6 +72,10 @@ class CeleryProcessingQueue:
     async def annotations_saved(self, job: DerivativeJob) -> None:
         """A photo's caption and marks changed (9.2): screen, then index, like any derivative."""
         await self._send(TaskName.SCAN_DERIVATIVE, job)
+
+    async def atlas_requested(self, job: AtlasJob) -> None:
+        """Prepare a photo for the atlas (9.4, worker-core)."""
+        await asyncio.to_thread(send, self._celery, TaskName.PREPARE_ATLAS, job)
 
     async def derivative_clean(self, job: DerivativeJob) -> None:
         """Screened and not quarantined: index it for "ask my notebook" (4.1)."""

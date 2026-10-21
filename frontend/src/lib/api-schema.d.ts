@@ -728,6 +728,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/atlas/images/{image_id}/image": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Atlas Image Bytes
+         * @description An atlas photo (metadata-free JPEG) for whoever may see it (A5); 404 otherwise.
+         */
+        get: operations["atlas_image_bytes_atlas_images__image_id__image_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/atlas/labels": {
         parameters: {
             query?: never;
@@ -760,6 +780,86 @@ export interface paths {
         put?: never;
         /** Propose Label */
         post: operations["propose_label_atlas_labels_proposals_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/atlas/submissions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Photo Submissions
+         * @description The submissions of one of my photos, newest first.
+         */
+        get: operations["photo_submissions_atlas_submissions_get"];
+        put?: never;
+        /**
+         * Request Submission
+         * @description Prepare an annotated photo for the atlas (worker-core). Nothing is shared until the
+         *     member sends the prepared result.
+         */
+        post: operations["request_submission_atlas_submissions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/atlas/submissions/{submission_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Submission */
+        get: operations["get_submission_atlas_submissions__submission_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/atlas/submissions/{submission_id}/send": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Send Submission
+         * @description Send the prepared photo to the experts. ``show_author`` and ``allow_export`` must be
+         *     answered explicitly.
+         */
+        post: operations["send_submission_atlas_submissions__submission_id__send_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/atlas/submissions/{submission_id}/withdraw": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Withdraw Submission */
+        post: operations["withdraw_submission_atlas_submissions__submission_id__withdraw_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1378,6 +1478,49 @@ export interface components {
             /** Question */
             question: string;
         };
+        /**
+         * AtlasImageStatus
+         * @description Review states of an atlas photo (9.4/9.5). Members see APPROVED photos only.
+         * @enum {string}
+         */
+        AtlasImageStatus: "DRAFT" | "IN_REVIEW" | "APPROVED" | "REVISION_REQUIRED" | "REJECTED";
+        /** AtlasLabelOut */
+        AtlasLabelOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            status: components["schemas"]["VisualLabelStatus"];
+        };
+        /** AtlasRegionOut */
+        AtlasRegionOut: {
+            /** Description */
+            description: string | null;
+            /** H */
+            h: number;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            label: components["schemas"]["AtlasLabelOut"];
+            /** W */
+            w: number;
+            /** X */
+            x: number;
+            /** Y */
+            y: number;
+        };
+        /**
+         * AtlasSubmissionStatus
+         * @description A member's request to send an annotated photo to the atlas (9.4): prepared by the worker
+         *     (shared copy, PII scrub, checks), then sent by the member or withdrawn.
+         * @enum {string}
+         */
+        AtlasSubmissionStatus: "PENDING" | "PREPARED" | "SENT" | "WITHDRAWN" | "FAILED";
         /** AttachmentOut */
         AttachmentOut: {
             /**
@@ -1746,6 +1889,38 @@ export interface components {
             based_on?: number | null;
             /** Comment */
             comment?: string | null;
+        };
+        /**
+         * DraftOut
+         * @description What the atlas would show: the scrubbed texts and the checks.
+         */
+        DraftOut: {
+            /** Allow Export */
+            allow_export: boolean;
+            /** Caption */
+            caption: string | null;
+            /** Height */
+            height: number;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Needs People Confirmation */
+            needs_people_confirmation: boolean;
+            /** Privacy Check */
+            privacy_check: string;
+            /** Privacy Flags */
+            privacy_flags: string[];
+            /** Regions */
+            regions: components["schemas"]["AtlasRegionOut"][];
+            /** Review Alert */
+            review_alert: string | null;
+            /** Show Author */
+            show_author: boolean;
+            status: components["schemas"]["AtlasImageStatus"];
+            /** Width */
+            width: number;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -2637,6 +2812,24 @@ export interface components {
             /** Article Ids */
             article_ids?: string[] | null;
         };
+        /** SendIn */
+        SendIn: {
+            /**
+             * Allow Export
+             * @description Allow the photo in dataset exports (no default)
+             */
+            allow_export: boolean;
+            /**
+             * Confirm No People
+             * @default false
+             */
+            confirm_no_people: boolean;
+            /**
+             * Show Author
+             * @description Show my name with the photo (no default: ask)
+             */
+            show_author: boolean;
+        };
         /** SignOutOut */
         SignOutOut: {
             /** App Sessions */
@@ -2680,6 +2873,43 @@ export interface components {
             created_at: string;
             /** Signatures */
             signatures: string[];
+        };
+        /** SubmissionIn */
+        SubmissionIn: {
+            /**
+             * Attachment Id
+             * Format: uuid
+             */
+            attachment_id: string;
+            /**
+             * Note Id
+             * Format: uuid
+             */
+            note_id: string;
+        };
+        /** SubmissionOut */
+        SubmissionOut: {
+            atlas?: components["schemas"]["DraftOut"] | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Error */
+            error: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Pii Replaced */
+            pii_replaced: number;
+            status: components["schemas"]["AtlasSubmissionStatus"];
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
         };
         /** SubmitOut */
         SubmitOut: {
@@ -4365,6 +4595,39 @@ export interface operations {
             };
         };
     };
+    atlas_image_bytes_atlas_images__image_id__image_get: {
+        parameters: {
+            query?: {
+                size?: "thumb" | "preview" | "full";
+            };
+            header?: never;
+            path: {
+                image_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/jpeg": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_labels_atlas_labels_get: {
         parameters: {
             query?: {
@@ -4417,6 +4680,167 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["LabelOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    photo_submissions_atlas_submissions_get: {
+        parameters: {
+            query: {
+                attachment_id: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SubmissionOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    request_submission_atlas_submissions_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SubmissionIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SubmissionOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_submission_atlas_submissions__submission_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                submission_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SubmissionOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    send_submission_atlas_submissions__submission_id__send_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                submission_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SendIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SubmissionOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    withdraw_submission_atlas_submissions__submission_id__withdraw_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                submission_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SubmissionOut"];
                 };
             };
             /** @description Validation Error */

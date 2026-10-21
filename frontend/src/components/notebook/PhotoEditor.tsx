@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { ImageAnnotator, markColor } from "@/components/annotator/ImageAnnotator";
+import { AtlasSubmissionPanel } from "@/components/notebook/AtlasSubmissionPanel";
 import { LabelCombobox } from "@/components/atlas/LabelCombobox";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -229,6 +230,20 @@ function Editor({ noteId, attachmentId, photo, onReload }: { noteId: string; att
         <Button onClick={() => void submit()} busy={save.isPending} disabled={!domainId || archived || unlabeled > 0 || !dirty}>
           Zapisz
         </Button>
+        <AtlasSubmissionPanel
+          noteId={noteId}
+          attachmentId={attachmentId}
+          canSubmit={!dirty && photo.version > 0 && marks.length > 0 && !archived}
+          reason={
+            dirty
+              ? "Najpierw zapisz zmiany."
+              : photo.version === 0 || marks.length === 0
+                ? "Zaznacz i opisz co najmniej jeden element, potem zapisz."
+                : archived
+                  ? "Dziedzina jest zarchiwizowana."
+                  : null
+          }
+        />
       </aside>
     </div>
   );
