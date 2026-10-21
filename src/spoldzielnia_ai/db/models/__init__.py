@@ -3,6 +3,7 @@
 from spoldzielnia_ai.db.base import Base
 from spoldzielnia_ai.db.models.atlas import (
     AnnotatedImage,
+    AtlasExport,
     AtlasImage,
     AtlasRegion,
     AtlasReview,
@@ -22,6 +23,7 @@ from spoldzielnia_ai.db.models.wiki import ArticleBlock, ExpertReview, WikiArtic
 __all__ = [
     "AnnotatedImage",
     "ArticleBlock",
+    "AtlasExport",
     "AtlasImage",
     "AtlasRegion",
     "AtlasReview",

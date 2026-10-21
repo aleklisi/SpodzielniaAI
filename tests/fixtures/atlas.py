@@ -21,7 +21,7 @@ from tests.fixtures.pl_ids import make_pesel
 
 if TYPE_CHECKING:
     from spoldzielnia_ai.db.session import SessionFactory
-    from spoldzielnia_ai.workers.jobs import AtlasJob
+    from spoldzielnia_ai.workers.jobs import AtlasJob, ExportJob
     from tests.fixtures.app import Harness, LoggedIn
 
 MFA: dict[str, Any] = {"amr": ["pwd", "otp"]}
@@ -40,8 +40,13 @@ class CleanScanner:
 class RecordingQueue(NoProcessing):
     atlas: list[AtlasJob] = field(default_factory=lambda: list[Any]())
 
+    exports: list[ExportJob] = field(default_factory=lambda: list[Any]())
+
     async def atlas_requested(self, job: AtlasJob) -> None:
         self.atlas.append(job)
+
+    async def export_requested(self, job: ExportJob) -> None:
+        self.exports.append(job)
 
 
 def privacy_reply(flags: dict[str, bool]) -> Any:

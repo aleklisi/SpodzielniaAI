@@ -53,6 +53,7 @@ if TYPE_CHECKING:
         ArticleJob,
         AtlasJob,
         DerivativeJob,
+        ExportJob,
         MaintenanceJob,
         PromotionJob,
     )
@@ -284,6 +285,14 @@ class WorkerRuntime:
         runner.run(self._llm_store().current())
         return runner.run(self._atlas.handle(job, final_attempt=attempt >= MAX_RETRIES))
 
+    def export_atlas(self, job: ExportJob, _attempt: int) -> bool:
+        from spoldzielnia_ai.atlas.export import ExportBuilder
+
+        factory, cipher = self._shared()
+        builder = ExportBuilder(factory, cipher, S3ObjectStorage(self._settings.s3))
+        self._loop().run(builder.handle(job.export_id))
+        return False
+
     def _index(self) -> Indexer:
         if self._indexer is None:
             self._indexer = self._loop().run(_construct(self._build_indexer))
@@ -333,6 +342,7 @@ class WorkerRuntime:
         handlers: dict[TaskName, Callable[[Any, int], bool]] = {
             TaskName.PROMOTE_NOTES: self.promote,
             TaskName.PREPARE_ATLAS: self.prepare_atlas,
+            TaskName.EXPORT_ATLAS: self.export_atlas,
             TaskName.SCAN_DERIVATIVE: self.scan,
             TaskName.INDEX_DERIVATIVE: self.index_derivative,
             TaskName.INDEX_ARTICLE: self.index_article,

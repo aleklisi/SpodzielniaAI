@@ -16,6 +16,7 @@ from uuid import UUID
 
 from sqlalchemy import (
     ARRAY,
+    BigInteger,
     Boolean,
     CheckConstraint,
     Float,
@@ -24,6 +25,7 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    Uuid,
     func,
     text,
 )
@@ -32,6 +34,8 @@ from sqlalchemy.orm import Mapped, mapped_column
 from spoldzielnia_ai.db.base import Entity
 from spoldzielnia_ai.db.enums import (
     AnnotationSource,
+    AtlasExportFormat,
+    AtlasExportStatus,
     AtlasImageStatus,
     AtlasSubmissionStatus,
     ConsentStatus,
@@ -268,3 +272,33 @@ class AtlasReview(Entity):
     decision: Mapped[ReviewDecision]
     comment: Mapped[str | None] = mapped_column(Text)
     image_version: Mapped[int]
+
+
+class AtlasExport(Entity):
+    """A dataset export (9.7). The archive is encrypted under the row's DEK; the download
+    token is kept only as its SHA-256 and works once. ``image_ids``: the photos in the manifest
+    (a later revoke is visible on the export)."""
+
+    __tablename__ = "atlas_export"
+
+    created_by: Mapped[UUID] = mapped_column(ForeignKey("app_user.id"), index=True)
+    status: Mapped[AtlasExportStatus] = mapped_column(
+        server_default=AtlasExportStatus.PENDING.value, default=AtlasExportStatus.PENDING
+    )
+    format: Mapped[AtlasExportFormat]
+    domain_id: Mapped[UUID] = mapped_column(ForeignKey("visual_domain.id", ondelete="RESTRICT"))
+    label_ids: Mapped[list[UUID] | None] = mapped_column(ARRAY(Uuid()))
+    min_verified_at: Mapped[datetime | None]
+    image_ids: Mapped[list[UUID]] = mapped_column(
+        ARRAY(Uuid()), server_default=text("'{}'"), default=list
+    )
+    image_count: Mapped[int] = mapped_column(server_default=text("0"), default=0)
+    region_count: Mapped[int] = mapped_column(server_default=text("0"), default=0)
+    manifest_sha256: Mapped[str | None] = mapped_column(String(64))
+    object_key: Mapped[str | None] = mapped_column(String(64), unique=True)
+    size: Mapped[int | None] = mapped_column(BigInteger)
+    dek_wrapped: Mapped[bytes]
+    token_sha256: Mapped[str] = mapped_column(String(64))
+    expires_at: Mapped[datetime]
+    downloaded_at: Mapped[datetime | None]
+    error: Mapped[str | None] = mapped_column(String(64))

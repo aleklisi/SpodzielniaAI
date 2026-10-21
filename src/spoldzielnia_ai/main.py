@@ -17,6 +17,7 @@ from spoldzielnia_ai.api.admin_llm import router as admin_llm_router
 from spoldzielnia_ai.api.admin_users import router as admin_users_router
 from spoldzielnia_ai.api.atlas import router as atlas_router
 from spoldzielnia_ai.api.atlas_contributions import router as atlas_contributions_router
+from spoldzielnia_ai.api.atlas_export import router as atlas_export_router
 from spoldzielnia_ai.api.atlas_labels import admin_router as atlas_admin_router
 from spoldzielnia_ai.api.atlas_labels import curation_router as atlas_curation_router
 from spoldzielnia_ai.api.atlas_labels import router as atlas_labels_router
@@ -161,6 +162,7 @@ def create_app(
     app.include_router(atlas_router)
     app.include_router(atlas_curation_router)
     app.include_router(atlas_admin_router)
+    app.include_router(atlas_export_router)
 
     @app.get("/healthz", response_model=HealthResponse, tags=["ops"])
     async def healthz() -> HealthResponse:  # pyright: ignore[reportUnusedFunction]

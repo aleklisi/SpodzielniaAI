@@ -597,3 +597,36 @@ green; A1–A12 covered by tests; scenario 11 passes against the compose stack.
   export choices with audit), 3 Vitest cases.
 - Fixed with this chunk: a ruff finding (S311) in the E2E seed script committed with 9.5.
 
+### 9.7 (done)
+
+- Migration `0017_atlas_export`: `atlas_export` (status PENDING/READY/FAILED/DOWNLOADED/
+  EXPIRED, format COCO/YOLO, domain, optional label filter and minimum verification date,
+  `image_ids` of the manifest, counts, `manifest_sha256`, encrypted archive object + DEK,
+  **token stored only as SHA-256**, `expires_at`, `downloaded_at`).
+- `AtlasSettings`: `export_enabled=false` (env only), `exports_per_day=5`,
+  `export_link_ttl_seconds=86400`, `export_step_up_max_age_seconds=300`.
+- `atlas/export.py`: `ExportService` (request with a one-time token, list with
+  `revoked_since` = photos of the manifest no longer ACTIVE or no longer export-allowed,
+  single-use claim, lazy expiry that deletes the archive) and `ExportBuilder` (worker-core,
+  task `promotion.export_atlas`): APPROVED + ACTIVE + `allow_export` photos of the domain,
+  label filter keeps only photos showing those labels and only those marks; images renamed to
+  HMAC ids with a per-export salt; COCO (`annotations.json`, pixel `bbox`, categories sorted by
+  name, `supercategory` = domain) or YOLO (`labels/*.txt` normalised centre/size, `classes.txt`);
+  `manifest.json` with per-photo SHA-256, label names and the author as a salted HMAC, licence
+  note. Audit `ATLAS_EXPORT_REQUESTED`, `ATLAS_EXPORTED` (manifest hash, counts),
+  `ATLAS_EXPORT_DOWNLOADED`.
+- API `/admin/atlas/exports` (ADMIN + MFA): `GET` (with `enabled`), `POST` (403
+  `export_disabled`; 403 `reauthentication_required` with `step_up` for a login older than
+  5 min; 429 after the daily limit; 202 + `download_token` shown once),
+  `GET /{id}/download?token=` (reads the archive first, then claims it, so a storage error does
+  not burn the link; deletes the archive after the download; 409 `already_downloaded`).
+- **Deviation:** COCO is validated structurally in the tests (ids, categories, bbox inside the
+  image, exact pixel values) instead of adding `pycocotools` (a C extension) as a test
+  dependency.
+- Frontend: „Eksport zbioru danych” panel on `/admin/atlas` (disabled notice naming the env
+  setting, domain/format/labels/date form, step-up notice, exports table with revoked counts,
+  one-time „Pobierz” link held only in page memory).
+- Tests: `test_atlas_export.py` (5: disabled by default + authz + step-up; COCO contents,
+  consent filtering, no account/atlas ids in the archive, single-use download, archive deleted,
+  audit; YOLO + label filter; revoke after export + expiry; daily limit), 3 Vitest cases.
+

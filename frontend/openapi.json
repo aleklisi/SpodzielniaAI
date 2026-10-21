@@ -190,6 +190,26 @@
         "title": "AskIn",
         "type": "object"
       },
+      "AtlasExportFormat": {
+        "enum": [
+          "COCO",
+          "YOLO"
+        ],
+        "title": "AtlasExportFormat",
+        "type": "string"
+      },
+      "AtlasExportStatus": {
+        "description": "A dataset export (9.7): built by worker-core, downloadable once until it expires.",
+        "enum": [
+          "PENDING",
+          "READY",
+          "FAILED",
+          "DOWNLOADED",
+          "EXPIRED"
+        ],
+        "title": "AtlasExportStatus",
+        "type": "string"
+      },
       "AtlasImageStatus": {
         "description": "Review states of an atlas photo (9.4/9.5). Members see APPROVED photos only.",
         "enum": [
@@ -988,30 +1008,6 @@
         "title": "CreateUserIn",
         "type": "object"
       },
-      "CreatedOut": {
-        "properties": {
-          "temporary_password": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Temporary Password"
-          },
-          "user": {
-            "$ref": "#/components/schemas/UserOut"
-          }
-        },
-        "required": [
-          "user",
-          "temporary_password"
-        ],
-        "title": "CreatedOut",
-        "type": "object"
-      },
       "CuratedLabelOut": {
         "properties": {
           "created_at": {
@@ -1531,6 +1527,182 @@
           "review_alert"
         ],
         "title": "DraftOut",
+        "type": "object"
+      },
+      "ExportIn": {
+        "properties": {
+          "domain_id": {
+            "format": "uuid",
+            "title": "Domain Id",
+            "type": "string"
+          },
+          "format": {
+            "$ref": "#/components/schemas/AtlasExportFormat"
+          },
+          "label_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "maxItems": 200,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label Ids"
+          },
+          "min_verified_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min Verified At"
+          }
+        },
+        "required": [
+          "format",
+          "domain_id"
+        ],
+        "title": "ExportIn",
+        "type": "object"
+      },
+      "ExportListOut": {
+        "properties": {
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "exports": {
+            "items": {
+              "$ref": "#/components/schemas/ExportOut"
+            },
+            "title": "Exports",
+            "type": "array"
+          }
+        },
+        "required": [
+          "enabled",
+          "exports"
+        ],
+        "title": "ExportListOut",
+        "type": "object"
+      },
+      "ExportOut": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "created_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By Name"
+          },
+          "domain_id": {
+            "format": "uuid",
+            "title": "Domain Id",
+            "type": "string"
+          },
+          "domain_name": {
+            "title": "Domain Name",
+            "type": "string"
+          },
+          "downloaded_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Downloaded At"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "format": {
+            "$ref": "#/components/schemas/AtlasExportFormat"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "image_count": {
+            "title": "Image Count",
+            "type": "integer"
+          },
+          "manifest_sha256": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Manifest Sha256"
+          },
+          "region_count": {
+            "title": "Region Count",
+            "type": "integer"
+          },
+          "revoked_since": {
+            "title": "Revoked Since",
+            "type": "integer"
+          },
+          "status": {
+            "$ref": "#/components/schemas/AtlasExportStatus"
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "format",
+          "domain_id",
+          "domain_name",
+          "created_by_name",
+          "image_count",
+          "region_count",
+          "revoked_since",
+          "manifest_sha256",
+          "expires_at",
+          "downloaded_at",
+          "created_at",
+          "error"
+        ],
+        "title": "ExportOut",
         "type": "object"
       },
       "HTTPValidationError": {
@@ -5556,6 +5728,30 @@
         "title": "VisualLabelStatus",
         "type": "string"
       },
+      "spoldzielnia_ai__api__admin_users__CreatedOut": {
+        "properties": {
+          "temporary_password": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Temporary Password"
+          },
+          "user": {
+            "$ref": "#/components/schemas/UserOut"
+          }
+        },
+        "required": [
+          "user",
+          "temporary_password"
+        ],
+        "title": "CreatedOut",
+        "type": "object"
+      },
       "spoldzielnia_ai__api__atlas_contributions__RevokeIn": {
         "properties": {
           "confirm": {
@@ -5568,6 +5764,24 @@
           "confirm"
         ],
         "title": "RevokeIn",
+        "type": "object"
+      },
+      "spoldzielnia_ai__api__atlas_export__CreatedOut": {
+        "properties": {
+          "download_token": {
+            "description": "Shown once; the download works once.",
+            "title": "Download Token",
+            "type": "string"
+          },
+          "export": {
+            "$ref": "#/components/schemas/ExportOut"
+          }
+        },
+        "required": [
+          "export",
+          "download_token"
+        ],
+        "title": "CreatedOut",
         "type": "object"
       },
       "spoldzielnia_ai__api__contributions__RevokeIn": {
@@ -5764,6 +5978,118 @@
           }
         },
         "summary": "Update Domain",
+        "tags": [
+          "atlas"
+        ]
+      }
+    },
+    "/admin/atlas/exports": {
+      "get": {
+        "operationId": "list_exports_admin_atlas_exports_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExportListOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Exports",
+        "tags": [
+          "atlas"
+        ]
+      },
+      "post": {
+        "description": "Build an export of approved, consented, export-allowed photos of one domain. The\ndownload token in the response is shown once.",
+        "operationId": "create_export_admin_atlas_exports_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExportIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/spoldzielnia_ai__api__atlas_export__CreatedOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Export",
+        "tags": [
+          "atlas"
+        ]
+      }
+    },
+    "/admin/atlas/exports/{export_id}/download": {
+      "get": {
+        "description": "The archive, once. The token is checked before anything is read; the export is marked\ndownloaded only after the archive was read, so a storage error doesn't burn the link.",
+        "operationId": "download_export_admin_atlas_exports__export_id__download_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "export_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Export Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "token",
+            "required": true,
+            "schema": {
+              "maxLength": 100,
+              "minLength": 20,
+              "title": "Token",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/zip": {}
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Download Export",
         "tags": [
           "atlas"
         ]
@@ -6990,7 +7316,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CreatedOut"
+                  "$ref": "#/components/schemas/spoldzielnia_ai__api__admin_users__CreatedOut"
                 }
               }
             },

@@ -27,7 +27,7 @@ if TYPE_CHECKING:
     from spoldzielnia_ai.core.crypto import EnvelopeCipher
     from spoldzielnia_ai.db.session import SessionFactory
     from spoldzielnia_ai.files.validation import FileKind
-    from spoldzielnia_ai.workers.jobs import AtlasJob
+    from spoldzielnia_ai.workers.jobs import AtlasJob, ExportJob
 
 
 def derivative_kinds(kind: FileKind) -> list[DerivativeKind]:
@@ -76,6 +76,10 @@ class CeleryProcessingQueue:
     async def atlas_requested(self, job: AtlasJob) -> None:
         """Prepare a photo for the atlas (9.4, worker-core)."""
         await asyncio.to_thread(send, self._celery, TaskName.PREPARE_ATLAS, job)
+
+    async def export_requested(self, job: ExportJob) -> None:
+        """Build a dataset export (9.7, worker-core)."""
+        await asyncio.to_thread(send, self._celery, TaskName.EXPORT_ATLAS, job)
 
     async def derivative_clean(self, job: DerivativeJob) -> None:
         """Screened and not quarantined: index it for "ask my notebook" (4.1)."""

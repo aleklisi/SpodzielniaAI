@@ -156,6 +156,21 @@ class AtlasImageStatus(StrEnum):
     REJECTED = "REJECTED"
 
 
+class AtlasExportStatus(StrEnum):
+    """A dataset export (9.7): built by worker-core, downloadable once until it expires."""
+
+    PENDING = "PENDING"
+    READY = "READY"
+    FAILED = "FAILED"
+    DOWNLOADED = "DOWNLOADED"
+    EXPIRED = "EXPIRED"
+
+
+class AtlasExportFormat(StrEnum):
+    COCO = "COCO"
+    YOLO = "YOLO"
+
+
 PG_ENUM_NAMES: dict[type[StrEnum], str] = {
     Role: "user_role",
     ConsentStatus: "consent_status",
@@ -176,6 +191,8 @@ PG_ENUM_NAMES: dict[type[StrEnum], str] = {
     AnnotationSource: "annotation_source",
     AtlasSubmissionStatus: "atlas_submission_status",
     AtlasImageStatus: "atlas_image_status",
+    AtlasExportStatus: "atlas_export_status",
+    AtlasExportFormat: "atlas_export_format",
 }
 
 

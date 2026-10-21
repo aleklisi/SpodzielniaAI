@@ -250,6 +250,11 @@ class AtlasSettings(BaseModel):
     # Preview/full images of other members' photos per viewer and hour (A7; thumbnails free).
     image_views_per_hour: int = Field(default=600, ge=1)
     page_size_max: int = Field(default=48, ge=1, le=200)
+    # Dataset export (9.7, A9): off unless the operator turns it on; the UI cannot widen it.
+    export_enabled: bool = False
+    exports_per_day: int = Field(default=5, ge=1)  # per admin, UTC day
+    export_link_ttl_seconds: int = Field(default=86_400, ge=300, le=7 * 86_400)
+    export_step_up_max_age_seconds: int = Field(default=300, ge=60, le=3600)
 
 
 class RagSettings(BaseModel):

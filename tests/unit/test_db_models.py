@@ -68,6 +68,7 @@ def test_tables_registered() -> None:
         "atlas_image",
         "atlas_region",
         "atlas_review",
+        "atlas_export",
     }
 
 
@@ -182,6 +183,7 @@ def test_migrations_form_a_single_linear_history() -> None:
         "0014_visual_labels",
         "0015_image_annotation",
         "0016_atlas",
+        "0017_atlas_export",
     ]
 
 
@@ -197,6 +199,7 @@ def test_migration_enum_types_match_python_enums() -> None:
             "0014_visual_labels",
             "0015_image_annotation",
             "0016_atlas",
+            "0017_atlas_export",
         )
         for e in cast("tuple[SAEnum, ...]", _revision_module(revision).ENUMS)
     }

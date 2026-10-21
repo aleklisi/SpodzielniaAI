@@ -55,7 +55,7 @@ if TYPE_CHECKING:
     from spoldzielnia_ai.files.storage import ObjectStorage
     from spoldzielnia_ai.files.validation import FileKind
     from spoldzielnia_ai.notebook.service import AttachmentView
-    from spoldzielnia_ai.workers.jobs import AtlasJob, DerivativeJob
+    from spoldzielnia_ai.workers.jobs import AtlasJob, DerivativeJob, ExportJob
 
 log = get_logger(__name__)
 
@@ -80,6 +80,8 @@ class ProcessingQueue(Protocol):
 
     async def atlas_requested(self, job: AtlasJob) -> None: ...
 
+    async def export_requested(self, job: ExportJob) -> None: ...
+
     async def promotion_requested(self, promotion_id: UUID, owner_id: UUID) -> None: ...
 
     async def article_canonical(self, article_id: UUID) -> None: ...
@@ -98,6 +100,9 @@ class NoProcessing:
         return None
 
     async def atlas_requested(self, job: AtlasJob) -> None:
+        return None
+
+    async def export_requested(self, job: ExportJob) -> None:
         return None
 
     async def promotion_requested(self, promotion_id: UUID, owner_id: UUID) -> None:

@@ -55,6 +55,49 @@ export interface paths {
         patch: operations["update_domain_admin_atlas_domains__domain_id__patch"];
         trace?: never;
     };
+    "/admin/atlas/exports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Exports */
+        get: operations["list_exports_admin_atlas_exports_get"];
+        put?: never;
+        /**
+         * Create Export
+         * @description Build an export of approved, consented, export-allowed photos of one domain. The
+         *     download token in the response is shown once.
+         */
+        post: operations["create_export_admin_atlas_exports_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/atlas/exports/{export_id}/download": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Download Export
+         * @description The archive, once. The token is checked before anything is read; the export is marked
+         *     downloaded only after the archive was read, so a storage error doesn't burn the link.
+         */
+        get: operations["download_export_admin_atlas_exports__export_id__download_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/audit-log": {
         parameters: {
             query?: never;
@@ -1689,6 +1732,17 @@ export interface components {
             question: string;
         };
         /**
+         * AtlasExportFormat
+         * @enum {string}
+         */
+        AtlasExportFormat: "COCO" | "YOLO";
+        /**
+         * AtlasExportStatus
+         * @description A dataset export (9.7): built by worker-core, downloadable once until it expires.
+         * @enum {string}
+         */
+        AtlasExportStatus: "PENDING" | "READY" | "FAILED" | "DOWNLOADED" | "EXPIRED";
+        /**
          * AtlasImageStatus
          * @description Review states of an atlas photo (9.4/9.5). Members see APPROVED photos only.
          * @enum {string}
@@ -1982,12 +2036,6 @@ export interface components {
             /** Username */
             username: string;
         };
-        /** CreatedOut */
-        CreatedOut: {
-            /** Temporary Password */
-            temporary_password: string | null;
-            user: components["schemas"]["UserOut"];
-        };
         /** CuratedLabelOut */
         CuratedLabelOut: {
             /**
@@ -2162,6 +2210,67 @@ export interface components {
             status: components["schemas"]["AtlasImageStatus"];
             /** Width */
             width: number;
+        };
+        /** ExportIn */
+        ExportIn: {
+            /**
+             * Domain Id
+             * Format: uuid
+             */
+            domain_id: string;
+            format: components["schemas"]["AtlasExportFormat"];
+            /** Label Ids */
+            label_ids?: string[] | null;
+            /** Min Verified At */
+            min_verified_at?: string | null;
+        };
+        /** ExportListOut */
+        ExportListOut: {
+            /** Enabled */
+            enabled: boolean;
+            /** Exports */
+            exports: components["schemas"]["ExportOut"][];
+        };
+        /** ExportOut */
+        ExportOut: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Created By Name */
+            created_by_name: string | null;
+            /**
+             * Domain Id
+             * Format: uuid
+             */
+            domain_id: string;
+            /** Domain Name */
+            domain_name: string;
+            /** Downloaded At */
+            downloaded_at: string | null;
+            /** Error */
+            error: string | null;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            format: components["schemas"]["AtlasExportFormat"];
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Image Count */
+            image_count: number;
+            /** Manifest Sha256 */
+            manifest_sha256: string | null;
+            /** Region Count */
+            region_count: number;
+            /** Revoked Since */
+            revoked_since: number;
+            status: components["schemas"]["AtlasExportStatus"];
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -3578,6 +3687,12 @@ export interface components {
          * @enum {string}
          */
         VisualLabelStatus: "PROPOSED" | "ACTIVE" | "DEPRECATED" | "REJECTED";
+        /** CreatedOut */
+        spoldzielnia_ai__api__admin_users__CreatedOut: {
+            /** Temporary Password */
+            temporary_password: string | null;
+            user: components["schemas"]["UserOut"];
+        };
         /** RevokeIn */
         spoldzielnia_ai__api__atlas_contributions__RevokeIn: {
             /**
@@ -3585,6 +3700,15 @@ export interface components {
              * @constant
              */
             confirm: "REVOKE";
+        };
+        /** CreatedOut */
+        spoldzielnia_ai__api__atlas_export__CreatedOut: {
+            /**
+             * Download Token
+             * @description Shown once; the download works once.
+             */
+            download_token: string;
+            export: components["schemas"]["ExportOut"];
         };
         /** RevokeIn */
         spoldzielnia_ai__api__contributions__RevokeIn: {
@@ -3692,6 +3816,92 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DomainOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_exports_admin_atlas_exports_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExportListOut"];
+                };
+            };
+        };
+    };
+    create_export_admin_atlas_exports_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExportIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["spoldzielnia_ai__api__atlas_export__CreatedOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    download_export_admin_atlas_exports__export_id__download_get: {
+        parameters: {
+            query: {
+                token: string;
+            };
+            header?: never;
+            path: {
+                export_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/zip": unknown;
                 };
             };
             /** @description Validation Error */
@@ -4527,7 +4737,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["CreatedOut"];
+                    "application/json": components["schemas"]["spoldzielnia_ai__api__admin_users__CreatedOut"];
                 };
             };
             /** @description Validation Error */
