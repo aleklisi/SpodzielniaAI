@@ -3,6 +3,10 @@
 **User story:** [US-03](../USER_STORIES_LOG.md#us-03) — *As a member I want to add a photo with a
 description, mark one or more elements on it and describe them, so that the cooperative builds
 verified knowledge for image recognition (e.g. a beekeeper adds photos of queen bees).*
+
+The atlas is **multi-domain**: beekeeping is only the example use case. Every domain of the
+cooperative (beekeeping, gardening, crafts, equipment…) gets its own label vocabulary in the
+same atlas.
 **Spec refs:** `AGENTS.md` §3 (RLS, block-level provenance, anti-distillation, local LLM for
 private data) · `docs/ARCHITECTURE.md` §2 (Push-to-Wiki, Expert Council), §3 (consent, exit
 strategy), §4 (VLM in the ingestion pipeline) · `docs/SECURITY.md` (shield layers 1, 3, 5) ·
@@ -22,6 +26,12 @@ chunks 2.3 (EXIF), 2.5 (media workers), 3.2 (PII), 3.3 (injection), 3.5 (promoti
 - **Labels: expert-curated vocabulary + free text.** Every marked element has a label from a
   shared vocabulary (members may propose new labels) and its own description.
 - **Shapes: rectangles only** (bounding boxes). Polygons and points are follow-ups.
+- **Multi-domain (2026-10-21, answer to open question 1):** labels are grouped into domains
+  managed in the app; nothing is beekeeping-specific in code or production seed data.
+- **Author visibility is the author's choice (answer to open question 2):** per photo, set
+  when sending and changeable at any time.
+- **Dataset export needs a separate opt-in (answer to open question 3):** `allow_export` per
+  photo, off unless the author ticks it.
 
 UI name: **„Atlas”** (nav item), photos in the atlas: *„zdjęcia atlasu”*, a marked element:
 *„oznaczenie”*, the vocabulary: *„słownik etykiet”*.
@@ -55,7 +65,8 @@ UI name: **„Atlas”** (nav item), photos in the atlas: *„zdjęcia atlasu”
 1. **Annotate a photo privately:** in a note, open a photo, write a caption, draw rectangles on
    elements, give each a label from the vocabulary and a description. Works with mouse, touch
    and keyboard.
-2. **Label vocabulary:** experts curate labels (name, description, synonyms, category); members
+2. **Domains and label vocabulary:** admins create domains (e.g. „Pszczelarstwo”,
+   „Ogrodnictwo”); experts curate each domain's labels (name, description, synonyms); members
    pick from it and may propose a missing label, which an expert approves, merges or rejects.
 3. **Contribute to the atlas:** "Przekaż do atlasu" sends one annotated photo for review. A
    shared copy is made with all metadata (including GPS) removed, texts are PII-scrubbed and
@@ -82,7 +93,7 @@ UI name: **„Atlas”** (nav item), photos in the atlas: *„zdjęcia atlasu”
 - Face/plate blurring tools (v1 flags such photos for the member and the experts instead).
 - Annotating photos directly in the shared atlas without the private step.
 - Cloud vision models for any of this: every step is local (VLM purpose is local-only, 7.1).
-- Per-cooperative or per-domain vocabularies (one shared vocabulary with categories).
+- Domain-scoped experts (any EXPERT reviews any domain in v1; follow-up if the council grows).
 
 ## 2. Security and governance invariants (must hold after this stage)
 
@@ -99,33 +110,46 @@ UI name: **„Atlas”** (nav item), photos in the atlas: *„zdjęcia atlasu”
 | A9 | The dataset export is deliberate and attributable. | Off unless the operator sets `atlas.export_enabled=true` (env, the UI cannot widen it). ADMIN + MFA + step-up (≤ 5 min), max 5 exports per day, built by a worker into an encrypted archive with a single-use download link valid 24 h, `ATLAS_EXPORTED` audit event with the manifest hash and counts. |
 | A10 | Labels are governed. | Only EXPERT/ADMIN create, edit, merge or deprecate labels; members only propose. A deprecated label stays on existing regions (shown greyed) and can't be chosen for new ones; a merge re-points regions and updates point payloads through the outbox. |
 | A11 | Uploaded images can't attack the workers. | Existing 2.2/2.3 rules (magic bytes, ClamAV, Pillow decompression-bomb limit, re-encode) also apply to the shared copy and the embedding crops; region coordinates are validated server-side (normalised `0 ≤ x, y` and `x + w ≤ 1`, `y + h ≤ 1`, min size 0.5 % of a side, max 50 regions per photo). |
+| A12 | The author's attribution choice is respected everywhere. | With `show_author=false` the author's name and id never appear in member-facing responses (atlas list and page, recognition citations, label proposals linked to the photo); reviewers' queue already hides identity; only the author, admins (audit) and the database keep `author_id`. Export manifests hash author ids per export. Test: an anonymous photo's API responses contain no author name or id for another member. |
 
 ## 3. Design
 
-### 3.1 Label vocabulary (migration `0014_visual_labels`, shared zone)
+### 3.1 Domains and label vocabulary (migration `0014_visual_labels`, shared zone)
 
 ```
-visual_label  id, slug (unique), name (pl), description, category,
-              synonyms text[], status PROPOSED|ACTIVE|DEPRECATED,
-              merged_into_id → visual_label, proposed_by, approved_by, created_at, updated_at
+visual_domain id, slug (unique), name (pl), description, status ACTIVE|ARCHIVED,
+              created_by, created_at
+visual_label  id, domain_id → visual_domain, slug (unique per domain), name (pl),
+              description, synonyms text[], status PROPOSED|ACTIVE|DEPRECATED,
+              merged_into_id → visual_label (same domain), proposed_by, approved_by,
+              created_at, updated_at
 ```
 
-- Seeded by a data migration with a starter beekeeping category (owner can edit before 9.1):
-  *matka pszczela, robotnica, truteń, jajo, czerw otwarty, czerw kryty, matecznik, miseczka
-  mateczna, pierzga, miód kryty, warroza (Varroa destructor), zgnilec (objawy), wosk / plaster*.
+- **No domain-specific production seed.** Migrations create empty tables; admins create
+  domains, experts fill them. The same label name may exist in two domains ("larwa" in
+  beekeeping and in gardening pests) without clashing.
+- An **example domain** for dev, demos and tests is loaded by `spoldzielnia atlas
+  seed-example` (not run in prod): „Pszczelarstwo” with *matka pszczela, robotnica, truteń,
+  jajo, czerw otwarty, czerw kryty, matecznik, miseczka mateczna, pierzga, miód kryty, warroza
+  (Varroa destructor), zgnilec (objawy), plaster*. E2E and the 9.8 benchmark use it.
+- Domains: ADMIN + MFA creates, renames and archives them (an archived domain keeps its photos
+  and labels read-only, and accepts no new photos). Audit `DOMAIN_CREATED`, `DOMAIN_CHANGED`.
 - `wiki/labels.py` → `LabelService`: `search` (name + synonyms, accent-insensitive via
   `unaccent`), `propose` (member, max 10 per day), `approve`, `edit`, `merge`, `deprecate`.
-- API `/labels`: `GET` (members, ACTIVE + own PROPOSED), `POST /labels/proposals` (member),
+- API `/domains` (`GET` members; `POST`/`PATCH` ADMIN + MFA) and `/labels?domain=`: `GET`
+  (members, ACTIVE + own PROPOSED), `POST /labels/proposals` (member),
   `POST /labels`, `PATCH /labels/{id}`, `POST /labels/{id}/merge`, `POST /labels/{id}/deprecate`
   (EXPERT/ADMIN + MFA). Audit `LABEL_PROPOSED`, `LABEL_APPROVED`, `LABEL_CHANGED`,
   `LABEL_MERGED`, `LABEL_DEPRECATED`.
-- Frontend: label combobox (search, synonyms, "Zaproponuj nową etykietę"); experts get a
-  „Słownik etykiet” tab in `/review`.
+- Frontend: label combobox scoped to the photo's domain (search, synonyms, "Zaproponuj nową
+  etykietę"); experts get a „Słownik etykiet” tab in `/review` with a domain selector; admins
+  manage domains in `/admin` („Dziedziny atlasu”).
 
 ### 3.2 Private photo annotations (migration `0015_image_annotation`, private zone)
 
 ```
 annotated_image   id, owner_id (RLS), note_id, attachment_id (unique, image only),
+                  domain_id → visual_domain (chosen first; labels come from it),
                   width, height (of the sanitized, orientation-corrected image),
                   caption_ciphertext, dek_wrapped, version, updated_at
 image_annotation  id, owner_id (RLS), annotated_image_id, label_id → visual_label,
@@ -171,8 +195,8 @@ atlas_submission (private, RLS)  id, owner_id, annotated_image_id, atlas_image_i
 atlas_image  (shared)  id, author_id, consent_status, status DRAFT|IN_REVIEW|APPROVED|
                        REVISION_REQUIRED|REJECTED, object_key, preview_object_key,
                        thumb_object_key, width, height, sha256, phash, caption,
-                       privacy_flags jsonb (kinds + scores only), allow_export bool,
-                       version,
+                       privacy_flags jsonb (kinds + scores only), domain_id,
+                       allow_export bool, show_author bool, version,
                        verified_at, review_alert, created_at
 atlas_region (shared)  id, atlas_image_id, author_id, consent_status, label_id,
                        x, y, w, h, description, corrected_by, position
@@ -180,13 +204,16 @@ atlas_review (shared)  id, atlas_image_id, reviewer_id, decision, comment
 ```
 
 - **Flow** (`POST /atlas/submissions {attachment_id, confirm_no_people: bool, allow_export:
-  bool}`, max 20 per day): a worker job (`worker-core`, no network) decrypts the private image, re-encodes a shared
+  bool, show_author: bool}`, max 20 per day): a worker job (`worker-core`, no network) decrypts the private image, re-encodes a shared
   copy (pixels only, max 4096 px, JPEG q90, preview 1600 px, thumbnail 320 px), computes
   SHA-256 and a perceptual hash (duplicate check against existing atlas photos → "to zdjęcie
   już jest w atlasie"), scrubs caption and descriptions (Presidio, `force_local_llm=True`),
   runs the injection guard on them, and asks the local VLM for `privacy_flags`. Result: an
   `atlas_image` in `IN_REVIEW` with its regions; the member sees the scrubbed texts and flags
   first and confirms (`SENT`) or withdraws.
+- The dialog asks two explicit questions with nothing preselected: „Pokaż moje imię i nazwisko
+  przy zdjęciu” / „Publikuj anonimowo” (`show_author`), and „Zgadzam się na użycie zdjęcia w
+  eksporcie zbioru danych” (`allow_export`, unchecked by default).
 - A photo with a `person`/`face` flag can be sent only if the member ticked
   `confirm_no_people` ("osoby na zdjęciu wyraziły zgodę lub są nierozpoznawalne"); experts see
   the flag regardless.
@@ -206,9 +233,10 @@ atlas_review (shared)  id, atlas_image_id, reviewer_id, decision, comment
   experts, like articles; the second approver sees the first one's corrections as a diff
   (boxes before/after overlaid).
 - A photo that uses a PROPOSED label can't be approved until that label is approved or merged.
-- `/atlas` (members): grid of approved photos (thumbnails), filters by label and category,
+- `/atlas` (members): grid of approved photos (thumbnails), filters by domain and label,
   search by label/synonym; photo page with the image, boxes, caption, region descriptions,
-  author display name (as on articles), verification date and reviewers.
+  the author's display name **only if `show_author`** (otherwise „Członek spółdzielni”),
+  verification date and reviewers. The review queue filters by domain.
 - `ATLAS_SUBMITTED`, `ATLAS_REVIEWED`, `ATLAS_STATUS_CHANGED` audit events; metrics
   `atlas_submissions_total{outcome}`, `atlas_review_seconds`.
 
@@ -220,12 +248,16 @@ atlas_review (shared)  id, atlas_image_id, reviewer_id, decision, comment
 - Suspend: hidden from `/atlas`, points `is_active=false`. Resume: back only if still
   `APPROVED`. Revoke: objects deleted from MinIO, caption/description wiped (tombstone, CHECK),
   points deleted, exports that contained it marked.
-- „Mój wkład” lists atlas photos next to articles, with thumbnails, and a switch for
-  `allow_export` (consent to dataset export, separate from consent to the atlas).
+- „Mój wkład” lists atlas photos next to articles, with thumbnails and two switches per
+  photo: `show_author` (name visible or anonymous, takes effect immediately) and `allow_export`
+  (consent to dataset export, separate from consent to the atlas; turning it off excludes the
+  photo from future exports). Both changes are audited (`ATLAS_ATTRIBUTION_CHANGED`,
+  `ATLAS_EXPORT_CONSENT_CHANGED`).
 
 ### 3.7 Dataset export
 
-- `POST /admin/atlas/exports {format: coco|yolo, labels?: [..], min_verified_at?}` (A9) →
+- `POST /admin/atlas/exports {format: coco|yolo, domain, labels?: [..], min_verified_at?}`
+  (A9, one domain per export, so class lists stay coherent) →
   job in `worker-core`: selects `APPROVED` + `ACTIVE` + `allow_export`, writes images (shared
   copies, renamed to opaque ids), annotations in COCO JSON or YOLO txt + `classes.txt`, a `manifest.json`
   (image ids, sha256, label ids, author ids hashed with a per-export salt, export id, created
@@ -254,7 +286,8 @@ atlas_review (shared)  id, atlas_image_id, reviewer_id, decision, comment
 
 - `POST /notes/{note_id}/attachments/{id}/recognize {question?}` (member, owner, 30 per day) →
   job in `worker-media`: embed the whole photo and a grid of overlapping crops (3×3 + 2×2),
-  search `atlas_visual_index` with the mandatory filter (A5), aggregate hits per label (score
+  search `atlas_visual_index` with the mandatory filter (A5) and the photo's domain (the
+  member may widen it to all domains), aggregate hits per label (score
   threshold from settings, calibrated in 9.8). No hit above the threshold → "W atlasie nie ma
   zweryfikowanych przykładów podobnych do tego zdjęcia" (strict grounding, no VLM guessing).
 - Otherwise the local VLM gets the member's photo, the candidate labels with their vocabulary
@@ -273,11 +306,13 @@ atlas_review (shared)  id, atlas_image_id, reviewer_id, decision, comment
 ### Phase A — annotated, expert-verified dataset
 
 ### Chunk 9.1 — Label vocabulary
-- Migration `0014_visual_labels` with seed, `LabelService`, `/labels` API, audit events, label
-  combobox component and the experts' „Słownik etykiet” tab.
+- Migration `0014_visual_labels` (domains + labels, no seed), `seed-example` CLI,
+  `LabelService`, `/domains` and `/labels` API, audit events, label combobox, the experts'
+  „Słownik etykiet” tab and the admins' „Dziedziny atlasu” panel.
 - **Tests:** unit — slug/synonym search with Polish diacritics, proposal daily limit, merge
-  re-points; integration — authz matrix (member proposes only; EXPERT without MFA → 403),
-  deprecated label not selectable, audit rows; Vitest — combobox search, propose flow.
+  re-points only within a domain; integration — authz matrix (member proposes only; EXPERT
+  without MFA → 403; only ADMIN manages domains), same label name in two domains, archived
+  domain refuses new photos, deprecated label not selectable, audit rows; Vitest — combobox search, propose flow.
 
 ### Chunk 9.2 — Private photo annotations and image serving
 - Migration `0015_image_annotation` (+ `preview_object_key` on `note_attachment`), preview
@@ -301,7 +336,8 @@ atlas_review (shared)  id, atlas_image_id, reviewer_id, decision, comment
   scrubbed (PESEL, phone, name); injection text in a description is flagged and blocks sending;
   duplicate photo detected; person flag requires `confirm_no_people`; VLM unavailable → photo
   goes to review with `privacy_check: unavailable` and a visible warning (not silently clean);
-  provenance columns set (A4); daily limit.
+  provenance columns set (A4); `show_author` and `allow_export` must be answered explicitly
+  (422 if missing); daily limit.
 
 ### Chunk 9.5 — Expert review and the shared atlas
 - Atlas tab in `/review` (box corrections, added regions, decisions, two-expert quorum, diff of
@@ -309,7 +345,8 @@ atlas_review (shared)  id, atlas_image_id, reviewer_id, decision, comment
   audit and metrics.
 - **Tests:** quorum and optimistic locking; PROPOSED label blocks approval; corrected regions
   keep the member as author and record `corrected_by`; members see only APPROVED + ACTIVE (A5);
-  pending photo → 404 for other members; thumbnails-only listing, page size cap, coverage
+  pending photo → 404 for other members; an anonymous photo exposes no author name or id
+  to other members (A12); domain and label filters; thumbnails-only listing, page size cap, coverage
   counter increments and the shield degrades a scraper (A7).
 
 ### Chunk 9.6 — Consent for atlas photos
@@ -317,7 +354,8 @@ atlas_review (shared)  id, atlas_image_id, reviewer_id, decision, comment
   list with thumbnails.
 - **Tests:** suspend hides and deactivates points; resume only while APPROVED; revoke deletes the
   MinIO objects, wipes texts (CHECK), deletes points, is final, and marks exports (A6); only the
-  author can act; expert-added regions follow the photo.
+  author can act; expert-added regions follow the photo; switching `show_author` changes the
+  atlas page at once; switching `allow_export` off excludes the photo from the next export.
 
 ### Chunk 9.7 — Dataset export
 - `AtlasSettings`, export job (COCO / YOLO + manifest), admin API and a small „Eksport zbioru
@@ -345,19 +383,22 @@ atlas_review (shared)  id, atlas_image_id, reviewer_id, decision, comment
 - **Tests:** no similar examples → grounded "no verified examples" answer without a VLM call;
   `force_local_llm=True` asserted (A8); response contains no vectors or raw hits (A7); citations
   only to APPROVED + ACTIVE photos; suspended photo stops being cited immediately; accepted
-  suggestions become `SUGGESTED` annotations; daily limit; injection guard on the VLM output.
+  suggestions become `SUGGESTED` annotations; citations of anonymous photos carry no author
+  (A12); search limited to the photo's domain unless widened; daily limit; injection guard on the VLM output.
 
 ### Chunk 9.10 — E2E, security review and docs
-- Playwright scenario 11: member A adds a queen photo to a note, marks the queen and a queen
-  cell, sends it to the atlas (sees the scrubbed caption); two experts correct one box and
-  approve; member B finds it in `/atlas` under *matka pszczela*; member B uploads another photo
+- Playwright scenario 11 (example domain from `seed-example`): member A adds a queen photo
+  to a note, picks the domain „Pszczelarstwo”, marks the queen and a queen cell, sends it to
+  the atlas anonymously (sees the scrubbed caption); two experts correct one box and
+  approve; member B finds it in `/atlas` under *matka pszczela* shown as „Członek
+  spółdzielni”; member B uploads another photo
   and „Rozpoznaj” suggests the queen with a citation; member A suspends the photo and it
   disappears from the atlas and from B's citations; admin export is refused while disabled.
-- `SECURITY_REVIEW.md` (A1–A11: API1 BOLA on images, API4 resource limits, LLM01/LLM06, privacy
+- `SECURITY_REVIEW.md` (A1–A12: API1 BOLA on images, API4 resource limits, LLM01/LLM06, privacy
   of people in photos), README „Atlas”, story log delivery list.
 
 **Stage 9 exit criteria:** Phase A (9.1–9.7) green and usable on its own; Phase B (9.8–9.10)
-green; A1–A11 covered by tests; scenario 11 passes against the compose stack.
+green; A1–A12 covered by tests; scenario 11 passes against the compose stack.
 
 ## 5. Decisions taken (change before 9.1 if you disagree)
 
@@ -366,23 +407,21 @@ green; A1–A11 covered by tests; scenario 11 passes against the compose stack.
 | Where photos are annotated | In the private notebook first, then contributed. | Directly in the shared atlas (no private draft; conflicts with Push-to-Wiki). |
 | Unit of consent | The whole photo (one author). Expert-added regions follow it. | Per region (a member could revoke only their marks, leaving an image they don't own). |
 | Shape | Rectangles, normalised coordinates. | Polygons/points (follow-up; the schema adds a `shape` column then). |
-| Vocabulary | One shared vocabulary with categories, experts govern, members propose. | Free text tags (inconsistent labels make recognition fail). |
+| Vocabulary | Domains (admin) with their own labels (experts govern, members propose); no production seed. | Free text tags (inconsistent labels make recognition fail); one flat vocabulary (name clashes across domains). |
+| Author attribution | The author chooses per photo (name or „Członek spółdzielni”), can change it any time; `author_id` is always kept for provenance and consent. | Always shown like articles; always anonymous. |
 | People in photos | VLM flag + member confirmation + expert check; no automatic blurring. | Automatic face blurring (follow-up; needs a face detector model). |
 | Shared image storage | Encrypted per image (DEK + KEK), like private objects. | Plain MinIO SSE only (simpler, weaker at rest). |
 | Dataset export | Off by default; admin, step-up, manifest, single-use link. Revoke cannot recall an export already downloaded; the manifest makes it traceable and the UI says so before exporting. | No export at all (Phase B only), or export to members (distillation risk). |
 | Recognition | Similar-example retrieval + local VLM with references; strict grounding. | VLM alone (guesses without verified examples) or a trained detector (needs a training pipeline; the export enables it later). |
 | Image embedding model | SigLIP base (pinned, CPU), confirmed by the 9.8 benchmark. | CLIP ViT-B/32 (smaller, weaker on fine detail), DINOv2 (no text side; fine if we never search by text). |
 
-## 6. Open questions for the product owner (do not block 9.1)
+## 6. Product owner answers (2026-10-21)
 
-1. **Other domains:** the seed vocabulary is beekeeping only. Should categories for other
-   cooperative domains be seeded too, or added by experts later?
-2. **Who sees authors in the atlas:** shown like article authors (default), or anonymous
-   ("członek spółdzielni") on photos?
-3. **Export licence:** the manifest says "internal use of the cooperative". Do contributors need
-   an explicit opt-in for dataset export (a checkbox when sending to the atlas), beyond consent
-   to the atlas itself? Default in this plan: **yes**, a separate `allow_export` flag per photo,
-   off unless ticked; only flagged photos are exported.
+1. **Domains:** the solution is multi-domain; beekeeping is only an example. → §3.1 domains,
+   no production seed, example domain via `seed-example`.
+2. **Author visibility:** the author decides per photo whether their name is shown. →
+   `show_author`, A12, §3.4–3.6.
+3. **Export opt-in:** yes, a separate opt-in per photo. → `allow_export`, A9, §3.4, §3.7.
 
 ---
 

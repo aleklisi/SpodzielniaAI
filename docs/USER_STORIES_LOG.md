@@ -100,6 +100,8 @@ reset passwords, block access for a user, force a password change and manage use
 and describe them, so that the cooperative builds verified knowledge for image recognition (for
 example, a beekeeper adds photos of queen bees).
 
+The solution is multi-domain: beekeeping is only an example use case.
+
 - **Source:** product owner request, 2026-10-21 (refinement session).
 - **Status:** PLANNED 2026-10-21 (Etap 9, chunks 9.1–9.10). Not started; waits for an explicit
   instruction.
@@ -107,26 +109,30 @@ example, a beekeeper adds photos of queen bees).
 - **Refinement decisions:** both a dataset and in-app recognition, phased (Phase A dataset,
   Phase B recognition); photos are annotated privately and then contributed to a shared atlas
   through expert review; labels come from an expert-curated vocabulary (members propose) plus a
-  free-text description; rectangles only.
+  free-text description; rectangles only. Answers 2026-10-21: multi-domain (labels grouped
+  in domains, no beekeeping-specific seed); the author decides per photo whether their name is
+  shown; dataset export needs a separate opt-in per photo.
 - **Acceptance criteria:**
   1. A member can open a photo in their private notebook, write a caption, draw rectangles on
      elements, and give each one a label from the vocabulary and a description (mouse, touch and
      keyboard). Nobody else can see the photo or its annotations.
-  2. Experts curate the label vocabulary; members can propose a missing label.
+  2. Admins create domains (e.g. beekeeping, gardening); experts curate each domain's label
+     vocabulary; members can propose a missing label.
   3. A member can send an annotated photo to the atlas. The shared copy has no metadata
      (including GPS), texts are PII-scrubbed and scanned for injection, and photos showing
      people or documents are flagged before sending.
   4. Two experts verify a photo (they can correct boxes and labels) before it appears in the
      shared atlas; members browse approved photos by label.
-  5. The author can suspend, resume or revoke each atlas photo and separately allow or refuse
-     its use in dataset exports; revoke removes the image, its marks and its vectors.
+  5. The author decides per photo whether their name is shown or the photo is anonymous, and
+     can change it any time. The author can suspend, resume or revoke each atlas photo and
+     separately allow or refuse its use in dataset exports (off unless ticked); revoke removes the image, its marks and its vectors.
   6. An admin can export the verified, consented dataset (COCO/YOLO + manifest) only if the
      operator enabled it, with step-up MFA; every export is audited.
   7. (Phase B) „Rozpoznaj” on a notebook photo suggests marked elements with boxes, citing
-     verified atlas photos, using local models only; with no similar verified examples it says
+     verified atlas photos of the same domain, using local models only; with no similar verified examples it says
      so instead of guessing. Suggestions can be accepted as the member's own annotations.
 - **Out of scope / follow-ups:** polygons and points; automatic face blurring; training a
-  detector inside the app; video frames; per-domain vocabularies.
+  detector inside the app; video frames; domain-scoped experts.
 - **Delivery:** (commits added per chunk)
 
 ---
