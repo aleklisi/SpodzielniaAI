@@ -17,6 +17,7 @@ const LINKS: Array<{ href: string; label: string; role?: Role }> = [
   { href: "/review", label: "Recenzje", role: "EXPERT" },
   { href: "/admin/security", label: "Bezpieczeństwo", role: "ADMIN" },
   { href: "/admin/llm", label: "Modele AI", role: "ADMIN" },
+  { href: "/admin/users", label: "Użytkownicy", role: "ADMIN" },
 ];
 
 /** Links for the account's roles (the API enforces them regardless). */

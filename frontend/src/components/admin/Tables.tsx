@@ -43,6 +43,13 @@ export function UsersTable({
                 <button type="button" className="text-left hover:text-primary-strong" onClick={() => onSelect(u.user_id)}>
                   {u.display_name ?? u.email ?? u.user_id.slice(0, 8)}
                 </button>
+                <a
+                  href={`/admin/users?user=${u.user_id}`}
+                  className="ml-2 text-xs text-text-muted hover:text-primary-strong"
+                  aria-label={`Konto: ${u.display_name ?? u.email ?? u.user_id.slice(0, 8)}`}
+                >
+                  konto
+                </a>
               </td>
               <td className="py-2 pr-3">
                 <LevelBadge level={u.level} /> <span className="text-xs text-text-muted">{u.risk.toFixed(2)}</span>

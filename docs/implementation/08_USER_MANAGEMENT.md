@@ -327,3 +327,21 @@ against the compose stack with MFA on and off.
 - Metrics `user_admin_actions_total{action,outcome}`, `keycloak_admin_seconds{method}`.
 - Tests app state hook: `app.state.user_idp` replaces Keycloak with the in-memory fake.
 
+### 8.5 (done)
+- `frontend/src/lib/users-admin.ts` (hooks, Polish labels and refusal messages, guardrail
+  helpers `lockoutReason`, `grantsElevated`), `components/admin/users/{UsersConsole,
+  UserPanel,CreateUserDialog,OneTimePassword}.tsx`, page `/admin/users`, nav "Użytkownicy".
+- List: debounced search, role and status filters, pages of 25; the detail panel opens beside
+  the table (below it on narrow screens). `/admin/users?user=<id>` opens a user; the security
+  dashboard's user table links there ("konto").
+- A temporary password lives only in dialog state and is dropped when the dialog closes.
+- Grants of EXPERT/ADMIN go through a confirmation naming the role (and the MFA enrolment the
+  user will face); the API's step-up 403 shows the existing "Zaloguj ponownie z MFA" notice in
+  the panel and resets the checkboxes.
+- Own account / last active admin: block button and the ADMIN checkbox are disabled with the
+  reason; external identities get no password actions.
+- The shield unlock reuses `UnlockDialog` (its prop type is now the four fields it reads).
+- Audit labels for the new `USER_*` events in the security console.
+- Tests: `users.test.tsx` (9: list and filters, one-time password, grant confirmation,
+  guardrails, step-up, external identity, block body, error mapping, helpers).
+

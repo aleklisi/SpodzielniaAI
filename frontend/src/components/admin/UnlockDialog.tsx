@@ -7,7 +7,10 @@ import { Dialog } from "@/components/ui/Dialog";
 import { useToast } from "@/components/ui/Toast";
 import { useUnlock, type UserCoverage } from "@/lib/admin";
 
-export function UnlockDialog({ user, onClose }: { user: UserCoverage | null; onClose: () => void }) {
+/** Lifts the shield's lock (6.6). Used by the security dashboard and the user console (8.5). */
+export type UnlockTarget = Pick<UserCoverage, "user_id" | "display_name" | "email" | "locked_reason">;
+
+export function UnlockDialog({ user, onClose }: { user: UnlockTarget | null; onClose: () => void }) {
   const [reason, setReason] = useState("");
   const [resetRisk, setResetRisk] = useState(true);
   const unlock = useUnlock();

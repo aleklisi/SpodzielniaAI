@@ -130,4 +130,12 @@ export const EVENT_LABELS: Record<string, string> = {
   CONSENT_RESUMED: "Wznowienie zgody",
   ARTICLE_STATUS_CHANGED: "Zmiana statusu artykułu",
   USER_LOGIN: "Logowanie",
+  USER_CREATED: "Utworzono konto",
+  USER_ROLES_CHANGED: "Zmiana ról",
+  USER_BLOCKED: "Zablokowano konto",
+  USER_UNBLOCKED: "Odblokowano konto (administrator)",
+  USER_PASSWORD_RESET: "Reset hasła",
+  USER_PASSWORD_CHANGE_REQUIRED: "Wymuszona zmiana hasła",
+  USER_SESSIONS_REVOKED: "Wylogowano ze wszystkich urządzeń",
+  USERS_SYNCED: "Synchronizacja kont z Keycloak",
 };
