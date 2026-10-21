@@ -17,6 +17,7 @@ from urllib.parse import quote
 import httpx
 
 from spoldzielnia_ai.core.logging import get_logger
+from spoldzielnia_ai.core.metrics import KEYCLOAK_ADMIN_SECONDS
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping, Sequence
@@ -208,6 +209,7 @@ class KeycloakAdmin:
                 break
         if response is None:  # pragma: no cover - the loop runs at least once
             raise KeycloakAdminError("no response")
+        KEYCLOAK_ADMIN_SECONDS.labels(method).observe(self._clock() - started)
         log.debug(
             "keycloak_admin.request",
             method=method,

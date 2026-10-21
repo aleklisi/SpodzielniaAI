@@ -220,6 +220,6 @@ Rejestr historyjek dodanych poza Etapami 1–6: [docs/USER_STORIES_LOG.md](docs/
 - [x] 8.1 Klient Keycloak Admin API (konto serwisowe `spoldzielnia-admin` z minimalnymi uprawnieniami) i idempotentna konfiguracja realmu
 - [x] 8.2 Model danych (źródło blokady, ostatnie logowanie), indeks sesji per użytkownik i zdarzenia audytu
 - [x] 8.3 `UserAdminService`: tworzenie kont, reset hasła, blokada, wymuszenie zmiany hasła, role, zabezpieczenia (ostatni admin, step-up MFA)
-- [ ] 8.4 API administratora `/admin/users` (wyszukiwanie, akcje, limity, metryki)
+- [x] 8.4 API administratora `/admin/users` (wyszukiwanie, akcje, limity, metryki)
 - [ ] 8.5 Interfejs `/admin/users` (lista, tworzenie konta, szczegóły użytkownika, akcje)
 - [ ] 8.6 Testy E2E Playwright, aktualizacja przeglądu bezpieczeństwa i dokumentacji

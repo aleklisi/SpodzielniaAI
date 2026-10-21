@@ -372,6 +372,30 @@
         "title": "AuthorOut",
         "type": "object"
       },
+      "BlockIn": {
+        "properties": {
+          "note": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "reason": {
+            "$ref": "#/components/schemas/BlockReason"
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "title": "BlockIn",
+        "type": "object"
+      },
       "BlockOut": {
         "properties": {
           "author_id": {
@@ -429,6 +453,17 @@
         ],
         "title": "BlockOut",
         "type": "object"
+      },
+      "BlockReason": {
+        "enum": [
+          "left_cooperative",
+          "security",
+          "policy_violation",
+          "other",
+          "idp_disabled"
+        ],
+        "title": "BlockReason",
+        "type": "string"
       },
       "CanaryOut": {
         "properties": {
@@ -776,6 +811,94 @@
         "title": "CoverageOut",
         "type": "object"
       },
+      "CreateUserIn": {
+        "properties": {
+          "email": {
+            "anyOf": [
+              {
+                "maxLength": 254,
+                "pattern": "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "first_name": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Name"
+          },
+          "last_name": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Name"
+          },
+          "password_mode": {
+            "$ref": "#/components/schemas/PasswordMode",
+            "default": "email"
+          },
+          "roles": {
+            "items": {
+              "$ref": "#/components/schemas/Role"
+            },
+            "maxItems": 3,
+            "title": "Roles",
+            "type": "array"
+          },
+          "username": {
+            "maxLength": 64,
+            "minLength": 3,
+            "title": "Username",
+            "type": "string"
+          }
+        },
+        "required": [
+          "username"
+        ],
+        "title": "CreateUserIn",
+        "type": "object"
+      },
+      "CreatedOut": {
+        "properties": {
+          "temporary_password": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Temporary Password"
+          },
+          "user": {
+            "$ref": "#/components/schemas/UserOut"
+          }
+        },
+        "required": [
+          "user",
+          "temporary_password"
+        ],
+        "title": "CreatedOut",
+        "type": "object"
+      },
       "DerivativeKind": {
         "enum": [
           "TRANSCRIPT",
@@ -1064,6 +1187,58 @@
           "ARTICLE_DEGRADED"
         ],
         "type": "string"
+      },
+      "IdpOut": {
+        "description": "Live from Keycloak.",
+        "properties": {
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "email_verified": {
+            "title": "Email Verified",
+            "type": "boolean"
+          },
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "identity_providers": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Identity Providers",
+            "type": "array"
+          },
+          "required_actions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Required Actions",
+            "type": "array"
+          },
+          "totp": {
+            "title": "Totp",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "enabled",
+          "email",
+          "email_verified",
+          "totp",
+          "required_actions",
+          "identity_providers"
+        ],
+        "title": "IdpOut",
+        "type": "object"
       },
       "InjectIn": {
         "properties": {
@@ -1684,6 +1859,61 @@
           }
         },
         "title": "NoteUpdate",
+        "type": "object"
+      },
+      "PasswordChangeIn": {
+        "properties": {
+          "sign_out": {
+            "default": false,
+            "title": "Sign Out",
+            "type": "boolean"
+          }
+        },
+        "title": "PasswordChangeIn",
+        "type": "object"
+      },
+      "PasswordMode": {
+        "enum": [
+          "email",
+          "temporary"
+        ],
+        "title": "PasswordMode",
+        "type": "string"
+      },
+      "PasswordResetIn": {
+        "properties": {
+          "mode": {
+            "$ref": "#/components/schemas/PasswordMode"
+          }
+        },
+        "required": [
+          "mode"
+        ],
+        "title": "PasswordResetIn",
+        "type": "object"
+      },
+      "PasswordResetOut": {
+        "properties": {
+          "mode": {
+            "$ref": "#/components/schemas/PasswordMode"
+          },
+          "temporary_password": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Temporary Password"
+          }
+        },
+        "required": [
+          "mode",
+          "temporary_password"
+        ],
+        "title": "PasswordResetOut",
         "type": "object"
       },
       "PlaygroundIn": {
@@ -2673,6 +2903,23 @@
         "title": "Role",
         "type": "string"
       },
+      "RolesIn": {
+        "properties": {
+          "roles": {
+            "items": {
+              "$ref": "#/components/schemas/Role"
+            },
+            "maxItems": 3,
+            "title": "Roles",
+            "type": "array"
+          }
+        },
+        "required": [
+          "roles"
+        ],
+        "title": "RolesIn",
+        "type": "object"
+      },
       "RollbackIn": {
         "properties": {
           "comment": {
@@ -2826,6 +3073,19 @@
         "title": "ScopeIn",
         "type": "object"
       },
+      "SignOutOut": {
+        "properties": {
+          "app_sessions": {
+            "title": "App Sessions",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "app_sessions"
+        ],
+        "title": "SignOutOut",
+        "type": "object"
+      },
       "StatusOut": {
         "properties": {
           "active_revision": {
@@ -2957,6 +3217,34 @@
           "version"
         ],
         "title": "SubmitOut",
+        "type": "object"
+      },
+      "SyncOut": {
+        "properties": {
+          "blocked": {
+            "title": "Blocked",
+            "type": "integer"
+          },
+          "created": {
+            "title": "Created",
+            "type": "integer"
+          },
+          "seen": {
+            "title": "Seen",
+            "type": "integer"
+          },
+          "updated": {
+            "title": "Updated",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "seen",
+          "created",
+          "updated",
+          "blocked"
+        ],
+        "title": "SyncOut",
         "type": "object"
       },
       "UnlockIn": {
@@ -3114,6 +3402,358 @@
         ],
         "title": "UserCoverageOut",
         "type": "object"
+      },
+      "UserDetailOut": {
+        "properties": {
+          "blocked_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Blocked At"
+          },
+          "blocked_by": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Blocked By"
+          },
+          "blocked_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Blocked Note"
+          },
+          "blocked_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Blocked Reason"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "created_by": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By"
+          },
+          "display_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Display Name"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "idp": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/IdpOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "is_self": {
+            "title": "Is Self",
+            "type": "boolean"
+          },
+          "last_login_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Login At"
+          },
+          "locked_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Locked At"
+          },
+          "locked_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Locked Reason"
+          },
+          "other_active_admins": {
+            "title": "Other Active Admins",
+            "type": "integer"
+          },
+          "required_actions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Required Actions",
+            "type": "array"
+          },
+          "risk_score": {
+            "title": "Risk Score",
+            "type": "number"
+          },
+          "roles": {
+            "items": {
+              "$ref": "#/components/schemas/Role"
+            },
+            "title": "Roles",
+            "type": "array"
+          },
+          "status": {
+            "$ref": "#/components/schemas/UserStatus"
+          },
+          "username": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Username"
+          }
+        },
+        "required": [
+          "id",
+          "username",
+          "display_name",
+          "email",
+          "roles",
+          "status",
+          "blocked_reason",
+          "locked_reason",
+          "required_actions",
+          "last_login_at",
+          "created_at",
+          "is_self",
+          "blocked_at",
+          "blocked_by",
+          "blocked_note",
+          "locked_at",
+          "risk_score",
+          "created_by",
+          "other_active_admins",
+          "idp"
+        ],
+        "title": "UserDetailOut",
+        "type": "object"
+      },
+      "UserOut": {
+        "properties": {
+          "blocked_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Blocked Reason"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "display_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Display Name"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "is_self": {
+            "title": "Is Self",
+            "type": "boolean"
+          },
+          "last_login_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Login At"
+          },
+          "locked_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Locked Reason"
+          },
+          "required_actions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Required Actions",
+            "type": "array"
+          },
+          "roles": {
+            "items": {
+              "$ref": "#/components/schemas/Role"
+            },
+            "title": "Roles",
+            "type": "array"
+          },
+          "status": {
+            "$ref": "#/components/schemas/UserStatus"
+          },
+          "username": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Username"
+          }
+        },
+        "required": [
+          "id",
+          "username",
+          "display_name",
+          "email",
+          "roles",
+          "status",
+          "blocked_reason",
+          "locked_reason",
+          "required_actions",
+          "last_login_at",
+          "created_at",
+          "is_self"
+        ],
+        "title": "UserOut",
+        "type": "object"
+      },
+      "UserPageOut": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/UserOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total"
+        ],
+        "title": "UserPageOut",
+        "type": "object"
+      },
+      "UserStatus": {
+        "enum": [
+          "active",
+          "blocked",
+          "shield_locked",
+          "pending_setup"
+        ],
+        "title": "UserStatus",
+        "type": "string"
       },
       "ValidationError": {
         "properties": {
@@ -4332,6 +4972,506 @@
         "summary": "Get Status",
         "tags": [
           "admin-llm"
+        ]
+      }
+    },
+    "/admin/users": {
+      "get": {
+        "operationId": "list_users_admin_users_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "default": "",
+              "maxLength": 100,
+              "title": "Q",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/Role"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Role"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/UserStatus"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserPageOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Users",
+        "tags": [
+          "admin-users"
+        ]
+      },
+      "post": {
+        "operationId": "create_user_admin_users_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateUserIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreatedOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create User",
+        "tags": [
+          "admin-users"
+        ]
+      }
+    },
+    "/admin/users/sync": {
+      "post": {
+        "operationId": "sync_users_admin_users_sync_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SyncOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Sync Users",
+        "tags": [
+          "admin-users"
+        ]
+      }
+    },
+    "/admin/users/{user_id}": {
+      "get": {
+        "operationId": "get_user_admin_users__user_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "User Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserDetailOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get User",
+        "tags": [
+          "admin-users"
+        ]
+      }
+    },
+    "/admin/users/{user_id}/block": {
+      "post": {
+        "operationId": "block_user_admin_users__user_id__block_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "User Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BlockIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Block User",
+        "tags": [
+          "admin-users"
+        ]
+      }
+    },
+    "/admin/users/{user_id}/password-reset": {
+      "post": {
+        "operationId": "reset_password_admin_users__user_id__password_reset_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "User Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasswordResetIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PasswordResetOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Reset Password",
+        "tags": [
+          "admin-users"
+        ]
+      }
+    },
+    "/admin/users/{user_id}/require-password-change": {
+      "post": {
+        "operationId": "require_password_change_admin_users__user_id__require_password_change_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "User Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasswordChangeIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Require Password Change",
+        "tags": [
+          "admin-users"
+        ]
+      }
+    },
+    "/admin/users/{user_id}/roles": {
+      "put": {
+        "operationId": "set_roles_admin_users__user_id__roles_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "User Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RolesIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Set Roles",
+        "tags": [
+          "admin-users"
+        ]
+      }
+    },
+    "/admin/users/{user_id}/sign-out": {
+      "post": {
+        "operationId": "sign_out_user_admin_users__user_id__sign_out_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "User Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignOutOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Sign Out User",
+        "tags": [
+          "admin-users"
+        ]
+      }
+    },
+    "/admin/users/{user_id}/unblock": {
+      "post": {
+        "operationId": "unblock_user_admin_users__user_id__unblock_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "User Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Unblock User",
+        "tags": [
+          "admin-users"
         ]
       }
     },

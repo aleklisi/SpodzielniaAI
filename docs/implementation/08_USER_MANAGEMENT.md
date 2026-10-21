@@ -308,3 +308,22 @@ against the compose stack with MFA on and off.
   (`idp_disabled`); it never lifts an app block. The detail view reads Keycloak live and falls
   back to the mirror when Keycloak is down.
 
+### 8.4 (done)
+- `api/admin_users.py`, router `/admin/users` (ADMIN + MFA): `GET ""` (q, role, status,
+  offset, limit ≤ 100), `POST ""` (201, `temporary_password` only in temporary mode),
+  `POST /sync`, `GET /{id}` (mirror + live Keycloak `idp`, `other_active_admins` for the UI's
+  last-admin hint), `PUT /{id}/roles`, `POST /{id}/block|unblock|password-reset|
+  require-password-change|sign-out`.
+- `reauthentication_required` (403) carries the same `step_up` URL as `mfa_required`, so the
+  existing frontend step-up flow handles it. Keycloak unreachable → 503 `idp_unavailable`
+  (`Retry-After`), other Keycloak errors → 502 `idp_error`; the list keeps working from the
+  mirror.
+- Limits: `keycloak_admin.mutations_per_minute` (30) on every mutation, and
+  `temporary_passwords_per_hour` (10) on top for temporary passwords (create and reset).
+- The shield unlock stays at `POST /admin/users/{id}/unlock` in `api/admin.py` (same path
+  family, unchanged contract) instead of moving.
+- `Cache-Control: no-store` is already on every API response (`core/headers.py`).
+- E-mail addresses get a shape check (no `email-validator` dependency); Keycloak validates too.
+- Metrics `user_admin_actions_total{action,outcome}`, `keycloak_admin_seconds{method}`.
+- Tests app state hook: `app.state.user_idp` replaces Keycloak with the in-memory fake.
+

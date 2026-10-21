@@ -33,3 +33,14 @@ LLM_ROUTE_REFUSED = Counter(
 LLM_CONFIG_REVISION = Gauge(
     "llm_config_revision", "Active LLM configuration revision in this process (0 = .env)"
 )
+
+USER_ADMIN_ACTIONS = Counter(
+    "user_admin_actions_total",
+    "Admin user-management actions by outcome (ok or the refusal code)",
+    ["action", "outcome"],
+)
+KEYCLOAK_ADMIN_SECONDS = Histogram(
+    "keycloak_admin_seconds",
+    "Keycloak Admin REST API call latency",
+    ["method"],
+)

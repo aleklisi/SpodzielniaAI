@@ -400,6 +400,160 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/users": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Users */
+        get: operations["list_users_admin_users_get"];
+        put?: never;
+        /** Create User */
+        post: operations["create_user_admin_users_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/users/sync": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Sync Users */
+        post: operations["sync_users_admin_users_sync_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/users/{user_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get User */
+        get: operations["get_user_admin_users__user_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/users/{user_id}/block": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Block User */
+        post: operations["block_user_admin_users__user_id__block_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/users/{user_id}/password-reset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reset Password */
+        post: operations["reset_password_admin_users__user_id__password_reset_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/users/{user_id}/require-password-change": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Require Password Change */
+        post: operations["require_password_change_admin_users__user_id__require_password_change_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/users/{user_id}/roles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Set Roles */
+        put: operations["set_roles_admin_users__user_id__roles_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/users/{user_id}/sign-out": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Sign Out User */
+        post: operations["sign_out_user_admin_users__user_id__sign_out_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/users/{user_id}/unblock": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Unblock User */
+        post: operations["unblock_user_admin_users__user_id__unblock_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/users/{user_id}/unlock": {
         parameters: {
             query?: never;
@@ -1052,6 +1206,12 @@ export interface components {
              */
             id: string;
         };
+        /** BlockIn */
+        BlockIn: {
+            /** Note */
+            note?: string | null;
+            reason: components["schemas"]["BlockReason"];
+        };
         /** BlockOut */
         BlockOut: {
             /**
@@ -1074,6 +1234,11 @@ export interface components {
             /** Withheld */
             withheld: boolean;
         };
+        /**
+         * BlockReason
+         * @enum {string}
+         */
+        BlockReason: "left_cooperative" | "security" | "policy_violation" | "other" | "idp_disabled";
         /** CanaryOut */
         CanaryOut: {
             /**
@@ -1198,6 +1363,27 @@ export interface components {
             /** Users */
             users: components["schemas"]["UserCoverageOut"][];
         };
+        /** CreateUserIn */
+        CreateUserIn: {
+            /** Email */
+            email?: string | null;
+            /** First Name */
+            first_name?: string | null;
+            /** Last Name */
+            last_name?: string | null;
+            /** @default email */
+            password_mode: components["schemas"]["PasswordMode"];
+            /** Roles */
+            roles?: components["schemas"]["Role"][];
+            /** Username */
+            username: string;
+        };
+        /** CreatedOut */
+        CreatedOut: {
+            /** Temporary Password */
+            temporary_password: string | null;
+            user: components["schemas"]["UserOut"];
+        };
         /**
          * DerivativeKind
          * @enum {string}
@@ -1291,6 +1477,24 @@ export interface components {
         };
         /** @enum {string} */
         HistoryEvent: "SUSPEND" | "RESUME" | "REVOKE" | "ARTICLE_DEGRADED";
+        /**
+         * IdpOut
+         * @description Live from Keycloak.
+         */
+        IdpOut: {
+            /** Email */
+            email: string | null;
+            /** Email Verified */
+            email_verified: boolean;
+            /** Enabled */
+            enabled: boolean;
+            /** Identity Providers */
+            identity_providers: string[];
+            /** Required Actions */
+            required_actions: string[];
+            /** Totp */
+            totp: boolean;
+        };
         /** InjectIn */
         InjectIn: {
             /**
@@ -1521,6 +1725,29 @@ export interface components {
             body?: string | null;
             /** Title */
             title?: string | null;
+        };
+        /** PasswordChangeIn */
+        PasswordChangeIn: {
+            /**
+             * Sign Out
+             * @default false
+             */
+            sign_out: boolean;
+        };
+        /**
+         * PasswordMode
+         * @enum {string}
+         */
+        PasswordMode: "email" | "temporary";
+        /** PasswordResetIn */
+        PasswordResetIn: {
+            mode: components["schemas"]["PasswordMode"];
+        };
+        /** PasswordResetOut */
+        PasswordResetOut: {
+            mode: components["schemas"]["PasswordMode"];
+            /** Temporary Password */
+            temporary_password: string | null;
         };
         /** PlaygroundIn */
         PlaygroundIn: {
@@ -1871,6 +2098,11 @@ export interface components {
          * @enum {string}
          */
         Role: "MEMBER" | "EXPERT" | "ADMIN";
+        /** RolesIn */
+        RolesIn: {
+            /** Roles */
+            roles: components["schemas"]["Role"][];
+        };
         /** RollbackIn */
         RollbackIn: {
             /** Comment */
@@ -1917,6 +2149,11 @@ export interface components {
         ScopeIn: {
             /** Article Ids */
             article_ids?: string[] | null;
+        };
+        /** SignOutOut */
+        SignOutOut: {
+            /** App Sessions */
+            app_sessions: number;
         };
         /** StatusOut */
         StatusOut: {
@@ -1968,6 +2205,17 @@ export interface components {
             status: components["schemas"]["ArticleStatus"];
             /** Version */
             version: number;
+        };
+        /** SyncOut */
+        SyncOut: {
+            /** Blocked */
+            blocked: number;
+            /** Created */
+            created: number;
+            /** Seen */
+            seen: number;
+            /** Updated */
+            updated: number;
         };
         /** UnlockIn */
         UnlockIn: {
@@ -2027,6 +2275,97 @@ export interface components {
              */
             user_id: string;
         };
+        /** UserDetailOut */
+        UserDetailOut: {
+            /** Blocked At */
+            blocked_at: string | null;
+            /** Blocked By */
+            blocked_by: string | null;
+            /** Blocked Note */
+            blocked_note: string | null;
+            /** Blocked Reason */
+            blocked_reason: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Created By */
+            created_by: string | null;
+            /** Display Name */
+            display_name: string | null;
+            /** Email */
+            email: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            idp: components["schemas"]["IdpOut"] | null;
+            /** Is Self */
+            is_self: boolean;
+            /** Last Login At */
+            last_login_at: string | null;
+            /** Locked At */
+            locked_at: string | null;
+            /** Locked Reason */
+            locked_reason: string | null;
+            /** Other Active Admins */
+            other_active_admins: number;
+            /** Required Actions */
+            required_actions: string[];
+            /** Risk Score */
+            risk_score: number;
+            /** Roles */
+            roles: components["schemas"]["Role"][];
+            status: components["schemas"]["UserStatus"];
+            /** Username */
+            username: string | null;
+        };
+        /** UserOut */
+        UserOut: {
+            /** Blocked Reason */
+            blocked_reason: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Display Name */
+            display_name: string | null;
+            /** Email */
+            email: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Self */
+            is_self: boolean;
+            /** Last Login At */
+            last_login_at: string | null;
+            /** Locked Reason */
+            locked_reason: string | null;
+            /** Required Actions */
+            required_actions: string[];
+            /** Roles */
+            roles: components["schemas"]["Role"][];
+            status: components["schemas"]["UserStatus"];
+            /** Username */
+            username: string | null;
+        };
+        /** UserPageOut */
+        UserPageOut: {
+            /** Items */
+            items: components["schemas"]["UserOut"][];
+            /** Total */
+            total: number;
+        };
+        /**
+         * UserStatus
+         * @enum {string}
+         */
+        UserStatus: "active" | "blocked" | "shield_locked" | "pending_setup";
         /** ValidationError */
         ValidationError: {
             /** Context */
@@ -2845,6 +3184,327 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["StatusOut"];
+                };
+            };
+        };
+    };
+    list_users_admin_users_get: {
+        parameters: {
+            query?: {
+                q?: string;
+                role?: components["schemas"]["Role"] | null;
+                status?: components["schemas"]["UserStatus"] | null;
+                offset?: number;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserPageOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_user_admin_users_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateUserIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreatedOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    sync_users_admin_users_sync_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SyncOut"];
+                };
+            };
+        };
+    };
+    get_user_admin_users__user_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserDetailOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    block_user_admin_users__user_id__block_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BlockIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reset_password_admin_users__user_id__password_reset_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasswordResetIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PasswordResetOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    require_password_change_admin_users__user_id__require_password_change_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasswordChangeIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    set_roles_admin_users__user_id__roles_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RolesIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    sign_out_user_admin_users__user_id__sign_out_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SignOutOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    unblock_user_admin_users__user_id__unblock_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
