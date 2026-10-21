@@ -883,6 +883,29 @@
         "title": "ContributionOut",
         "type": "object"
       },
+      "CorrectionIn": {
+        "properties": {
+          "regions": {
+            "items": {
+              "$ref": "#/components/schemas/RegionEditIn"
+            },
+            "maxItems": 50,
+            "title": "Regions",
+            "type": "array"
+          },
+          "version": {
+            "minimum": 1.0,
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "version",
+          "regions"
+        ],
+        "title": "CorrectionIn",
+        "type": "object"
+      },
       "CoverageOut": {
         "properties": {
           "corpus_blocks": {
@@ -1077,6 +1100,73 @@
           "created_at"
         ],
         "title": "CuratedLabelOut",
+        "type": "object"
+      },
+      "DecisionIn": {
+        "properties": {
+          "comment": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Comment"
+          },
+          "decision": {
+            "$ref": "#/components/schemas/ReviewDecision"
+          },
+          "version": {
+            "minimum": 1.0,
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "decision",
+          "version"
+        ],
+        "title": "DecisionIn",
+        "type": "object"
+      },
+      "DecisionOut": {
+        "properties": {
+          "approvals": {
+            "title": "Approvals",
+            "type": "integer"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "previous": {
+            "$ref": "#/components/schemas/AtlasImageStatus"
+          },
+          "quorum": {
+            "title": "Quorum",
+            "type": "integer"
+          },
+          "status": {
+            "$ref": "#/components/schemas/AtlasImageStatus"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "previous",
+          "status",
+          "version",
+          "approvals",
+          "quorum"
+        ],
+        "title": "DecisionOut",
         "type": "object"
       },
       "DerivativeKind": {
@@ -1565,6 +1655,53 @@
           "ARTICLE_DEGRADED"
         ],
         "type": "string"
+      },
+      "HistoryOut": {
+        "properties": {
+          "comment": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Comment"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "decision": {
+            "$ref": "#/components/schemas/ReviewDecision"
+          },
+          "image_version": {
+            "title": "Image Version",
+            "type": "integer"
+          },
+          "reviewer": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reviewer"
+          }
+        },
+        "required": [
+          "decision",
+          "comment",
+          "reviewer",
+          "image_version",
+          "created_at"
+        ],
+        "title": "HistoryOut",
+        "type": "object"
       },
       "IdpOut": {
         "description": "Live from Keycloak.",
@@ -2493,6 +2630,182 @@
         "title": "PasswordResetOut",
         "type": "object"
       },
+      "PhotoCardOut": {
+        "properties": {
+          "author_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Author Name"
+          },
+          "caption": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Caption"
+          },
+          "domain_id": {
+            "format": "uuid",
+            "title": "Domain Id",
+            "type": "string"
+          },
+          "height": {
+            "title": "Height",
+            "type": "integer"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "labels": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Labels",
+            "type": "array"
+          },
+          "verified_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verified At"
+          },
+          "width": {
+            "title": "Width",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "domain_id",
+          "caption",
+          "labels",
+          "author_name",
+          "verified_at",
+          "width",
+          "height"
+        ],
+        "title": "PhotoCardOut",
+        "type": "object"
+      },
+      "PhotoDetailOut": {
+        "properties": {
+          "author_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Author Name"
+          },
+          "caption": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Caption"
+          },
+          "consent_status": {
+            "$ref": "#/components/schemas/ConsentStatus"
+          },
+          "domain_id": {
+            "format": "uuid",
+            "title": "Domain Id",
+            "type": "string"
+          },
+          "domain_name": {
+            "title": "Domain Name",
+            "type": "string"
+          },
+          "height": {
+            "title": "Height",
+            "type": "integer"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "is_own": {
+            "title": "Is Own",
+            "type": "boolean"
+          },
+          "regions": {
+            "items": {
+              "$ref": "#/components/schemas/AtlasRegionOut"
+            },
+            "title": "Regions",
+            "type": "array"
+          },
+          "reviewers": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Reviewers",
+            "type": "array"
+          },
+          "status": {
+            "$ref": "#/components/schemas/AtlasImageStatus"
+          },
+          "verified_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verified At"
+          },
+          "width": {
+            "title": "Width",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "domain_id",
+          "domain_name",
+          "status",
+          "consent_status",
+          "caption",
+          "width",
+          "height",
+          "regions",
+          "author_name",
+          "is_own",
+          "verified_at",
+          "reviewers"
+        ],
+        "title": "PhotoDetailOut",
+        "type": "object"
+      },
       "PhotoIn": {
         "properties": {
           "caption": {
@@ -2634,6 +2947,37 @@
           "updated_at"
         ],
         "title": "PhotoOut",
+        "type": "object"
+      },
+      "PhotoPageOut": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PhotoCardOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "offset",
+          "limit"
+        ],
+        "title": "PhotoPageOut",
         "type": "object"
       },
       "PlaygroundIn": {
@@ -3331,6 +3675,82 @@
         "title": "QueueItemOut",
         "type": "object"
       },
+      "QueuePhotoOut": {
+        "properties": {
+          "approvals": {
+            "title": "Approvals",
+            "type": "integer"
+          },
+          "domain_id": {
+            "format": "uuid",
+            "title": "Domain Id",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "is_own": {
+            "title": "Is Own",
+            "type": "boolean"
+          },
+          "privacy_check": {
+            "title": "Privacy Check",
+            "type": "string"
+          },
+          "privacy_flags": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Privacy Flags",
+            "type": "array"
+          },
+          "proposed_labels": {
+            "title": "Proposed Labels",
+            "type": "integer"
+          },
+          "quorum": {
+            "title": "Quorum",
+            "type": "integer"
+          },
+          "regions": {
+            "title": "Regions",
+            "type": "integer"
+          },
+          "submitted_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Submitted At"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "domain_id",
+          "version",
+          "regions",
+          "proposed_labels",
+          "privacy_flags",
+          "privacy_check",
+          "approvals",
+          "quorum",
+          "is_own",
+          "submitted_at"
+        ],
+        "title": "QueuePhotoOut",
+        "type": "object"
+      },
       "RagAnswer": {
         "properties": {
           "answer_markdown": {
@@ -3391,6 +3811,72 @@
           "schema_revision"
         ],
         "title": "ReadinessResponse",
+        "type": "object"
+      },
+      "RegionEditIn": {
+        "properties": {
+          "description": {
+            "anyOf": [
+              {
+                "maxLength": 1000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "h": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "H",
+            "type": "number"
+          },
+          "id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id"
+          },
+          "label_id": {
+            "format": "uuid",
+            "title": "Label Id",
+            "type": "string"
+          },
+          "w": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "W",
+            "type": "number"
+          },
+          "x": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "X",
+            "type": "number"
+          },
+          "y": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Y",
+            "type": "number"
+          }
+        },
+        "required": [
+          "label_id",
+          "x",
+          "y",
+          "w",
+          "h"
+        ],
+        "title": "RegionEditIn",
         "type": "object"
       },
       "RegionIn_": {
@@ -3576,6 +4062,29 @@
         "title": "ReviewIn",
         "type": "object"
       },
+      "ReviewLabelOut": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/VisualLabelStatus"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "status"
+        ],
+        "title": "ReviewLabelOut",
+        "type": "object"
+      },
       "ReviewOut": {
         "properties": {
           "approvals": {
@@ -3616,6 +4125,166 @@
           "index_synced"
         ],
         "title": "ReviewOut",
+        "type": "object"
+      },
+      "ReviewPhotoOut": {
+        "properties": {
+          "approvals": {
+            "title": "Approvals",
+            "type": "integer"
+          },
+          "caption": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Caption"
+          },
+          "domain_id": {
+            "format": "uuid",
+            "title": "Domain Id",
+            "type": "string"
+          },
+          "domain_name": {
+            "title": "Domain Name",
+            "type": "string"
+          },
+          "height": {
+            "title": "Height",
+            "type": "integer"
+          },
+          "history": {
+            "items": {
+              "$ref": "#/components/schemas/HistoryOut"
+            },
+            "title": "History",
+            "type": "array"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "is_own": {
+            "title": "Is Own",
+            "type": "boolean"
+          },
+          "privacy_check": {
+            "title": "Privacy Check",
+            "type": "string"
+          },
+          "privacy_flags": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Privacy Flags",
+            "type": "array"
+          },
+          "quorum": {
+            "title": "Quorum",
+            "type": "integer"
+          },
+          "regions": {
+            "items": {
+              "$ref": "#/components/schemas/ReviewRegionOut"
+            },
+            "title": "Regions",
+            "type": "array"
+          },
+          "status": {
+            "$ref": "#/components/schemas/AtlasImageStatus"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          },
+          "width": {
+            "title": "Width",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "domain_id",
+          "domain_name",
+          "status",
+          "version",
+          "width",
+          "height",
+          "caption",
+          "regions",
+          "privacy_flags",
+          "privacy_check",
+          "approvals",
+          "quorum",
+          "is_own",
+          "history"
+        ],
+        "title": "ReviewPhotoOut",
+        "type": "object"
+      },
+      "ReviewRegionOut": {
+        "properties": {
+          "by_reviewer": {
+            "title": "By Reviewer",
+            "type": "boolean"
+          },
+          "corrected": {
+            "title": "Corrected",
+            "type": "boolean"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "h": {
+            "title": "H",
+            "type": "number"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "$ref": "#/components/schemas/ReviewLabelOut"
+          },
+          "w": {
+            "title": "W",
+            "type": "number"
+          },
+          "x": {
+            "title": "X",
+            "type": "number"
+          },
+          "y": {
+            "title": "Y",
+            "type": "number"
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "x",
+          "y",
+          "w",
+          "h",
+          "description",
+          "corrected",
+          "by_reviewer"
+        ],
+        "title": "ReviewRegionOut",
         "type": "object"
       },
       "RevisionOut": {
@@ -7023,7 +7692,7 @@
     },
     "/atlas/images/{image_id}/image": {
       "get": {
-        "description": "An atlas photo (metadata-free JPEG) for whoever may see it (A5); 404 otherwise.",
+        "description": "An atlas photo (metadata-free JPEG) for whoever may see it (A5); 404 otherwise.\nPreview and full images of other members' photos are rate limited and counted (A7).",
         "operationId": "atlas_image_bytes_atlas_images__image_id__image_get",
         "parameters": [
           {
@@ -7178,6 +7847,327 @@
           }
         },
         "summary": "Propose Label",
+        "tags": [
+          "atlas"
+        ]
+      }
+    },
+    "/atlas/photos": {
+      "get": {
+        "description": "Approved photos (thumbnails only in lists; no budget spent).",
+        "operationId": "atlas_photos_atlas_photos_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "domain_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Domain Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "label_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Label Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "default": "",
+              "maxLength": 100,
+              "title": "Q",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 24,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PhotoPageOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Atlas Photos",
+        "tags": [
+          "atlas"
+        ]
+      }
+    },
+    "/atlas/photos/{image_id}": {
+      "get": {
+        "description": "One photo with its marks. Counts against the viewer's coverage budget (A7).",
+        "operationId": "atlas_photo_atlas_photos__image_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "image_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Image Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PhotoDetailOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Atlas Photo",
+        "tags": [
+          "atlas"
+        ]
+      }
+    },
+    "/atlas/review/queue": {
+      "get": {
+        "operationId": "atlas_queue_atlas_review_queue_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/QueuePhotoOut"
+                  },
+                  "title": "Response Atlas Queue Atlas Review Queue Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Atlas Queue",
+        "tags": [
+          "atlas"
+        ]
+      }
+    },
+    "/atlas/review/{image_id}": {
+      "get": {
+        "operationId": "atlas_review_photo_atlas_review__image_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "image_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Image Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewPhotoOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Atlas Review Photo",
+        "tags": [
+          "atlas"
+        ]
+      }
+    },
+    "/atlas/review/{image_id}/decision": {
+      "post": {
+        "operationId": "decide_atlas_review__image_id__decision_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "image_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Image Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DecisionIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DecisionOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Decide",
+        "tags": [
+          "atlas"
+        ]
+      }
+    },
+    "/atlas/review/{image_id}/regions": {
+      "put": {
+        "description": "Replace the marks (send all of them; ``id`` for existing ones). Bumps the version, so\nearlier approvals no longer count.",
+        "operationId": "correct_regions_atlas_review__image_id__regions_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "image_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Image Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CorrectionIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewPhotoOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Correct Regions",
         "tags": [
           "atlas"
         ]

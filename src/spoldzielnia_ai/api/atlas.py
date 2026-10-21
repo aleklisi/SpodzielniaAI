@@ -17,24 +17,39 @@ from sqlalchemy import select
 from spoldzielnia_ai.api.photos import IMAGE_HEADERS
 from spoldzielnia_ai.atlas.access import can_view
 from spoldzielnia_ai.atlas.annotations import AnnotationError
+from spoldzielnia_ai.atlas.coverage import atlas_coverage
 from spoldzielnia_ai.atlas.images import AtlasObjects
 from spoldzielnia_ai.atlas.labels import LabelService
 from spoldzielnia_ai.atlas.privacy import flagged, needs_people_confirmation
+from spoldzielnia_ai.atlas.review import AtlasGallery
 from spoldzielnia_ai.atlas.submissions import Choices, SubmissionError, SubmissionService
 from spoldzielnia_ai.auth.deps import CurrentUser  # noqa: TC001 - FastAPI resolves it
-from spoldzielnia_ai.db.enums import (  # noqa: TC001 - pydantic resolves annotations
+from spoldzielnia_ai.db.enums import (
     AtlasImageStatus,
     AtlasSubmissionStatus,
+    ConsentStatus,
+    ReviewDecision,
+    Role,
     VisualLabelStatus,
 )
-from spoldzielnia_ai.db.models import AnnotatedImage, AtlasImage
+from spoldzielnia_ai.db.models import (
+    AnnotatedImage,
+    AtlasImage,
+    AtlasRegion,
+    AtlasReview,
+    User,
+    VisualDomain,
+)
 from spoldzielnia_ai.db.rls import RlsSessionDep  # noqa: TC001 - FastAPI resolves it
 from spoldzielnia_ai.notebook.deps import CipherDep, StorageDep  # noqa: TC001
+from spoldzielnia_ai.shield.coverage import CoverageExceeded
+from spoldzielnia_ai.shield.deps import coverage_refusal
 from spoldzielnia_ai.workers.jobs import AtlasJob
 
 if TYPE_CHECKING:
     from redis.asyncio import Redis
 
+    from spoldzielnia_ai.auth.deps import Principal
     from spoldzielnia_ai.core.settings import Settings
     from spoldzielnia_ai.db.models import AtlasSubmission
     from spoldzielnia_ai.db.session import SessionFactory
@@ -248,6 +263,177 @@ async def withdraw_submission(
     return await _out(service, LabelService(session), row)
 
 
+# --- The shared atlas (9.5) ----------------------------------------------------------------------
+
+
+class PhotoCardOut(BaseModel):
+    id: UUID
+    domain_id: UUID
+    caption: str | None
+    labels: list[str]
+    author_name: str | None  # only if the author chose to be named (A12)
+    verified_at: dt.datetime | None
+    width: int
+    height: int
+
+
+class PhotoPageOut(BaseModel):
+    items: list[PhotoCardOut]
+    total: int
+    offset: int
+    limit: int
+
+
+class PhotoDetailOut(BaseModel):
+    id: UUID
+    domain_id: UUID
+    domain_name: str
+    status: AtlasImageStatus
+    consent_status: ConsentStatus
+    caption: str | None
+    width: int
+    height: int
+    regions: list[AtlasRegionOut]
+    author_name: str | None
+    is_own: bool
+    verified_at: dt.datetime | None
+    reviewers: list[str]
+
+
+def _privileged(image: AtlasImage, principal: Principal) -> bool:
+    """Authors and reviewing experts don't spend coverage budget on a photo."""
+    if image.author_id == principal.id:
+        return True
+    reviewing = image.status != AtlasImageStatus.APPROVED
+    return (
+        reviewing
+        and principal.mfa_satisfied
+        and bool({Role.EXPERT, Role.ADMIN} & set(principal.user.roles))
+    )
+
+
+async def _count_view(request: Request, principal: Principal, image: AtlasImage) -> None:
+    if _privileged(image, principal):
+        return
+    try:
+        await atlas_coverage(request).admit(principal.id, [image.id], [image.domain_id])
+    except CoverageExceeded as exc:
+        raise coverage_refusal(exc) from None
+
+
+async def _within_hourly_views(request: Request, user_id: UUID) -> bool:
+    settings: Settings = request.app.state.settings
+    redis: Redis = request.app.state.redis
+    key = f"atlas:views:{user_id}:{dt.datetime.now(dt.UTC):%Y%m%d%H}"
+    count = int(await redis.incr(key))
+    if count == 1:
+        await redis.expire(key, 2 * 3600)
+    return count <= settings.atlas.image_views_per_hour
+
+
+@router.get("/photos", response_model=PhotoPageOut)
+async def atlas_photos(
+    request: Request,
+    _user: CurrentUser,
+    domain_id: UUID | None = None,
+    label_id: UUID | None = None,
+    q: Annotated[str, Query(max_length=100)] = "",
+    offset: Annotated[int, Query(ge=0)] = 0,
+    limit: Annotated[int, Query(ge=1, le=200)] = 24,
+) -> PhotoPageOut:
+    """Approved photos (thumbnails only in lists; no budget spent)."""
+    settings: Settings = request.app.state.settings
+    limit = min(limit, settings.atlas.page_size_max)
+    factory: SessionFactory = request.app.state.session_factory
+    async with factory() as session:
+        gallery = AtlasGallery(session)
+        page = await gallery.search(
+            domain_id=domain_id, label_id=label_id, q=q, offset=offset, limit=limit
+        )
+        labels = await gallery.label_names([i.id for i in page.items])
+        authors = await gallery.authors(page.items)
+    return PhotoPageOut(
+        items=[
+            PhotoCardOut(
+                id=i.id,
+                domain_id=i.domain_id,
+                caption=(i.caption[:200] if i.caption else None),
+                labels=labels.get(i.id, []),
+                author_name=authors.get(i.id),
+                verified_at=i.verified_at,
+                width=i.width,
+                height=i.height,
+            )
+            for i in page.items
+        ],
+        total=page.total,
+        offset=offset,
+        limit=limit,
+    )
+
+
+@router.get("/photos/{image_id}", response_model=PhotoDetailOut)
+async def atlas_photo(image_id: UUID, request: Request, user: CurrentUser) -> PhotoDetailOut:
+    """One photo with its marks. Counts against the viewer's coverage budget (A7)."""
+    factory: SessionFactory = request.app.state.session_factory
+    async with factory() as session:
+        image = await session.get(AtlasImage, image_id)
+        if image is None or not can_view(image, user.id, user.user.roles, user.mfa_satisfied):
+            raise HTTPException(status_code=404, detail={"error": "photo_not_found"})
+        regions = (
+            await session.scalars(
+                select(AtlasRegion)
+                .where(AtlasRegion.atlas_image_id == image.id)
+                .order_by(AtlasRegion.position)
+            )
+        ).all()
+        labels = await LabelService(session).resolve({r.label_id for r in regions})
+        domain = await session.get(VisualDomain, image.domain_id)
+        author = (await AtlasGallery(session).authors([image])).get(image.id)
+        reviewer_rows = await session.execute(
+            select(User.id, User.display_name, User.username)
+            .join(AtlasReview, AtlasReview.reviewer_id == User.id)
+            .where(
+                AtlasReview.atlas_image_id == image.id,
+                AtlasReview.decision == ReviewDecision.APPROVE,
+                AtlasReview.image_version == image.version,
+            )
+            .distinct()
+        )
+        reviewers = [display or username or "Ekspert" for _, display, username in reviewer_rows]
+    await _count_view(request, user, image)
+    return PhotoDetailOut(
+        id=image.id,
+        domain_id=image.domain_id,
+        domain_name=domain.name if domain else "",
+        status=image.status,
+        consent_status=image.consent_status,
+        caption=image.caption,
+        width=image.width,
+        height=image.height,
+        regions=[
+            AtlasRegionOut(
+                id=r.id,
+                label=AtlasLabelOut(
+                    id=labels[r.label_id].id,
+                    name=labels[r.label_id].name,
+                    status=labels[r.label_id].status,
+                ),
+                x=r.x,
+                y=r.y,
+                w=r.w,
+                h=r.h,
+                description=r.description,
+            )
+            for r in regions
+        ],
+        author_name=author,
+        is_own=image.author_id == user.id,
+        verified_at=image.verified_at,
+        reviewers=reviewers,
+    )
+
+
 @router.get(
     "/images/{image_id}/image",
     response_class=Response,
@@ -261,12 +447,21 @@ async def atlas_image_bytes(
     storage: StorageDep,
     size: Annotated[Literal["thumb", "preview", "full"], Query()] = "preview",
 ) -> Response:
-    """An atlas photo (metadata-free JPEG) for whoever may see it (A5); 404 otherwise."""
+    """An atlas photo (metadata-free JPEG) for whoever may see it (A5); 404 otherwise.
+    Preview and full images of other members' photos are rate limited and counted (A7)."""
     factory: SessionFactory = request.app.state.session_factory
     async with factory() as db:
         image = await db.get(AtlasImage, image_id)
     if image is None or not can_view(image, user.id, user.user.roles, user.mfa_satisfied):
         raise HTTPException(status_code=404, detail={"error": "photo_not_found"})
+    if size != "thumb" and not _privileged(image, user):
+        if not await _within_hourly_views(request, user.id):
+            raise HTTPException(
+                status.HTTP_429_TOO_MANY_REQUESTS,
+                detail={"error": "rate_limited"},
+                headers={"Retry-After": "600"},
+            )
+        await _count_view(request, user, image)
     data = await AtlasObjects(cipher, storage).read(image, size)
     if data is None:
         raise HTTPException(status_code=404, detail={"error": "photo_not_found"})

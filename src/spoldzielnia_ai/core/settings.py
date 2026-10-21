@@ -247,6 +247,9 @@ class AtlasSettings(BaseModel):
     submissions_per_day: int = Field(default=20, ge=1)  # photos sent to the atlas, per member
     # dHash distance at or below which a photo counts as already in the atlas (of 64 bits).
     duplicate_max_distance: int = Field(default=6, ge=0, le=20)
+    # Preview/full images of other members' photos per viewer and hour (A7; thumbnails free).
+    image_views_per_hour: int = Field(default=600, ge=1)
+    page_size_max: int = Field(default=48, ge=1, le=200)
 
 
 class RagSettings(BaseModel):

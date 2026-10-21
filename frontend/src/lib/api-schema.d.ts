@@ -738,6 +738,7 @@ export interface paths {
         /**
          * Atlas Image Bytes
          * @description An atlas photo (metadata-free JPEG) for whoever may see it (A5); 404 otherwise.
+         *     Preview and full images of other members' photos are rate limited and counted (A7).
          */
         get: operations["atlas_image_bytes_atlas_images__image_id__image_get"];
         put?: never;
@@ -780,6 +781,118 @@ export interface paths {
         put?: never;
         /** Propose Label */
         post: operations["propose_label_atlas_labels_proposals_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/atlas/photos": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Atlas Photos
+         * @description Approved photos (thumbnails only in lists; no budget spent).
+         */
+        get: operations["atlas_photos_atlas_photos_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/atlas/photos/{image_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Atlas Photo
+         * @description One photo with its marks. Counts against the viewer's coverage budget (A7).
+         */
+        get: operations["atlas_photo_atlas_photos__image_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/atlas/review/queue": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Atlas Queue */
+        get: operations["atlas_queue_atlas_review_queue_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/atlas/review/{image_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Atlas Review Photo */
+        get: operations["atlas_review_photo_atlas_review__image_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/atlas/review/{image_id}/decision": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Decide */
+        post: operations["decide_atlas_review__image_id__decision_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/atlas/review/{image_id}/regions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Correct Regions
+         * @description Replace the marks (send all of them; ``id`` for existing ones). Bumps the version, so
+         *     earlier approvals no longer count.
+         */
+        put: operations["correct_regions_atlas_review__image_id__regions_put"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1737,6 +1850,13 @@ export interface components {
             /** Title */
             title: string;
         };
+        /** CorrectionIn */
+        CorrectionIn: {
+            /** Regions */
+            regions: components["schemas"]["RegionEditIn"][];
+            /** Version */
+            version: number;
+        };
         /** CoverageOut */
         CoverageOut: {
             /** Corpus Blocks */
@@ -1803,6 +1923,30 @@ export interface components {
             status: components["schemas"]["VisualLabelStatus"];
             /** Synonyms */
             synonyms: string[];
+        };
+        /** DecisionIn */
+        DecisionIn: {
+            /** Comment */
+            comment?: string | null;
+            decision: components["schemas"]["ReviewDecision"];
+            /** Version */
+            version: number;
+        };
+        /** DecisionOut */
+        DecisionOut: {
+            /** Approvals */
+            approvals: number;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            previous: components["schemas"]["AtlasImageStatus"];
+            /** Quorum */
+            quorum: number;
+            status: components["schemas"]["AtlasImageStatus"];
+            /** Version */
+            version: number;
         };
         /**
          * DerivativeKind
@@ -1959,6 +2103,21 @@ export interface components {
         };
         /** @enum {string} */
         HistoryEvent: "SUSPEND" | "RESUME" | "REVOKE" | "ARTICLE_DEGRADED";
+        /** HistoryOut */
+        HistoryOut: {
+            /** Comment */
+            comment: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            decision: components["schemas"]["ReviewDecision"];
+            /** Image Version */
+            image_version: number;
+            /** Reviewer */
+            reviewer: string | null;
+        };
         /**
          * IdpOut
          * @description Live from Keycloak.
@@ -2302,6 +2461,64 @@ export interface components {
             /** Temporary Password */
             temporary_password: string | null;
         };
+        /** PhotoCardOut */
+        PhotoCardOut: {
+            /** Author Name */
+            author_name: string | null;
+            /** Caption */
+            caption: string | null;
+            /**
+             * Domain Id
+             * Format: uuid
+             */
+            domain_id: string;
+            /** Height */
+            height: number;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Labels */
+            labels: string[];
+            /** Verified At */
+            verified_at: string | null;
+            /** Width */
+            width: number;
+        };
+        /** PhotoDetailOut */
+        PhotoDetailOut: {
+            /** Author Name */
+            author_name: string | null;
+            /** Caption */
+            caption: string | null;
+            consent_status: components["schemas"]["ConsentStatus"];
+            /**
+             * Domain Id
+             * Format: uuid
+             */
+            domain_id: string;
+            /** Domain Name */
+            domain_name: string;
+            /** Height */
+            height: number;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Own */
+            is_own: boolean;
+            /** Regions */
+            regions: components["schemas"]["AtlasRegionOut"][];
+            /** Reviewers */
+            reviewers: string[];
+            status: components["schemas"]["AtlasImageStatus"];
+            /** Verified At */
+            verified_at: string | null;
+            /** Width */
+            width: number;
+        };
         /** PhotoIn */
         PhotoIn: {
             /** Caption */
@@ -2353,6 +2570,17 @@ export interface components {
             version: number;
             /** Width */
             width: number | null;
+        };
+        /** PhotoPageOut */
+        PhotoPageOut: {
+            /** Items */
+            items: components["schemas"]["PhotoCardOut"][];
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+            /** Total */
+            total: number;
         };
         /** PlaygroundIn */
         PlaygroundIn: {
@@ -2602,6 +2830,37 @@ export interface components {
             /** Version */
             version: number;
         };
+        /** QueuePhotoOut */
+        QueuePhotoOut: {
+            /** Approvals */
+            approvals: number;
+            /**
+             * Domain Id
+             * Format: uuid
+             */
+            domain_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Own */
+            is_own: boolean;
+            /** Privacy Check */
+            privacy_check: string;
+            /** Privacy Flags */
+            privacy_flags: string[];
+            /** Proposed Labels */
+            proposed_labels: number;
+            /** Quorum */
+            quorum: number;
+            /** Regions */
+            regions: number;
+            /** Submitted At */
+            submitted_at: string | null;
+            /** Version */
+            version: number;
+        };
         /** RagAnswer */
         RagAnswer: {
             /** Answer Markdown */
@@ -2632,6 +2891,26 @@ export interface components {
              * @enum {string}
              */
             status: "ok" | "unavailable";
+        };
+        /** RegionEditIn */
+        RegionEditIn: {
+            /** Description */
+            description?: string | null;
+            /** H */
+            h: number;
+            /** Id */
+            id?: string | null;
+            /**
+             * Label Id
+             * Format: uuid
+             */
+            label_id: string;
+            /** W */
+            w: number;
+            /** X */
+            x: number;
+            /** Y */
+            y: number;
         };
         /** RegionIn_ */
         RegionIn_: {
@@ -2696,6 +2975,17 @@ export interface components {
              */
             version: number;
         };
+        /** ReviewLabelOut */
+        ReviewLabelOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            status: components["schemas"]["VisualLabelStatus"];
+        };
         /** ReviewOut */
         ReviewOut: {
             /** Approvals */
@@ -2713,6 +3003,67 @@ export interface components {
             status: components["schemas"]["ArticleStatus"];
             /** Version */
             version: number;
+        };
+        /** ReviewPhotoOut */
+        ReviewPhotoOut: {
+            /** Approvals */
+            approvals: number;
+            /** Caption */
+            caption: string | null;
+            /**
+             * Domain Id
+             * Format: uuid
+             */
+            domain_id: string;
+            /** Domain Name */
+            domain_name: string;
+            /** Height */
+            height: number;
+            /** History */
+            history: components["schemas"]["HistoryOut"][];
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Own */
+            is_own: boolean;
+            /** Privacy Check */
+            privacy_check: string;
+            /** Privacy Flags */
+            privacy_flags: string[];
+            /** Quorum */
+            quorum: number;
+            /** Regions */
+            regions: components["schemas"]["ReviewRegionOut"][];
+            status: components["schemas"]["AtlasImageStatus"];
+            /** Version */
+            version: number;
+            /** Width */
+            width: number;
+        };
+        /** ReviewRegionOut */
+        ReviewRegionOut: {
+            /** By Reviewer */
+            by_reviewer: boolean;
+            /** Corrected */
+            corrected: boolean;
+            /** Description */
+            description: string | null;
+            /** H */
+            h: number;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            label: components["schemas"]["ReviewLabelOut"];
+            /** W */
+            w: number;
+            /** X */
+            x: number;
+            /** Y */
+            y: number;
         };
         /** RevisionOut */
         RevisionOut: {
@@ -4680,6 +5031,193 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["LabelOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    atlas_photos_atlas_photos_get: {
+        parameters: {
+            query?: {
+                domain_id?: string | null;
+                label_id?: string | null;
+                q?: string;
+                offset?: number;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PhotoPageOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    atlas_photo_atlas_photos__image_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                image_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PhotoDetailOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    atlas_queue_atlas_review_queue_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QueuePhotoOut"][];
+                };
+            };
+        };
+    };
+    atlas_review_photo_atlas_review__image_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                image_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReviewPhotoOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    decide_atlas_review__image_id__decision_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                image_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DecisionIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DecisionOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    correct_regions_atlas_review__image_id__regions_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                image_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CorrectionIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReviewPhotoOut"];
                 };
             };
             /** @description Validation Error */

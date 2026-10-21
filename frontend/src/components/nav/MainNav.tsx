@@ -11,6 +11,7 @@ import { hasRole, useMe, type Role } from "@/lib/session";
 const LINKS: Array<{ href: string; label: string; role?: Role }> = [
   { href: "/notebook", label: "Notatnik" },
   { href: "/wiki", label: "Wiki" },
+  { href: "/atlas", label: "Atlas" },
   { href: "/chat", label: "Zapytaj spółdzielnię" },
   { href: "/me/drafts", label: "Moje szkice" },
   { href: "/me/contributions", label: "Moje kontrybucje" },

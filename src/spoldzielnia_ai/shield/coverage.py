@@ -166,15 +166,18 @@ class CorpusCounter:
         await self._redis.delete(CORPUS_KEY)
 
 
-def _hour_buckets(user_id: UUID, now: datetime) -> list[str]:
-    return [f"cov:{user_id}:h:{now - timedelta(hours=i):%Y%m%d%H}" for i in range(24)]
+def _hour_buckets(prefix: str, user_id: UUID, now: datetime) -> list[str]:
+    return [f"{prefix}:{user_id}:h:{now - timedelta(hours=i):%Y%m%d%H}" for i in range(24)]
 
 
-def _day_buckets(user_id: UUID, now: datetime, days: int) -> list[str]:
-    return [f"cov:{user_id}:d:{now - timedelta(days=i):%Y%m%d}" for i in range(days)]
+def _day_buckets(prefix: str, user_id: UUID, now: datetime, days: int) -> list[str]:
+    return [f"{prefix}:{user_id}:d:{now - timedelta(days=i):%Y%m%d}" for i in range(days)]
 
 
 class CoverageTracker:
+    """``prefix`` separates corpora: ``cov`` counts wiki blocks; the visual atlas (9.5) counts
+    photos under its own prefix, with the same windows and limits."""
+
     def __init__(
         self,
         redis: Redis,
@@ -182,12 +185,14 @@ class CoverageTracker:
         settings: ShieldSettings,
         locker: Locker | None = None,
         clock: Callable[[], datetime] = _utcnow,
+        prefix: str = "cov",
     ) -> None:
         self._redis = redis
         self._corpus = corpus
         self._settings = settings
         self._locker = locker
         self._clock = clock
+        self._prefix = prefix
 
     def _limits(self) -> dict[Window, float]:
         s = self._settings
@@ -200,16 +205,16 @@ class CoverageTracker:
     def _buckets(self, user_id: UUID, window: Window, now: datetime) -> list[str]:
         match window:
             case Window.H24:
-                return _hour_buckets(user_id, now)
+                return _hour_buckets(self._prefix, user_id, now)
             case Window.D7:
-                return _day_buckets(user_id, now, 7)
+                return _day_buckets(self._prefix, user_id, now, 7)
             case Window.D30:
-                return _day_buckets(user_id, now, 30)
+                return _day_buckets(self._prefix, user_id, now, 30)
 
     async def _count(self, keys: list[str], extra: Sequence[UUID]) -> int:
         if not extra:
             return int(await self._redis.pfcount(*keys))
-        temp = f"cov:tmp:{secrets.token_hex(8)}"
+        temp = f"{self._prefix}:tmp:{secrets.token_hex(8)}"
         pipe = self._redis.pipeline(transaction=False)
         pipe.pfadd(temp, *(str(i) for i in extra))
         pipe.pfcount(*keys, temp)
@@ -255,8 +260,8 @@ class CoverageTracker:
         if not block_ids and not article_ids:
             return
         now = self._clock()
-        hour = f"cov:{user_id}:h:{now:%Y%m%d%H}"
-        day = f"cov:{user_id}:d:{now:%Y%m%d}"
+        hour = f"{self._prefix}:{user_id}:h:{now:%Y%m%d%H}"
+        day = f"{self._prefix}:{user_id}:d:{now:%Y%m%d}"
         pipe = self._redis.pipeline(transaction=False)
         for bucket, ttl in ((hour, HOUR_TTL), (day, DAY_TTL)):
             if block_ids:
@@ -298,6 +303,8 @@ class CoverageTracker:
             "ratio": round(u.ratio, 4),
             "limit": u.limit,
         }
+        if self._prefix != "cov":
+            detail["corpus"] = self._prefix
         log.warning("shield.coverage_lock", user_id=str(user_id), **detail)
         if self._locker is None:
             return
@@ -307,6 +314,6 @@ class CoverageTracker:
             )
             return
         # The 24h throttle is audited at most hourly per account, not on every refused request.
-        flag = f"cov:{user_id}:throttle_audited"
+        flag = f"{self._prefix}:{user_id}:throttle_audited"
         if await self._redis.set(flag, "1", ex=THROTTLE_AUDIT_EVERY, nx=True):
             await self._locker.audit(user_id, EventType.COVERAGE_LOCK, {**detail, "throttle": True})

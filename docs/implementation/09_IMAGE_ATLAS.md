@@ -540,3 +540,38 @@ green; A1–A12 covered by tests; scenario 11 passes against the compose stack.
   `tests/unit/test_atlas_rules.py` (visibility matrix, flags, dHash), worker routing test,
   4 Vitest cases.
 
+### 9.5 (done)
+
+- `atlas/review.py` → `AtlasReviewService`: queue (IN_REVIEW + ACTIVE, oldest first),
+  corrections (`PUT /atlas/review/{id}/regions`: full set, existing ids keep their author and
+  get `corrected_by`, new marks are authored by the expert, removed marks are deleted, positions
+  renumbered in two passes because of the unique key; ACTIVE labels only, an unchanged label may
+  stay), decisions (`POST …/decision`: APPROVE needs no PROPOSED label and counts distinct
+  experts **on the current version**, so a correction resets the quorum; REQUEST_CHANGES and
+  REJECT need a comment; own photo → 403; `stale_version`/`not_in_review` → 409). Quorum is
+  `governance.review_quorum` (shared with articles). Audit `ATLAS_CORRECTED`,
+  `ATLAS_REVIEWED`, `ATLAS_STATUS_CHANGED`.
+- **Deviation:** the plan's before/after overlay for the second approver is replaced by markers
+  on each mark ("poprawione", "dodane przez eksperta") plus the review history, and by the quorum
+  reset on any correction (the second approver always approves what they see).
+- Reviewers never see the author (no id, no name, in queue or detail).
+- `AtlasGallery` + `GET /atlas/photos` (approved + ACTIVE; filters domain, label (merge-aware),
+  text over label names/synonyms and caption; page size capped by `atlas.page_size_max` = 48;
+  thumbnails only) and `GET /atlas/photos/{id}` (`can_view`; author name only with
+  `show_author`, `is_own` for the author, approving reviewers' names).
+- **Coverage (A7):** `CoverageTracker` got a key `prefix`; `atlas/coverage.py` counts photos
+  (approved + ACTIVE) under `covatlas:` with the shield's windows, limits and floor. A photo page
+  and its preview/full image spend budget (HyperLogLog: the same photo counts once); thumbnails
+  don't; authors and reviewing experts don't. Preview/full images of others' photos are also
+  limited to `atlas.image_views_per_hour` (600). The corpus cache is invalidated on approval.
+- Frontend: nav „Atlas” → `/atlas` gallery (domain/label/text filters, pagination, anonymous
+  „Członek spółdzielni”), `/atlas/[id]` (boxes, numbered marks, author/reviewers, shield
+  messages for 429/403), `/review/atlas` (queue with thumbnails, editable boxes and labels,
+  „Zapisz poprawki” before deciding, decision form, privacy and pending-label notes, history),
+  links between the review views.
+- Tests: `test_atlas_review.py` (9: authz + author hidden from reviewers, quorum + duplicate
+  approval + locking, own photo, corrections keep provenance and reset approvals, PROPOSED
+  labels block approval, request changes/reject, gallery filters + A12, coverage throttle,
+  image rate limit), `tests/fixtures/atlas.py` (shared helpers), 6 Vitest cases. Playwright
+  scenario 11 started (Phase A part), finished in 9.10.
+

@@ -19,6 +19,7 @@ from spoldzielnia_ai.api.atlas import router as atlas_router
 from spoldzielnia_ai.api.atlas_labels import admin_router as atlas_admin_router
 from spoldzielnia_ai.api.atlas_labels import curation_router as atlas_curation_router
 from spoldzielnia_ai.api.atlas_labels import router as atlas_labels_router
+from spoldzielnia_ai.api.atlas_review import router as atlas_review_router
 from spoldzielnia_ai.api.attachments import router as attachments_router
 from spoldzielnia_ai.api.auth import router as auth_router
 from spoldzielnia_ai.api.contributions import router as contributions_router
@@ -154,6 +155,7 @@ def create_app(
     app.include_router(admin_llm_router)
     app.include_router(admin_users_router)
     app.include_router(atlas_labels_router)
+    app.include_router(atlas_review_router)  # /atlas/review/… before /atlas/…
     app.include_router(atlas_router)
     app.include_router(atlas_curation_router)
     app.include_router(atlas_admin_router)

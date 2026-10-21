@@ -9,6 +9,9 @@
 - gps: decrypt a stored attachment as its owner and report whether GPS EXIF survived.
 - reset_shield: clear an account's shield state (risk, honeypot hits, challenges, coverage,
   semantic history) after a lockout scenario, so reruns start clean.
+- atlas_example: load the example atlas domain (idempotent, Stage 9).
+- atlas_jpeg: a JPEG with structure unique to this run (base64), so the atlas's duplicate
+  check never matches a photo from an earlier run.
 
 Prints one JSON object on stdout.
 """
@@ -133,6 +136,8 @@ async def reset_shield(factory, settings, cipher, args) -> dict:
             keys.append(key)
         async for key in redis.scan_iter(match=f"cov:{uid}:*"):
             keys.append(key)
+        async for key in redis.scan_iter(match=f"covatlas:{uid}:*"):
+            keys.append(key)
         removed = await redis.delete(*keys) if keys else 0
     finally:
         await redis.aclose()
@@ -140,6 +145,31 @@ async def reset_shield(factory, settings, cipher, args) -> dict:
         user = await session.get(User, uid)
         user.risk_score = 0.0
     return {"removed": removed}
+
+
+async def atlas_example(factory, settings, cipher, args) -> dict:
+    from spoldzielnia_ai.atlas.seed import seed_example
+
+    report = await seed_example(factory)
+    return {"domain_id": str(report.domain_id), "labels_created": report.labels_created}
+
+
+async def atlas_jpeg(factory, settings, cipher, args) -> dict:
+    import base64
+    import random
+
+    from PIL import Image, ImageDraw
+
+    rng = random.Random(os.urandom(16))
+    image = Image.new("RGB", (1600, 1200), (rng.randrange(256), 180, 60))
+    draw = ImageDraw.Draw(image)
+    for _ in range(40):
+        x, y = rng.randrange(1600), rng.randrange(1200)
+        shade = tuple(rng.randrange(256) for _ in range(3))
+        draw.rectangle((x, y, x + rng.randrange(60, 500), y + rng.randrange(60, 400)), fill=shade)
+    out = io.BytesIO()
+    image.save(out, "JPEG", quality=90)
+    return {"jpeg": base64.b64encode(out.getvalue()).decode()}
 
 
 async def main() -> None:
@@ -153,6 +183,8 @@ async def main() -> None:
         "gps": gps,
         "gps_jpeg": gps_jpeg,
         "reset_shield": reset_shield,
+        "atlas_example": atlas_example,
+        "atlas_jpeg": atlas_jpeg,
     }
     try:
         result = await actions[args["action"]](factory, settings, cipher, args)

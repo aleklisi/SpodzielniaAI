@@ -39,9 +39,14 @@ export function ReviewPanel() {
           <h1 id="queue-title" className="font-display text-2xl font-semibold">
             Recenzje
           </h1>
-          <Link href="/review/labels" className="text-sm font-medium text-primary-strong">
-            Słownik etykiet
-          </Link>
+          <span className="flex gap-3 text-sm font-medium">
+            <Link href="/review/atlas" className="text-primary-strong">
+              Atlas
+            </Link>
+            <Link href="/review/labels" className="text-primary-strong">
+              Słownik etykiet
+            </Link>
+          </span>
         </div>
         {queue.isPending && <p className="text-text-muted">Ładowanie kolejki…</p>}
         {queue.isError && !(queue.error instanceof StepUpRequired) && <p role="alert" className="text-danger">Nie udało się wczytać kolejki.</p>}
