@@ -40,6 +40,7 @@ write minio_kms_key         "spoldzielnia-sse:$(rand_key_b64)"
 # Identity
 write oidc_client_secret      "$(rand_token 48)"
 write keycloak_admin_password "$(rand_token)"
+write keycloak_admin_client_secret "$(rand_token 48)"  # user management (Stage 8)
 # Application keys (used from Stage 2 on)
 write session_secret        "$(rand_key_b64)"
 write kek                   "$(rand_key_b64)"

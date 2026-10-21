@@ -28,6 +28,7 @@ from spoldzielnia_ai.api.wiki import router as wiki_router
 from spoldzielnia_ai.auth.crypto import CsrfTokens, TokenSealer, derive_key
 from spoldzielnia_ai.auth.csrf import csrf_middleware
 from spoldzielnia_ai.auth.deps import DbAuditSink
+from spoldzielnia_ai.auth.keycloak_admin import KeycloakAdmin
 from spoldzielnia_ai.auth.oidc_client import OidcClient
 from spoldzielnia_ai.core.crypto import EnvelopeCipher, StaticKeyProvider
 from spoldzielnia_ai.core.headers import security_headers_middleware
@@ -74,6 +75,7 @@ def create_app(
     # None of the clients connects until first use.
     redis: Redis = Redis.from_url(settings.redis.url())  # pyright: ignore[reportUnknownMemberType]
     oidc_client = OidcClient(settings.oidc)
+    keycloak_admin = KeycloakAdmin(settings.keycloak_admin)
     qdrant = make_qdrant(settings.qdrant)
     schema_revision = head_revision()
     checks = (
@@ -87,6 +89,7 @@ def create_app(
         log.info("app.startup", environment=settings.environment, schema_revision=schema_revision)
         yield
         await oidc_client.aclose()
+        await keycloak_admin.aclose()
         await qdrant.close()
         await redis.aclose()
         await engine.dispose()
@@ -106,6 +109,7 @@ def create_app(
     app.state.session_factory = create_session_factory(engine)
     app.state.redis = redis
     app.state.oidc_client = oidc_client
+    app.state.keycloak_admin = keycloak_admin
     app.state.qdrant = qdrant
     session_secret = settings.security.session_secret.get_secret_value()
     app.state.token_sealer = TokenSealer(derive_key(session_secret, "redis-tokens"))

@@ -13,19 +13,14 @@ case "$mode" in
   *) echo "usage: $0 on|off" >&2; exit 2 ;;
 esac
 read -r -a compose <<< "${COMPOSE:-docker compose -f compose.yaml -f compose.dev.yaml}"
+# shellcheck source=infra/scripts/lib-kcadm.sh
+source infra/scripts/lib-kcadm.sh
 
 if grep -qs '^SPOLDZIELNIA_ENVIRONMENT=prod' .env; then
   echo "refusing: .env says SPOLDZIELNIA_ENVIRONMENT=prod" >&2; exit 1
 fi
 
 # 1. Keycloak: the "browser-amr conditional otp" step of the login flow.
-kcadm() {
-  "${compose[@]}" exec -T keycloak bash -c '
-    cfg=/tmp/kcadm.config
-    /opt/keycloak/bin/kcadm.sh config credentials --config $cfg --server http://localhost:8080 \
-      --realm master --user admin --password "$(< /run/secrets/keycloak_admin_password)" >/dev/null
-    /opt/keycloak/bin/kcadm.sh "$@" --config $cfg -r spoldzielnia' kcadm "$@"
-}
 flow="authentication/flows/browser-amr%20forms/executions"
 id="$(kcadm get "$flow" | jq -r '.[] | select(.displayName == "browser-amr conditional otp") | .id')"
 [[ -n "$id" ]] || { echo "OTP step not found in the browser-amr flow" >&2; exit 1; }

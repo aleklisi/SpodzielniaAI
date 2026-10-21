@@ -44,7 +44,15 @@ services:
 
   keycloak:
     secrets:
-      [pg_keycloak_password, keycloak_admin_password, oidc_client_secret, dev_user_password, dev_totp_seed]
+      - pg_keycloak_password
+      - keycloak_admin_password
+      - oidc_client_secret
+      - keycloak_admin_client_secret
+      - dev_user_password
+      - dev_totp_seed
+    # Dev only: the admin REST API for host-side integration tests (8.1). The public proxy
+    # still refuses /admin from outside KC_ADMIN_ALLOW.
+    ports: ["127.0.0.1:8180:8080"]
     environment:
       KC_COMMAND: start-dev --import-realm
       KC_LOG_LEVEL: info

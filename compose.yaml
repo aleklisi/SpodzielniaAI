@@ -104,6 +104,7 @@ secrets:
   minio_kms_key: { file: ./secrets/minio_kms_key }
   oidc_client_secret: { file: ./secrets/oidc_client_secret }
   keycloak_admin_password: { file: ./secrets/keycloak_admin_password }
+  keycloak_admin_client_secret: { file: ./secrets/keycloak_admin_client_secret }
   session_secret: { file: ./secrets/session_secret }
   # Local LLM token (optional; LM Studio). Filled by the operator.
   llm_api_key: { file: ./secrets/llm_api_key }
@@ -225,7 +226,8 @@ services:
     networks: [public, backend]
     depends_on:
       postgres: { condition: service_healthy }
-    secrets: [pg_keycloak_password, keycloak_admin_password, oidc_client_secret]
+    secrets:
+      [pg_keycloak_password, keycloak_admin_password, oidc_client_secret, keycloak_admin_client_secret]
     environment:
       KC_DB: postgres
       KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
@@ -244,6 +246,7 @@ services:
         export KC_DB_PASSWORD="$$(< /run/secrets/pg_keycloak_password)"
         export KC_BOOTSTRAP_ADMIN_PASSWORD="$$(< /run/secrets/keycloak_admin_password)"
         export OIDC_CLIENT_SECRET="$$(< /run/secrets/oidc_client_secret)"
+        export KEYCLOAK_ADMIN_CLIENT_SECRET="$$(< /run/secrets/keycloak_admin_client_secret)"
         [[ -r /run/secrets/dev_user_password ]] && export DEV_USER_PASSWORD="$$(< /run/secrets/dev_user_password)"
         [[ -r /run/secrets/dev_totp_seed ]] && export DEV_TOTP_SEED="$$(< /run/secrets/dev_totp_seed)"
         exec /opt/keycloak/bin/kc.sh $$KC_COMMAND
@@ -325,6 +328,7 @@ services:
       - { source: pg_app_password, target: db__app_password }
       - { source: redis_password, target: redis__password }
       - { source: oidc_client_secret, target: oidc__client_secret }
+      - { source: keycloak_admin_client_secret, target: keycloak_admin__client_secret }
       - { source: session_secret, target: security__session_secret }
       - { source: kek, target: security__kek }
       - { source: qdrant_api_key, target: qdrant__api_key }

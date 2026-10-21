@@ -211,6 +211,24 @@ class PromotionSettings(BaseModel):
     daily_limit: int = Field(default=20, ge=1)  # promotions per user per UTC day
 
 
+class KeycloakAdminSettings(BaseModel):
+    """Keycloak Admin REST API for user management (Stage 8), through the `spoldzielnia-admin`
+    service account. Internal URL: the public proxy refuses ``/admin`` paths."""
+
+    base_url: str = "http://keycloak:8080"
+    realm: str = "spoldzielnia"
+    client_id: str = "spoldzielnia-admin"
+    # Docker secret `keycloak_admin__client_secret` (api only). Unset: user management is off.
+    client_secret: SecretStr | None = None
+    timeout_seconds: float = Field(default=10.0, gt=0)
+    # Lifespan of the link in a password-reset e-mail.
+    reset_link_lifespan_seconds: int = Field(default=24 * 3600, ge=300, le=7 * 24 * 3600)
+    # Granting EXPERT/ADMIN, unblocking: the admin's last login with a second factor is fresher.
+    step_up_max_age_seconds: int = Field(default=300, ge=60, le=3600)
+    mutations_per_minute: int = Field(default=30, ge=1)
+    temporary_passwords_per_hour: int = Field(default=10, ge=1)
+
+
 class GovernanceSettings(BaseModel):
     """Expert review and creator consent (Stage 4)."""
 
@@ -459,6 +477,7 @@ class Settings(_BaseSettings):
     governance: GovernanceSettings = Field(default_factory=GovernanceSettings)
     rag: RagSettings = Field(default_factory=RagSettings)
     shield: ShieldSettings = Field(default_factory=ShieldSettings)
+    keycloak_admin: KeycloakAdminSettings = Field(default_factory=KeycloakAdminSettings)
 
     @model_validator(mode="after")
     def _require_runtime_secrets(self) -> Self:

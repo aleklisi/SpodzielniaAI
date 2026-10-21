@@ -16,7 +16,7 @@ committed, add the commit hash to the story's *Delivery* list.
 | ID | Story | Status | Plan | Added |
 |----|-------|--------|------|-------|
 | [US-01](#us-01) | Administrator configures LLM models (local / cloud) in the UI and tests them | DONE | [07_LLM_MODEL_CONFIG.md](implementation/07_LLM_MODEL_CONFIG.md) · Etap 7 | 2026-10-20 |
-| [US-02](#us-02) | Administrator manages users: create accounts, reset passwords, block access, force password change, manage roles | PLANNED | [08_USER_MANAGEMENT.md](implementation/08_USER_MANAGEMENT.md) · Etap 8 | 2026-10-21 |
+| [US-02](#us-02) | Administrator manages users: create accounts, reset passwords, block access, force password change, manage roles | IN PROGRESS | [08_USER_MANAGEMENT.md](implementation/08_USER_MANAGEMENT.md) · Etap 8 | 2026-10-21 |
 
 ---
 
@@ -62,7 +62,7 @@ way to change the configuration.
 reset passwords, block access for a user, force a password change and manage user roles.
 
 - **Source:** product owner request, 2026-10-21.
-- **Status:** PLANNED 2026-10-21 (Etap 8, chunks 8.1–8.6). Not started.
+- **Status:** IN PROGRESS 2026-10-21 (Etap 8, chunks 8.1–8.6).
 - **Plan:** [docs/implementation/08_USER_MANAGEMENT.md](implementation/08_USER_MANAGEMENT.md)
 - **Acceptance criteria:**
   1. An admin (with MFA) can create an account with username, email, name and roles in

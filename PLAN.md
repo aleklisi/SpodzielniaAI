@@ -217,7 +217,7 @@ Rejestr historyjek dodanych poza Etapami 1–6: [docs/USER_STORIES_LOG.md](docs/
 
 ### Etap 8: Zarządzanie użytkownikami w panelu administratora (US-02)
 *Dokumentacja: [docs/implementation/08_USER_MANAGEMENT.md](docs/implementation/08_USER_MANAGEMENT.md)*
-- [ ] 8.1 Klient Keycloak Admin API (konto serwisowe `spoldzielnia-admin` z minimalnymi uprawnieniami) i idempotentna konfiguracja realmu
+- [x] 8.1 Klient Keycloak Admin API (konto serwisowe `spoldzielnia-admin` z minimalnymi uprawnieniami) i idempotentna konfiguracja realmu
 - [ ] 8.2 Model danych (źródło blokady, ostatnie logowanie), indeks sesji per użytkownik i zdarzenia audytu
 - [ ] 8.3 `UserAdminService`: tworzenie kont, reset hasła, blokada, wymuszenie zmiany hasła, role, zabezpieczenia (ostatni admin, step-up MFA)
 - [ ] 8.4 API administratora `/admin/users` (wyszukiwanie, akcje, limity, metryki)
