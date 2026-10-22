@@ -149,12 +149,25 @@ async def qdrant(qdrant_server: QdrantInstance) -> AsyncIterator[AsyncQdrantClie
     from spoldzielnia_ai.vector.collections import recreate_collections
     from tests.fixtures.llm import EMBED_DIM
 
-    settings = QdrantSettings(
-        url=qdrant_server.url, api_key=SecretStr(qdrant_server.api_key), vector_size=EMBED_DIM
-    )
+    settings = QdrantSettings(url=qdrant_server.url, api_key=SecretStr(qdrant_server.api_key))
     with warnings.catch_warnings():  # "Api key is used with an insecure connection"
         warnings.simplefilter("ignore", UserWarning)
         client = make_qdrant(settings)
+    # Aliases and collections of index generations (10.3) left by earlier tests: an alias
+    # holding a family name would otherwise redirect the bare test collections.
+    from qdrant_client import models
+
+    for alias in (await client.get_aliases()).aliases:
+        await client.update_collection_aliases(
+            change_aliases_operations=[
+                models.DeleteAliasOperation(
+                    delete_alias=models.DeleteAlias(alias_name=alias.alias_name)
+                )
+            ]
+        )
+    for collection in (await client.get_collections()).collections:
+        if "__g" in collection.name:
+            await client.delete_collection(collection.name)
     await recreate_collections(client, EMBED_DIM)
     yield client
     await client.close()

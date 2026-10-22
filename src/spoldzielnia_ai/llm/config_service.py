@@ -224,14 +224,12 @@ class LlmConfigService:
         cipher: EnvelopeCipher,
         settings: LlmSettings,
         *,
-        vector_size: int | None = None,
         redis: Redis | None = None,
         now: Any = None,
     ) -> None:
         self._factory = factory
         self._cipher = cipher
         self._settings = settings
-        self._vector_size = vector_size
         self._redis = redis
         self._now = now or (lambda: datetime.now(UTC))
 
@@ -795,25 +793,6 @@ class LlmConfigService:
             raise ConfigError("probe_required", 409, purpose=purpose.value, model=model.model_name)
         return ConfigSnapshot(routes=routes, deployments=deployments)
 
-    def _check_embedding(self, new: ConfigSnapshot, old: ConfigSnapshot | None) -> None:
-        """Another embedding model means another vector space: refused until a re-embedding
-        flow exists (follow-up story US-02)."""
-        embed = new.deployment_for(LlmRoutePurpose.EMBED)
-        if (
-            embed
-            and embed.embed_dimension
-            and self._vector_size
-            and embed.embed_dimension != self._vector_size
-        ):
-            raise ConfigError("embed_dimension_mismatch", 409, expected=self._vector_size)
-        if old is None:
-            return
-        before = old.deployment_for(LlmRoutePurpose.EMBED)
-        if before is None:
-            return
-        if embed is None or (embed.base_url, embed.model) != (before.base_url, before.model):
-            raise ConfigError("embed_change_requires_reindex", 409)
-
     async def _make_active(
         self,
         session: AsyncSession,
@@ -848,8 +827,9 @@ class LlmConfigService:
                 raise ConfigError("not_draft", 409)
             routing = await self._routing(session, revision.id)
             running = await self._active_snapshot(session)
+            # Another embedding model is fine since 10.3: the worker builds a new index
+            # generation with it and swaps when complete (``vector.reembed``).
             snapshot = await self._snapshot(session, routing, require_probe=True, running=running)
-            self._check_embedding(snapshot, running)
             previous = await self._make_active(session, revision, snapshot, actor)
             await AuditService(session).record(
                 EventType.LLM_CONFIG_ACTIVATED,
@@ -873,7 +853,6 @@ class LlmConfigService:
             for purpose, key in old.routes.items():  # revisions seeded before routing rows
                 routing.setdefault(purpose, old.deployments[key].model_id)
             snapshot = await self._snapshot(session, routing, require_probe=False)
-            self._check_embedding(snapshot, await self._active_snapshot(session))
             revision = LlmConfigRevision(
                 status=LlmRevisionStatus.DRAFT,
                 comment=comment or f"Przywrócenie rewizji {number}",
@@ -978,7 +957,7 @@ class LlmConfigService:
                 routing[LlmRoutePurpose.VLM] = await model(local, s.vlm_model, LlmCapability.VLM)
             if s.embed_model and cleared:
                 routing[LlmRoutePurpose.EMBED] = await model(
-                    local, s.embed_model, LlmCapability.EMBED, self._vector_size
+                    local, s.embed_model, LlmCapability.EMBED
                 )
         if s.allow_cloud and s.cloud_model and s.cloud_base_url:
             cloud = await provider("cloud", s.cloud_base_url)

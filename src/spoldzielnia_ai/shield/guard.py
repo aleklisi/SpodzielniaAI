@@ -164,11 +164,11 @@ class AntiDistillationGuard:
         s = self._settings
         user = asker.user_id
         request_id = uuid7()
-        vector = await self.rag.embed(question)
+        query = await self.rag.embed(question)
         intent = extraction_intent(question)
         if intent:
             await self.incidents.add(user, s.extraction_intent_penalty)
-        semantic = await self.semantic.observe(user, question, vector)
+        semantic = await self.semantic.observe(user, question, query.vector)
         coverage = await self.coverage.check(user)
         if coverage.level == CoverageLevel.LOCK:
             try:
@@ -193,7 +193,7 @@ class AntiDistillationGuard:
         plan = self._plan(assessment.level, strict=bool(intent))
         gate = _Gate(self, user, question)
         outcome = await self.rag.ask(
-            question, top_k=plan.top_k, style=plan.style, gate=gate, vector=vector
+            question, top_k=plan.top_k, style=plan.style, gate=gate, vector=query
         )
         if plan.delay:
             await self._sleep(_jitter(*s.elevated_delay_ms))

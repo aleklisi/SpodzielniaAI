@@ -1,17 +1,16 @@
-"""``spoldzielnia reindex``: rebuild both collections from Postgres (4.4).
+"""``spoldzielnia reindex``: re-embed the text index from Postgres (4.4, 10.3).
 
-1. Under the index-writer lock, pending outbox rows are marked done: the rebuild reads the
-   current state, which already includes their effect. Changes committed after this point
-   leave new rows, applied later, in order, as usual.
-2. Both collections are dropped and recreated (``qdrant.vector_size``, e.g. after changing
-   the embedding model).
-3. Every CANONICAL article is indexed, then every finished derivative of every member (read
-   as its owner, through RLS).
-4. The atlas collection (9.8) is recreated and every APPROVED + ACTIVE photo re-embedded with
-   the local image model, when the models volume has it.
+Since 10.3 this is the same mechanism as an embedding-model change (``vector.reembed``): a new
+index generation is created for the active embedding model (its dimension probed), filled
+from Postgres (every CANONICAL article, then every finished derivative of every member, read
+as its owner through RLS) and swapped in when complete. The serving generation keeps answering
+meanwhile, and pending outbox operations still apply to both; nothing is dropped up front.
+
+The atlas collection (9.8) is still recreated and every APPROVED + ACTIVE photo re-embedded
+with the local image model, when the models volume has it (10.6 moves it to generations).
 
 Runs with the worker's settings: the KEK (private derivatives are decrypted to embed them) and
-the local embedding model.
+the embedding model.
 """
 
 from __future__ import annotations
@@ -20,31 +19,22 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from sqlalchemy import select, update
-
 from spoldzielnia_ai.core.crypto import EnvelopeCipher, StaticKeyProvider
 from spoldzielnia_ai.core.logging import get_logger
 from spoldzielnia_ai.db.engine import create_app_engine
-from spoldzielnia_ai.db.enums import ArticleStatus, DerivativeStatus, OutboxStatus
-from spoldzielnia_ai.db.models import NoteDerivative, User, VectorOutbox, WikiArticle
-from spoldzielnia_ai.db.rls import rls_session
 from spoldzielnia_ai.db.session import create_session_factory
 from spoldzielnia_ai.llm.config_store import LlmConfigStore
 from spoldzielnia_ai.llm.gateway import LiteLLMGateway
 from spoldzielnia_ai.vector.client import make_qdrant
-from spoldzielnia_ai.vector.collections import recreate_collections
 from spoldzielnia_ai.vector.embedding import Embedder
+from spoldzielnia_ai.vector.generations import GenerationStore
 from spoldzielnia_ai.vector.indexing import Indexer
-from spoldzielnia_ai.vector.repositories import CanonicalVectorRepo
-from spoldzielnia_ai.vector.sync import VectorSync
-from spoldzielnia_ai.workers.jobs import ArticleJob, DerivativeJob
+from spoldzielnia_ai.vector.reembed import GenerationManager, ReEmbedder
 
 if TYPE_CHECKING:
-    from uuid import UUID
-
     from qdrant_client import AsyncQdrantClient
 
-    from spoldzielnia_ai.core.settings import WorkerSettings
+    from spoldzielnia_ai.core.settings import LlmSettings, QdrantSettings, WorkerSettings
     from spoldzielnia_ai.db.session import SessionFactory
     from spoldzielnia_ai.llm.gateway import LLMGateway
 
@@ -53,15 +43,11 @@ log = get_logger(__name__)
 
 @dataclass(frozen=True, slots=True)
 class ReindexReport:
-    superseded_ops: int
-    articles: int
-    derivatives: int
+    generation: int | None
+    items: int
     failed: int
+    swapped: bool
     atlas_photos: int = 0
-
-
-async def _no_reindex(_article_id: UUID) -> None:
-    return None
 
 
 async def rebuild(
@@ -69,58 +55,47 @@ async def rebuild(
     cipher: EnvelopeCipher,
     client: AsyncQdrantClient,
     gateway: LLMGateway,
-    vector_size: int,
-    timeout_seconds: float = 10.0,
+    llm: LlmSettings,
+    qdrant: QdrantSettings,
 ) -> ReindexReport:
-    sync = VectorSync(factory, CanonicalVectorRepo(client), _no_reindex, timeout_seconds)
-    async with sync.exclusive() as session:
-        superseded = len(
-            list(
-                await session.scalars(
-                    update(VectorOutbox)
-                    .where(VectorOutbox.status == OutboxStatus.PENDING)
-                    .values(status=OutboxStatus.DONE, last_error="superseded_by_reindex")
-                    .returning(VectorOutbox.id)
-                )
-            )
-        )
-    await recreate_collections(client, vector_size)
-
-    indexer = Indexer(factory, cipher, Embedder(gateway, vector_size), client)
-    failed = 0
-    async with factory() as session:
-        articles = list(
-            await session.scalars(
-                select(WikiArticle.id).where(WikiArticle.status == ArticleStatus.CANONICAL)
-            )
-        )
-        users = list(await session.scalars(select(User.id)))
-    for article_id in articles:
-        # final_attempt=False: True back means it could not be indexed now.
-        if await indexer.index_canonical_article(ArticleJob(article_id=article_id), False):
-            failed += 1
-    derivatives = 0
-    for user_id in users:
-        async with rls_session(factory, user_id) as session:
-            ids = list(
-                await session.scalars(
-                    select(NoteDerivative.id).where(NoteDerivative.status == DerivativeStatus.DONE)
-                )
-            )
-        for derivative_id in ids:
-            job = DerivativeJob(derivative_id=derivative_id, owner_id=user_id)
-            if await indexer.index_private_derivative(job, False):
-                failed += 1
-            derivatives += 1
-    report = ReindexReport(superseded, len(articles), derivatives, failed)
+    """Build a new generation with the active embedding model to completion, then swap."""
+    store = GenerationStore(factory, cipher, llm, ttl_seconds=0)
+    manager = GenerationManager(factory, cipher, client, gateway, llm, qdrant)
+    number = await manager.start(None)
+    reembed = ReEmbedder(
+        factory, store, Indexer(factory, cipher, Embedder(gateway, store), client), manager, llm
+    )
+    items = 0
+    while True:
+        run = await reembed.run(budget_seconds=3600.0)
+        items += run.processed
+        if not run.more:
+            break
+    failed = await _failed(factory, number)
+    report = ReindexReport(number, items, failed, run.swapped)
     log.info(
         "reindex.done",
-        superseded_ops=report.superseded_ops,
-        articles=report.articles,
-        derivatives=report.derivatives,
-        failed=report.failed,
+        generation=number,
+        items=items,
+        failed=failed,
+        swapped=run.swapped,
+        waiting=run.waiting,
     )
     return report
+
+
+async def _failed(factory: SessionFactory, number: int) -> int:
+    from sqlalchemy import select
+
+    from spoldzielnia_ai.db.models import IndexGeneration
+
+    async with factory() as session:
+        return int(
+            await session.scalar(
+                select(IndexGeneration.failed).where(IndexGeneration.number == number)
+            )
+            or 0
+        )
 
 
 async def run_reindex(settings: WorkerSettings) -> ReindexReport:
@@ -134,8 +109,8 @@ async def run_reindex(settings: WorkerSettings) -> ReindexReport:
             cipher,
             client,
             LiteLLMGateway(settings.llm, source=LlmConfigStore(factory, cipher, settings.llm)),
-            settings.qdrant.vector_size,
-            settings.qdrant.timeout_seconds,
+            settings.llm,
+            settings.qdrant,
         )
         model_dir = Path(settings.models.image_embed_dir)
         if not (model_dir / "model.safetensors").is_file():
@@ -156,9 +131,7 @@ async def run_reindex(settings: WorkerSettings) -> ReindexReport:
         photos = await rebuild_atlas(
             factory, client, settings.qdrant.image_vector_size, indexer.index_image
         )
-        return ReindexReport(
-            report.superseded_ops, report.articles, report.derivatives, report.failed, photos
-        )
+        return ReindexReport(report.generation, report.items, report.failed, report.swapped, photos)
     finally:
         await client.close()
         await engine.dispose()

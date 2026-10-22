@@ -83,6 +83,15 @@ class OutboxStatus(StrEnum):
     DONE = "DONE"
 
 
+class IndexGenerationStatus(StrEnum):
+    """A version of the text index built by one embedding model (10.3, P8)."""
+
+    BUILDING = "BUILDING"  # being re-embedded; receives writes, never searched
+    SERVING = "SERVING"  # searched; at most one
+    RETIRED = "RETIRED"  # replaced; still receives consent changes until it is dropped
+    CANCELLED = "CANCELLED"  # abandoned before the swap
+
+
 class LlmProviderKind(StrEnum):
     """Derived from the endpoint allowlist the base URL matched (7.1), never chosen freely."""
 
@@ -184,6 +193,7 @@ PG_ENUM_NAMES: dict[type[StrEnum], str] = {
     PromotionStatus: "promotion_status",
     VectorOpKind: "vector_op_kind",
     OutboxStatus: "outbox_status",
+    IndexGenerationStatus: "index_generation_status",
     LlmProviderKind: "llm_provider_kind",
     LlmCapability: "llm_capability",
     LlmRevisionStatus: "llm_revision_status",

@@ -254,11 +254,9 @@ async def test_embedding_probe_checks_the_dimension(h: Harness) -> None:
     report = (
         await admin.client.post(f"/admin/llm/models/{embed['id']}/probe", headers=admin.headers)
     ).json()["report"]
-    assert (report["dimension"], report["dimension_matches"], report["separates_unrelated"]) == (
-        DIM,
-        True,
-        True,
-    )
+    # Any dimension is accepted: each index generation records its own (10.3).
+    assert (report["dimension"], report["separates_unrelated"]) == (DIM, True)
+    assert "dimension_matches" not in report
 
 
 async def test_draft_probe_activate_and_roll_back(h: Harness, factory: SessionFactory) -> None:
@@ -366,17 +364,15 @@ async def test_policy_errors_are_explained(h: Harness) -> None:
     for model in (await admin.client.get("/admin/llm/models")).json():
         if model["provider_id"] == local["id"]:
             await admin.client.post(f"/admin/llm/models/{model['id']}/probe", headers=admin.headers)
-    refused = await admin.client.post(
+    # 10.3: another embedding model is no longer refused; the worker re-embeds into a new
+    # index generation and swaps when complete.
+    activated = await admin.client.post(
         f"/admin/llm/revisions/{draft['number']}/activate", headers=admin.headers
     )
-    assert refused.status_code == 409
-    assert refused.json()["detail"]["error"] == "embed_change_requires_reindex"
-    deleted = await admin.client.delete(
-        f"/admin/llm/revisions/{draft['number']}", headers=admin.headers
-    )
-    assert deleted.status_code == 204
-    gone = await admin.client.delete("/admin/llm/revisions/1", headers=admin.headers)
-    assert gone.status_code == 409
+    assert activated.status_code == 200, activated.text
+    for number in (draft["number"], 1):  # ACTIVE and ARCHIVED revisions are kept
+        kept = await admin.client.delete(f"/admin/llm/revisions/{number}", headers=admin.headers)
+        assert kept.status_code == 409
 
 
 async def test_probes_are_rate_limited(settings: Settings, factory: SessionFactory) -> None:
@@ -592,3 +588,20 @@ async def test_clearing_a_provider_needs_step_up_and_the_operator_list(
                 )
             )
         assert sorted(events) == ["LLM_PROVIDER_CLEARED", "LLM_PROVIDER_UNCLEARED"]
+
+
+async def test_index_generations_are_shown_and_guarded(h: Harness) -> None:
+    """10.3: the admin sees the index generations and how many items a re-embed processes; a
+    rebuild needs a usable embedding model (here the endpoint is down)."""
+    member = await h.login()
+    assert (await member.client.get("/admin/llm/index")).status_code == 403
+    admin = await _admin(h)
+
+    index = (await admin.client.get("/admin/llm/index")).json()
+    assert index == {"generations": [], "items": 0, "reembed_per_minute": 600}
+    rebuild = await admin.client.post("/admin/llm/index/rebuild", headers=admin.headers)
+    assert rebuild.status_code == 409
+    assert rebuild.json()["detail"]["error"] == "embed_model_unavailable"
+    cancel = await admin.client.post("/admin/llm/index/7/cancel", headers=admin.headers)
+    assert cancel.status_code == 404
+    assert cancel.json()["detail"]["error"] == "generation_not_found"

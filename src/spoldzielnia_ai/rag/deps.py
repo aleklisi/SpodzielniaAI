@@ -14,8 +14,8 @@ if TYPE_CHECKING:
 
 
 def get_embedder(request: Request) -> Embedder:
-    settings: Settings = request.app.state.settings
-    return Embedder(request.app.state.llm, settings.qdrant.vector_size)
+    """Embeddings with the index generations' models (10.3, ``app.state.generations``)."""
+    return Embedder(request.app.state.llm, request.app.state.generations)
 
 
 def get_notebook_qa(request: Request) -> NotebookQA:

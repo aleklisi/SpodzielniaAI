@@ -132,6 +132,6 @@ Every entry is the reason a scanner is told to stay quiet. Re-check each entry w
 - **Embedding quality.** The smoke check "embedding model separates unrelated texts" and E2E `4-happy-path`
   depend on the configured embedding model. A degenerate model (unrelated texts with cosine ≥ 0.8)
   fails the smoke check, and global setup skips scenario 4 with a clear reason instead of letting it
-  fail at random. `rag.score_threshold` is calibrated per model. Re-index (`make reindex`) after switching.
+  fail at random. `rag.score_threshold` is calibrated per model. Switching the embedding model re-embeds into a new index generation (10.3); recalibrate after the swap.
 - **Promotion quota.** The promotion daily quota (20 per member) is real, so repeated test runs against the
   same dev stack can hit it until UTC midnight.

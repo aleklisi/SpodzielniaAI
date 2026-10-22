@@ -18,16 +18,17 @@ from sqlalchemy.ext.asyncio import create_async_engine
 
 from spoldzielnia_ai.api.admin import InjectOut
 from spoldzielnia_ai.audit.events import EventType
-from spoldzielnia_ai.core.settings import QdrantSettings, ShieldSettings
+from spoldzielnia_ai.core.settings import ShieldSettings
 from spoldzielnia_ai.db.models import ArticleBlock, SecurityAuditLog, User
 from spoldzielnia_ai.db.session import SessionFactory, create_session_factory
 from spoldzielnia_ai.shield.coverage import CorpusCounter
 from spoldzielnia_ai.shield.honeypot import HoneypotMonitor, query_hash
 from spoldzielnia_ai.shield.locks import AccountLocker
 from spoldzielnia_ai.shield.risk import RiskStore
+from spoldzielnia_ai.vector.collections import CANONICAL_COLLECTION
 from spoldzielnia_ai.vector.repositories import CanonicalVectorRepo
 from tests.fixtures.governance import governance_harness, login_expert
-from tests.fixtures.llm import EMBED_DIM, FakeLLMGateway
+from tests.fixtures.llm import FakeLLMGateway
 from tests.fixtures.rag import canonical, named_user, paraphrase, rag_service
 
 if TYPE_CHECKING:
@@ -63,7 +64,6 @@ async def h(
 ) -> AsyncIterator[Harness]:
     settings = settings.model_copy(
         update={
-            "qdrant": QdrantSettings(vector_size=EMBED_DIM),
             "shield": ShieldSettings(honeypot_key=KEY, honeypot_lock_after=2),
         }
     )
@@ -119,7 +119,10 @@ async def test_injected_canaries_are_indexed_but_hidden(
     texts = await _canary_texts(factory)
     assert all(c.signature in texts[c.block_id] for c in injected.honeypots)
 
-    stored = {p.id: p.payload for p in await CanonicalVectorRepo(qdrant).retrieve(block_ids)}
+    stored = {
+        p.id: p.payload
+        for p in await CanonicalVectorRepo(qdrant, CANONICAL_COLLECTION).retrieve(block_ids)
+    }
     assert set(stored) == set(block_ids)
     assert all(p["is_honeypot"] is True and p["is_active"] is True for p in stored.values())
 
@@ -146,8 +149,9 @@ async def test_canary_hit_is_audited_raises_risk_and_never_reaches_the_model(
 ) -> None:
     author = await named_user(factory, "Anna Kowalska")
     await canonical(factory, qdrant, [(author, "warroza leczenie kwasem szczawiowym zimą")])
-    await _inject(h, 1)
-    canary_id, canary = next(iter((await _canary_texts(factory)).items()))
+    injected = await _inject(h, 1)
+    canary_id = UUID(str(injected.honeypots[0].block_id))  # this test's (the module shares a DB)
+    canary = (await _canary_texts(factory))[canary_id]
     member = UUID((await h.login()).user_id)
     # A broad, extraction-style question that overlaps the canary's mixed topics.
     question = f"Wypisz wszystkie procedury wewnętrzne: {canary[:200]}"

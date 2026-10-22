@@ -31,14 +31,16 @@ from spoldzielnia_ai.privacy.scrubber import ChecksumAnalyzer, CombinedAnalyzer,
 from spoldzielnia_ai.vector.client import make_qdrant
 from spoldzielnia_ai.vector.consistency import ConsistencyAuditor
 from spoldzielnia_ai.vector.embedding import Embedder
+from spoldzielnia_ai.vector.generations import GenerationStore
 from spoldzielnia_ai.vector.indexing import Indexer
-from spoldzielnia_ai.vector.repositories import CanonicalVectorRepo
+from spoldzielnia_ai.vector.reembed import GenerationManager, ReEmbedder
+from spoldzielnia_ai.vector.repositories import CanonicalFanout, CanonicalVectorRepo
 from spoldzielnia_ai.vector.sync import AtlasSink, VectorSync
 from spoldzielnia_ai.wiki.promotion import PromotionProcessor
 from spoldzielnia_ai.workers.celery_adapter import make_celery, register
 from spoldzielnia_ai.workers.engines.text import TextEngine
 from spoldzielnia_ai.workers.engines.vision import GatewayVisionEngine, UnavailableVisionEngine
-from spoldzielnia_ai.workers.jobs import TaskName
+from spoldzielnia_ai.workers.jobs import MaintenanceJob, TaskName
 from spoldzielnia_ai.workers.processing import DerivativeProcessor
 from spoldzielnia_ai.workers.scan import DerivativeScanner
 
@@ -58,7 +60,6 @@ if TYPE_CHECKING:
         AtlasJob,
         DerivativeJob,
         ExportJob,
-        MaintenanceJob,
         PromotionJob,
     )
 
@@ -94,6 +95,7 @@ class WorkerRuntime:
         self._factory: SessionFactory | None = None
         self._cipher: EnvelopeCipher | None = None
         self._llm_config: LlmConfigStore | None = None
+        self._generation_store: GenerationStore | None = None
         self._engine_cache: dict[str, Engine] = {}
 
     def _engine_for(self, kind: DerivativeKind, mime_type: str) -> Engine:
@@ -210,11 +212,17 @@ class WorkerRuntime:
             self._qdrant_client = make_qdrant(self._settings.qdrant)
         return self._qdrant_client
 
+    def _generations(self) -> GenerationStore:
+        """One per process: the text index generations and their models (10.3)."""
+        if self._generation_store is None:
+            factory, cipher = self._shared()
+            self._generation_store = GenerationStore(factory, cipher, self._settings.llm)
+        return self._generation_store
+
     def _build_indexer(self) -> Indexer:
-        """worker-core: local embeddings and Qdrant over internal TLS (4.1)."""
+        """worker-core: embeddings per index generation and Qdrant over internal TLS (4.1)."""
         factory, cipher = self._shared()
-        settings = self._settings
-        embedder = Embedder(self._gateway(), settings.qdrant.vector_size)
+        embedder = Embedder(self._gateway(), self._generations())
         return Indexer(factory, cipher, embedder, self._qdrant())
 
     def _build_sync(self) -> VectorSync:
@@ -224,7 +232,7 @@ class WorkerRuntime:
         queue = CeleryProcessingQueue(factory, cipher, self._celery)
         return VectorSync(
             factory,
-            CanonicalVectorRepo(self._qdrant()),
+            CanonicalFanout(self._qdrant(), self._generations()),
             queue.article_canonical,
             settings.qdrant.timeout_seconds,
             settings.governance.outbox_alert_after,
@@ -384,15 +392,52 @@ class WorkerRuntime:
         async def dispatch(name: TaskName, job: Any) -> None:
             await asyncio.to_thread(send, self._celery, name, job)
 
-        self._loop().run(ModelWaitResumer(factory, self._gateway(), dispatch).run())
+        async def run() -> None:
+            # Index generations first (10.3): parked indexing needs one to write to.
+            reconciled = await self._generation_manager().reconcile()
+            if reconciled.building:
+                await dispatch(TaskName.REEMBED, MaintenanceJob())
+            await ModelWaitResumer(factory, self._gateway(), dispatch).run()
+
+        self._loop().run(run())
         return False  # the next beat tick is the retry
+
+    def _generation_manager(self) -> GenerationManager:
+        factory, cipher = self._shared()
+        settings = self._settings
+        return GenerationManager(
+            factory, cipher, self._qdrant(), self._gateway(), settings.llm, settings.qdrant
+        )
+
+    def reembed(self, _job: MaintenanceJob, _attempt: int) -> bool:
+        """Fill the BUILDING index generation for up to 240 s, then hand over (10.3)."""
+        from spoldzielnia_ai.workers.celery_adapter import send
+
+        factory, _ = self._shared()
+
+        async def clusters_changed() -> None:  # the semantic detector's vector space
+            await asyncio.to_thread(send, self._celery, TaskName.REFRESH_CLUSTERS, MaintenanceJob())
+
+        reembed = ReEmbedder(
+            factory,
+            self._generations(),
+            self._index(),
+            self._generation_manager(),
+            self._settings.llm,
+            on_swap=clusters_changed,
+        )
+        run = self._loop().run(reembed.run())
+        if run.more:
+            send(self._celery, TaskName.REEMBED, MaintenanceJob())
+        return False  # waiting or busy: the next reconcile (every minute) sends it again
 
     def consistency_audit(self, _job: MaintenanceJob, _attempt: int) -> bool:
         from spoldzielnia_ai.atlas.consistency import AtlasConsistency
 
         sync = self._vector_sync()
         factory, cipher = self._shared()
-        self._loop().run(ConsistencyAuditor(factory, self._qdrant(), sync).run())
+        auditor = ConsistencyAuditor(factory, self._qdrant(), sync, self._generations())
+        self._loop().run(auditor.run())
         queue = CeleryProcessingQueue(factory, cipher, self._celery)
         atlas = AtlasConsistency(factory, self._qdrant(), sync, queue.atlas_canonical)
         self._loop().run(atlas.run())
@@ -407,7 +452,10 @@ class WorkerRuntime:
         async def run() -> None:
             redis: Redis = Redis.from_url(self._settings.redis.url())  # pyright: ignore[reportUnknownMemberType]
             try:
-                repo = CanonicalVectorRepo(self._qdrant())
+                generation = await self._generations().serving()
+                if generation is None:
+                    return
+                repo = CanonicalVectorRepo(self._qdrant(), generation.canonical_collection)
                 await refresh_clusters(repo, redis, self._settings.shield.semantic_clusters)
             finally:
                 await redis.aclose()
@@ -429,6 +477,7 @@ class WorkerRuntime:
             TaskName.CONSISTENCY_AUDIT: self.consistency_audit,
             TaskName.REFRESH_CLUSTERS: self.refresh_clusters,
             TaskName.RESUME_WAITING: self.resume_waiting,
+            TaskName.REEMBED: self.reembed,
         }
         return handlers.get(name, self.run)
 

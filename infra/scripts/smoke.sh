@@ -218,32 +218,42 @@ check "api: embedding model separates unrelated texts" \
   "${COMPOSE[@]}" exec -T api python -c "$EMBED_PY"
 QDRANT_PY='
 import asyncio
+from spoldzielnia_ai.core.crypto import EnvelopeCipher, StaticKeyProvider
 from spoldzielnia_ai.core.settings import WorkerSettings
+from spoldzielnia_ai.db.engine import create_app_engine
+from spoldzielnia_ai.db.session import create_session_factory
+from spoldzielnia_ai.llm.config_store import LlmConfigStore
+from spoldzielnia_ai.llm.gateway import LiteLLMGateway, ModelUnavailable
 from spoldzielnia_ai.vector.client import make_qdrant
-from spoldzielnia_ai.vector.collections import COLLECTIONS, ensure_collection
+from spoldzielnia_ai.vector.collections import ensure_collection
+from spoldzielnia_ai.vector.embedding import Embedder
+from spoldzielnia_ai.vector.generations import GenerationStore
 async def main():
     s = WorkerSettings()
+    engine = create_app_engine(s.db)
+    factory = create_session_factory(engine)
+    cipher = EnvelopeCipher(StaticKeyProvider(s.security.kek.get_secret_value()))
+    store = GenerationStore(factory, cipher, s.llm, ttl_seconds=0)
     client = make_qdrant(s.qdrant)
-    for name in COLLECTIONS:  # exists, right size and indexes (no-op when bootstrapped)
-        assert not await ensure_collection(client, name, s.qdrant.vector_size), name
-    await client.close()
+    try:
+        generation = await store.serving()
+        if generation is None:  # no embedding model configured yet: nothing to check (10.3)
+            print("no serving index generation")
+            return
+        for name in generation.collections:  # exists, its own size and indexes (no-op)
+            assert not await ensure_collection(client, name, generation.dimension), name
+        gateway = LiteLLMGateway(s.llm, source=LlmConfigStore(factory, cipher, s.llm))
+        try:  # EmbeddingMismatch fails the check; a model that is down does not
+            await Embedder(gateway, store).embed(["pszczoły"])
+        except ModelUnavailable as exc:
+            print("embedding model unavailable, size not checked:", exc)
+    finally:
+        await client.close()
+        await engine.dispose()
 asyncio.run(main())
 '
-check "worker-core: Qdrant over internal TLS, collections bootstrapped" \
+check "worker-core: serving index generation over internal TLS, its model and dimension agree" \
   "${COMPOSE[@]}" exec -T worker-core python -c "$QDRANT_PY"
-EMBED_PY='
-import asyncio
-from spoldzielnia_ai.core.settings import WorkerSettings
-from spoldzielnia_ai.llm.gateway import LiteLLMGateway, ModelUnavailable
-from spoldzielnia_ai.vector.embedding import Embedder
-s = WorkerSettings()
-try:  # EmbeddingMismatch (wrong LLM_EMBED_DIM) fails the check; a model that is down does not
-    asyncio.run(Embedder(LiteLLMGateway(s.llm), s.qdrant.vector_size).embed(["pszczoły"]))
-except ModelUnavailable as exc:
-    print("embedding model unavailable, size not checked:", exc)
-'
-check "worker-core: embedding size matches qdrant.vector_size" \
-  "${COMPOSE[@]}" exec -T worker-core python -c "$EMBED_PY"
 METRICS_PY='
 import urllib.request
 body = urllib.request.urlopen("http://127.0.0.1:8000/metrics", timeout=5).read().decode()

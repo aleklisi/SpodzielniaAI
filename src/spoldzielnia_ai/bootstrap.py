@@ -2,7 +2,9 @@
 
 1.2b: the private object-storage bucket with default server-side encryption (SSE-S3 via
 MinIO KMS), versioning off, and no anonymous access.
-4.1: the Qdrant collections and payload indexes (``vector.collections``), over internal TLS.
+4.1: the Qdrant atlas collection and its payload indexes (``vector.collections``), over
+internal TLS. The text collections are created lazily, by the worker, for each index generation
+with the dimension its embedding model produces (10.3): starting needs no embedding model.
 """
 
 from __future__ import annotations
@@ -16,7 +18,7 @@ from minio.sseconfig import Rule, SSEConfig
 
 from spoldzielnia_ai.core.logging import get_logger
 from spoldzielnia_ai.vector.client import make_qdrant
-from spoldzielnia_ai.vector.collections import ensure_collections
+from spoldzielnia_ai.vector.collections import ensure_atlas_collection
 
 if TYPE_CHECKING:
     from qdrant_client import AsyncQdrantClient
@@ -70,9 +72,7 @@ def ensure_bucket(client: BucketClient, bucket: str, region: str) -> bool:
 async def _collections(settings: BootstrapSettings, qdrant: AsyncQdrantClient | None) -> None:
     client = qdrant or make_qdrant(settings.qdrant)
     try:
-        await ensure_collections(
-            client, settings.qdrant.vector_size, settings.qdrant.image_vector_size
-        )
+        await ensure_atlas_collection(client, settings.qdrant.image_vector_size)
     finally:
         if qdrant is None:
             await client.close()

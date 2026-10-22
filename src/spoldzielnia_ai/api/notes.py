@@ -23,16 +23,14 @@ from spoldzielnia_ai.db.enums import (
 )
 from spoldzielnia_ai.db.rls import RlsSessionDep  # noqa: TC001 - FastAPI resolves it
 from spoldzielnia_ai.notebook.deps import NotebookDep, StorageDep  # noqa: TC001
-from spoldzielnia_ai.vector.deps import QdrantDep  # noqa: TC001 - FastAPI resolves it
-from spoldzielnia_ai.vector.repositories import PrivateVectorRepo
+from spoldzielnia_ai.vector.deps import PrivateIndexesDep  # noqa: TC001 - FastAPI resolves it
 
 if TYPE_CHECKING:
     from typing import Self
 
-    from qdrant_client import AsyncQdrantClient
-
     from spoldzielnia_ai.files.storage import ObjectStorage
     from spoldzielnia_ai.notebook.service import NoteView
+    from spoldzielnia_ai.vector.repositories import PrivateFanout
 
 router = APIRouter(prefix="/notes", tags=["notes"])
 log = get_logger(__name__)
@@ -128,10 +126,10 @@ async def delete_objects(storage: ObjectStorage, keys: list[str]) -> None:
         await storage.delete(key)
 
 
-async def delete_vectors(client: AsyncQdrantClient, owner_id: UUID, note_id: UUID) -> None:
-    """The note's points in the owner's partition of the private index (4.1)."""
+async def delete_vectors(vectors: PrivateFanout, note_id: UUID) -> None:
+    """The note's points in the owner's partition of every live index generation (4.1)."""
     try:
-        await PrivateVectorRepo(client, owner_id).delete_note(note_id)
+        await vectors.delete_note(note_id)
     except Exception as exc:
         # Orphaned points name a note that no longer exists: notebook search re-reads notes
         # through RLS, so they can't surface. `reindex` drops them.
@@ -195,7 +193,7 @@ async def delete_note(
     user: CurrentUser,
     notebook: NotebookDep,
     storage: StorageDep,
-    qdrant: QdrantDep,
+    vectors: PrivateIndexesDep,
     background: BackgroundTasks,
 ) -> Response:
     keys = await notebook.delete(note_id)
@@ -203,5 +201,5 @@ async def delete_note(
         raise not_found()
     # Runs after the response, i.e. after the RLS transaction has committed the row deletion.
     background.add_task(delete_objects, storage, keys)
-    background.add_task(delete_vectors, qdrant, user.id, note_id)
+    background.add_task(delete_vectors, vectors.of(user.id), note_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

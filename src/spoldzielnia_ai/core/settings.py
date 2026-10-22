@@ -121,9 +121,10 @@ class QdrantSettings(BaseModel):
     api_key: SecretStr | None = None
     # Internal CA (compose secret `internal_ca`): Qdrant serves TLS with a dev/internal cert.
     ca_bundle: str | None = None
-    # Dimension of `llm.embed_model`. Bootstrap refuses an existing collection of another size,
-    # and the embedder refuses vectors of another size (4.1).
-    vector_size: int = Field(default=1024, ge=8, le=8192)
+    # The text index's dimension is no longer configured: each index generation records the
+    # dimension its embedding model produced when probed (10.3). A replaced generation keeps
+    # receiving consent changes, and is dropped this long after the swap.
+    retired_grace_hours: int = Field(default=24, ge=0, le=24 * 30)
     # Dimension of the atlas image model (SigLIP base: 768, 9.8).
     image_vector_size: int = Field(default=768, ge=8, le=8192)
     # Bounded wait for synchronous index operations (consent propagation, 4.3).
@@ -427,6 +428,9 @@ class LlmSettings(BaseModel):
     config_ttl_seconds: float = Field(default=30.0, gt=0)
     probe_max_age_hours: int = Field(default=24, ge=1)
     playground_per_hour: int = Field(default=30, ge=1)
+    # Re-embedding the text index with a new model (10.3): items per minute when the model is
+    # not on a local endpoint (cost guard for cloud APIs). Local models run unthrottled.
+    reembed_per_minute: int = Field(default=600, ge=1)
 
     @field_validator(
         "chat_model",

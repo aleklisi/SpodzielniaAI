@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import time
 from datetime import datetime  # noqa: TC003 - pydantic resolves annotations at runtime
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Any, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Request, status
@@ -39,8 +39,11 @@ from spoldzielnia_ai.vector.repositories import CanonicalVectorRepo
 from spoldzielnia_ai.wiki.consent import ConsentAction, ConsentService
 
 if TYPE_CHECKING:
+    from collections.abc import Awaitable, Callable
+
     from spoldzielnia_ai.core.settings import Settings
     from spoldzielnia_ai.db.session import SessionFactory
+    from spoldzielnia_ai.vector.repositories import CanonicalScope
     from spoldzielnia_ai.vector.sync import VectorSync
 
 router = APIRouter(prefix="/me/contributions", tags=["contributions"])
@@ -189,6 +192,18 @@ async def contribution_history(request: Request, principal: CurrentUser) -> list
     return entries
 
 
+def _serving_count(state: Any) -> Callable[[CanonicalScope], Awaitable[int]]:
+    """Points a change touches, counted in the serving index generation (audit only)."""
+
+    async def count(scope: CanonicalScope) -> int:
+        generation = await state.generations.serving()
+        if generation is None:
+            return 0
+        return await CanonicalVectorRepo(state.qdrant, generation.canonical_collection).count(scope)
+
+    return count
+
+
 async def _change(
     action: ConsentAction,
     scope: ScopeIn,
@@ -200,7 +215,7 @@ async def _change(
     state = request.app.state
     factory: SessionFactory = state.session_factory
     article_ids = list(dict.fromkeys(scope.article_ids)) if scope.article_ids else None
-    count = CanonicalVectorRepo(state.qdrant).count
+    count = _serving_count(state)
     async with factory() as session, session.begin():
         result = await ConsentService(session, count).change(action, principal.id, article_ids)
         outbox = await sync.record(session, result.ops)

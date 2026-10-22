@@ -15,9 +15,8 @@ from spoldzielnia_ai.db.models import ArticleBlock, ExpertReview, User, WikiArti
 from spoldzielnia_ai.rag.service import RAGService
 from spoldzielnia_ai.vector.embedding import Embedder
 from spoldzielnia_ai.vector.indexing import Indexer
-from spoldzielnia_ai.vector.repositories import CanonicalVectorRepo
 from spoldzielnia_ai.workers.jobs import ArticleJob
-from tests.fixtures.llm import EMBED_DIM, FakeLLMGateway
+from tests.fixtures.llm import FakeLLMGateway, static_generations
 from tests.fixtures.wiki import make_article, make_user
 
 if TYPE_CHECKING:
@@ -87,7 +86,11 @@ def rag_service(
     llm = llm or FakeLLMGateway(reply=paraphrase)
     config = RagSettings.model_validate({"score_threshold": 0.3, **settings})
     service = RAGService(
-        factory, CanonicalVectorRepo(qdrant), Embedder(llm, EMBED_DIM), llm, config
+        factory,
+        qdrant,
+        Embedder(llm, static_generations()),
+        llm,
+        config,
     )
     return service, llm
 
@@ -118,7 +121,7 @@ async def canonical(
                     article_id=article_id, reviewer_id=expert_id, decision=ReviewDecision.APPROVE
                 )
             )
-    embedder = Embedder(llm or FakeLLMGateway(), EMBED_DIM)
+    embedder = Embedder(llm or FakeLLMGateway(), static_generations())
     indexer = Indexer(factory, _NO_CIPHER, embedder, qdrant)
     await indexer.index_canonical_article(ArticleJob(article_id=article_id), True)
     return article_id, block_ids

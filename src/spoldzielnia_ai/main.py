@@ -57,6 +57,7 @@ from spoldzielnia_ai.llm.gateway import LiteLLMGateway
 from spoldzielnia_ai.notebook.queue import CeleryProcessingQueue
 from spoldzielnia_ai.shield.alerts import make_notifier
 from spoldzielnia_ai.vector.client import make_qdrant
+from spoldzielnia_ai.vector.generations import GenerationStore
 from spoldzielnia_ai.vector.sync import outbox_backlog
 from spoldzielnia_ai.workers.celery_adapter import make_celery
 
@@ -142,6 +143,10 @@ def create_app(
         app.state.session_factory, app.state.cipher, settings.llm, redis
     )
     app.state.llm = LiteLLMGateway(settings.llm, source=app.state.llm_config)
+    # Which index generation searches use, with which embedding model (10.3, P8).
+    app.state.generations = GenerationStore(
+        app.state.session_factory, app.state.cipher, settings.llm
+    )
     app.state.notifier = make_notifier(settings.shield)
     app.include_router(auth_router)
     app.include_router(me_router)

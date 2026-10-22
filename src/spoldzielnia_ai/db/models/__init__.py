@@ -13,6 +13,7 @@ from spoldzielnia_ai.db.models.atlas import (
     VisualLabel,
 )
 from spoldzielnia_ai.db.models.audit import SecurityAuditLog
+from spoldzielnia_ai.db.models.index_generation import IndexGeneration
 from spoldzielnia_ai.db.models.llm import LlmConfigRevision, LlmModel, LlmProvider, LlmRouting
 from spoldzielnia_ai.db.models.model_wait import ModelWait
 from spoldzielnia_ai.db.models.outbox import VectorOutbox
@@ -32,6 +33,7 @@ __all__ = [
     "Base",
     "ExpertReview",
     "ImageAnnotation",
+    "IndexGeneration",
     "LlmConfigRevision",
     "LlmModel",
     "LlmProvider",

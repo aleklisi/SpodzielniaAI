@@ -245,7 +245,7 @@ Rejestr historyjek dodanych poza Etapami 1–6: [docs/USER_STORIES_LOG.md](docs/
 *Dokumentacja: [docs/implementation/10_MODEL_PROVIDERS_API.md](docs/implementation/10_MODEL_PROVIDERS_API.md)*
 - [x] 10.1 Model zaufania „dopuszczony do danych prywatnych” zamiast lokalności (lista operatora w `.env`, zgoda ADMIN z MFA, trigger, `private_data=True`, nowa reguła 4 w AGENTS.md)
 - [x] 10.2 „Model nie jest skonfigurowany” zamiast awarii (`/api/capabilities`, zadania czekające na model, start bez modeli)
-- [ ] 10.3 Wersjonowane kolekcje Qdrant i bezpieczna zmiana modelu embeddingów (aliasy, ponowne embedowanie, zgody w obu wersjach)
+- [x] 10.3 Wersjonowane kolekcje Qdrant i bezpieczna zmiana modelu embeddingów (aliasy, ponowne embedowanie, zgody w obu wersjach)
 - [ ] 10.4 Transkrypcja mowy przez API (`/v1/audio/transcriptions`), wbudowany Whisper opcjonalny
 - [ ] 10.5 Dokumenty: Docling bez modeli ML, OCR przez API (VLM lub dedykowany OCR)
 - [ ] 10.6 Embeddingi obrazów przez API lub wbudowany SigLIP (opcjonalny), rozpoznawanie wyłączone bez modelu

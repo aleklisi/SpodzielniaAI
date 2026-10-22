@@ -6,6 +6,9 @@ from Postgres (``indexing.canonical_payload``):
 - the block is gone, revoked or empty → the point is deleted;
 - any governance field differs → the expected payload is written back.
 
+Every live generation (10.3) is audited: the one serving, one being built and one replaced
+but not dropped yet.
+
 Each batch runs under the index-writer lock (``VectorSync.exclusive``), so the audit can't
 write back a state that a concurrent change has already replaced. Anything fixed is reported
 as ``VECTOR_DRIFT_DETECTED`` (counts only).
@@ -22,7 +25,6 @@ from spoldzielnia_ai.audit.events import EventType
 from spoldzielnia_ai.audit.service import AuditService, AuditTarget
 from spoldzielnia_ai.core.logging import get_logger
 from spoldzielnia_ai.db.models import ArticleBlock, WikiArticle
-from spoldzielnia_ai.vector.collections import CANONICAL_COLLECTION
 from spoldzielnia_ai.vector.indexing import canonical_payload, indexable
 from spoldzielnia_ai.vector.repositories import CanonicalScope, CanonicalVectorRepo
 
@@ -32,6 +34,7 @@ if TYPE_CHECKING:
     from qdrant_client import AsyncQdrantClient
 
     from spoldzielnia_ai.db.session import SessionFactory
+    from spoldzielnia_ai.vector.generations import GenerationSource
     from spoldzielnia_ai.vector.repositories import StoredPoint
     from spoldzielnia_ai.vector.sync import VectorSync
 
@@ -60,16 +63,34 @@ class DriftReport:
 
 
 class ConsistencyAuditor:
-    def __init__(self, factory: SessionFactory, client: AsyncQdrantClient, sync: VectorSync):
+    def __init__(
+        self,
+        factory: SessionFactory,
+        client: AsyncQdrantClient,
+        sync: VectorSync,
+        generations: GenerationSource,
+    ) -> None:
         self._factory = factory
-        self._repo = CanonicalVectorRepo(client)
+        self._client = client
         self._sync = sync
+        self._generations = generations
 
     async def run(self) -> DriftReport:
         scanned = deleted = fixed = 0
-        async for batch in self._repo.scroll():
+        for generation in await self._generations.live():
+            report = await self._audit(
+                CanonicalVectorRepo(self._client, generation.canonical_collection)
+            )
+            scanned += report.scanned
+            deleted += report.deleted
+            fixed += report.fixed
+        return DriftReport(scanned, deleted, fixed)
+
+    async def _audit(self, repo: CanonicalVectorRepo) -> DriftReport:
+        scanned = deleted = fixed = 0
+        async for batch in repo.scroll():
             scanned += len(batch)
-            d, f = await self._check(batch)
+            d, f = await self._check(repo, batch)
             deleted += d
             fixed += f
         report = DriftReport(scanned, deleted, fixed)
@@ -78,15 +99,21 @@ class ConsistencyAuditor:
                 await AuditService(session).record(
                     EventType.VECTOR_DRIFT_DETECTED,
                     None,
-                    AuditTarget("qdrant_collection", CANONICAL_COLLECTION),
+                    AuditTarget("qdrant_collection", repo.collection),
                     {"scanned": scanned, "deleted": deleted, "fixed": fixed},
                 )
-            log.error("vector_audit.drift", scanned=scanned, deleted=deleted, fixed=fixed)
+            log.error(
+                "vector_audit.drift",
+                collection=repo.collection,
+                scanned=scanned,
+                deleted=deleted,
+                fixed=fixed,
+            )
         else:
-            log.info("vector_audit.clean", scanned=scanned)
+            log.info("vector_audit.clean", collection=repo.collection, scanned=scanned)
         return report
 
-    async def _check(self, batch: list[StoredPoint]) -> tuple[int, int]:
+    async def _check(self, repo: CanonicalVectorRepo, batch: list[StoredPoint]) -> tuple[int, int]:
         async with self._sync.exclusive() as session:
             ids = [p.id for p in batch]
             blocks = {
@@ -111,7 +138,7 @@ class ConsistencyAuditor:
                 if any(point.payload.get(k) != expected[k] for k in GOVERNANCE_KEYS):
                     fixes.append((point.id, expected))
             if stale:
-                await self._repo.delete(CanonicalScope(block_ids=tuple(stale)))
+                await repo.delete(CanonicalScope(block_ids=tuple(stale)))
             for block_id, payload in fixes:
-                await self._repo.set_payload(CanonicalScope(block_ids=(block_id,)), payload)
+                await repo.set_payload(CanonicalScope(block_ids=(block_id,)), payload)
         return len(stale), len(fixes)

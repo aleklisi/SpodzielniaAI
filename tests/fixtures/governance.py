@@ -11,7 +11,7 @@ from spoldzielnia_ai.vector.embedding import Embedder
 from spoldzielnia_ai.vector.indexing import Indexer
 from spoldzielnia_ai.workers.jobs import ArticleJob
 from tests.fixtures.app import harness
-from tests.fixtures.llm import EMBED_DIM, FakeLLMGateway
+from tests.fixtures.llm import FakeLLMGateway, static_generations
 
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator
@@ -42,7 +42,7 @@ async def governance_harness(
         h.router.route(url__startswith=qdrant_url).pass_through()  # the real Qdrant container
         h.app.state.qdrant = qdrant
         indexer = Indexer(
-            factory, h.app.state.cipher, Embedder(FakeLLMGateway(), EMBED_DIM), qdrant
+            factory, h.app.state.cipher, Embedder(FakeLLMGateway(), static_generations()), qdrant
         )
         h.app.state.processing_queue = InlineIndexQueue(indexer)
         yield h

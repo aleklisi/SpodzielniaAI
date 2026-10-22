@@ -37,7 +37,7 @@ models: ## Download the offline ML models into the `models` volume (internet, on
 models-host: ## Models for host-side `ml` tests (.models: whisper tiny + Docling)
 	uv run spoldzielnia models download --root .models --whisper tiny
 
-reindex: ## Rebuild both Qdrant collections from Postgres (e.g. after changing LLM_EMBED_DIM)
+reindex: ## Re-embed the text index into a new generation from Postgres, then swap (10.3)
 	$(COMPOSE) run --rm worker-core reindex --yes
 
 audit: ## Security scanning: pip-audit, bandit, npm audit, gitleaks, trivy (after `make build`)

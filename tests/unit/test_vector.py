@@ -17,7 +17,7 @@ from spoldzielnia_ai.vector.repositories import (
     private_point_id,
     restricted,
 )
-from tests.fixtures.llm import FakeLLMGateway
+from tests.fixtures.llm import FakeLLMGateway, static_generations
 
 MANDATORY = {
     ("consent_status", "ACTIVE"),
@@ -138,11 +138,11 @@ def test_chunking_short_and_empty_text() -> None:
 
 async def test_embedder_batches_and_validates_dimension() -> None:
     gateway = FakeLLMGateway(embed_dim=16)
-    embedder = Embedder(gateway, 16, batch_size=3)
+    embedder = Embedder(gateway, static_generations(16), batch_size=3)
 
     vectors = await embedder.embed([f"tekst {i}" for i in range(7)])
 
     assert len(vectors) == 7
     assert all(len(v) == 16 for v in vectors)
     with pytest.raises(EmbeddingMismatch, match="vector size 16"):
-        await Embedder(gateway, 32).embed(["x"])
+        await Embedder(gateway, static_generations(32)).embed(["x"])

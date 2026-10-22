@@ -42,6 +42,7 @@ class TaskName(StrEnum):
     CONSISTENCY_AUDIT = "index.consistency_audit"  # Celery beat, nightly (4.4)
     REFRESH_CLUSTERS = "index.refresh_clusters"  # Celery beat, nightly (5.3)
     RESUME_WAITING = "index.resume_waiting"  # 10.2: beat every minute + after config changes
+    REEMBED = "index.reembed"  # 10.3: fill a new index generation (resumable, time-boxed)
 
 
 TASK_QUEUE: dict[TaskName, Queue] = {
@@ -61,6 +62,7 @@ TASK_QUEUE: dict[TaskName, Queue] = {
     TaskName.CONSISTENCY_AUDIT: Queue.INDEX,
     TaskName.REFRESH_CLUSTERS: Queue.INDEX,
     TaskName.RESUME_WAITING: Queue.INDEX,
+    TaskName.REEMBED: Queue.INDEX,
 }
 
 # Not produced by a media worker: the owner's own annotation text (9.2, screened then indexed)
@@ -92,6 +94,7 @@ TIME_LIMITS: dict[TaskName, tuple[int, int]] = {
     TaskName.CONSISTENCY_AUDIT: (3600, 3660),
     TaskName.REFRESH_CLUSTERS: (1800, 1860),
     TaskName.RESUME_WAITING: (120, 150),
+    TaskName.REEMBED: (600, 660),  # a run stops after 240 s and sends itself again
 }
 
 
@@ -198,6 +201,7 @@ _SPECIAL_JOBS: dict[TaskName, JobModel] = {
     TaskName.CONSISTENCY_AUDIT: MaintenanceJob,
     TaskName.REFRESH_CLUSTERS: MaintenanceJob,
     TaskName.RESUME_WAITING: MaintenanceJob,
+    TaskName.REEMBED: MaintenanceJob,
 }
 
 JOB_MODEL: dict[TaskName, JobModel] = {

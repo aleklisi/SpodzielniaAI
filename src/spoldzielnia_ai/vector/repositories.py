@@ -8,6 +8,10 @@
 
 Point IDs: a canonical point's ID is its ``block_id``. A private point's ID is derived from
 ``(derivative_id, chunk)``, so re-indexing overwrites instead of duplicating.
+
+Each repository works on one collection: one index generation's (10.3). Writes that must reach
+every live generation (consent, governance, deletions) go through ``CanonicalFanout`` and
+``PrivateFanout``.
 """
 
 from __future__ import annotations
@@ -20,13 +24,14 @@ from uuid import UUID
 from qdrant_client import models
 
 from spoldzielnia_ai.db.enums import ArticleStatus, ConsentStatus
-from spoldzielnia_ai.vector.collections import CANONICAL_COLLECTION, PRIVATE_COLLECTION
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator, Iterable, Mapping
     from datetime import datetime
 
     from qdrant_client import AsyncQdrantClient
+
+    from spoldzielnia_ai.vector.generations import GenerationSource
 
 _PRIVATE_POINT_NS = UUID("6f0c51a4-3c6a-4a43-9f39-0d7c1c0e9a11")
 SCROLL_BATCH = 256
@@ -69,9 +74,10 @@ class PrivateHit:
 
 
 class PrivateVectorRepo:
-    def __init__(self, client: AsyncQdrantClient, user_id: UUID) -> None:
+    def __init__(self, client: AsyncQdrantClient, user_id: UUID, collection: str) -> None:
         self._client = client
         self._user_id = user_id
+        self._collection = collection
 
     def _tenant(self, *conditions: models.Condition) -> models.Filter:
         return models.Filter(must=[_match("user_id", str(self._user_id)), *conditions])
@@ -92,11 +98,11 @@ class PrivateVectorRepo:
             )
             for c in chunks
         ]
-        await self._client.upsert(PRIVATE_COLLECTION, points=points, wait=True)
+        await self._client.upsert(self._collection, points=points, wait=True)
 
     async def search(self, vector: list[float], limit: int = 8) -> list[PrivateHit]:
         response = await self._client.query_points(
-            PRIVATE_COLLECTION,
+            self._collection,
             query=vector,
             query_filter=self._tenant(),
             limit=limit,
@@ -121,11 +127,11 @@ class PrivateVectorRepo:
         selector = models.FilterSelector(
             filter=self._tenant(_match("derivative_id", str(derivative_id)))
         )
-        await self._client.delete(PRIVATE_COLLECTION, points_selector=selector, wait=True)
+        await self._client.delete(self._collection, points_selector=selector, wait=True)
 
     async def delete_note(self, note_id: UUID) -> None:
         selector = models.FilterSelector(filter=self._tenant(_match("note_id", str(note_id))))
-        await self._client.delete(PRIVATE_COLLECTION, points_selector=selector, wait=True)
+        await self._client.delete(self._collection, points_selector=selector, wait=True)
 
 
 # --- Canonical (shared) -------------------------------------------------------------------------
@@ -257,8 +263,9 @@ class StoredPoint:
 
 
 class CanonicalVectorRepo:
-    def __init__(self, client: AsyncQdrantClient) -> None:
+    def __init__(self, client: AsyncQdrantClient, collection: str) -> None:
         self._client = client
+        self.collection = collection
 
     async def upsert(self, points: list[CanonicalPoint]) -> None:
         if not points:
@@ -269,13 +276,13 @@ class CanonicalVectorRepo:
             )
             for p in points
         ]
-        await self._client.upsert(CANONICAL_COLLECTION, points=structs, wait=True)
+        await self._client.upsert(self.collection, points=structs, wait=True)
 
     async def search(
         self, vector: list[float], limit: int = 8, extra: models.Filter | None = None
     ) -> list[CanonicalHit]:
         response = await self._client.query_points(
-            CANONICAL_COLLECTION,
+            self.collection,
             query=vector,
             query_filter=restricted(extra),
             limit=limit,
@@ -295,7 +302,7 @@ class CanonicalVectorRepo:
 
     async def set_payload(self, scope: CanonicalScope, payload: Mapping[str, Any]) -> None:
         await self._client.set_payload(
-            CANONICAL_COLLECTION,
+            self.collection,
             payload=dict(payload),
             points=models.FilterSelector(filter=scope.to_filter()),
             wait=True,
@@ -303,7 +310,7 @@ class CanonicalVectorRepo:
 
     async def delete(self, scope: CanonicalScope) -> None:
         await self._client.delete(
-            CANONICAL_COLLECTION,
+            self.collection,
             points_selector=models.FilterSelector(filter=scope.to_filter()),
             wait=True,
         )
@@ -314,18 +321,18 @@ class CanonicalVectorRepo:
         must_not: list[models.Condition] = [_has_id(keep_ids)] if keep_ids else []
         flt = models.Filter(must=[_match_any("article_id", [article_id])], must_not=must_not)
         await self._client.delete(
-            CANONICAL_COLLECTION, points_selector=models.FilterSelector(filter=flt), wait=True
+            self.collection, points_selector=models.FilterSelector(filter=flt), wait=True
         )
 
     async def count(self, scope: CanonicalScope) -> int:
         result = await self._client.count(
-            CANONICAL_COLLECTION, count_filter=scope.to_filter(), exact=True
+            self.collection, count_filter=scope.to_filter(), exact=True
         )
         return result.count
 
     async def retrieve(self, block_ids: Iterable[UUID]) -> list[StoredPoint]:
         records = await self._client.retrieve(
-            CANONICAL_COLLECTION, ids=[str(b) for b in block_ids], with_payload=True
+            self.collection, ids=[str(b) for b in block_ids], with_payload=True
         )
         return [StoredPoint(UUID(str(r.id)), dict(r.payload or {})) for r in records]
 
@@ -335,7 +342,7 @@ class CanonicalVectorRepo:
         offset: Any = None
         while True:
             records, offset = await self._client.scroll(
-                CANONICAL_COLLECTION,
+                self.collection,
                 scroll_filter=flt,
                 limit=batch,
                 offset=offset,
@@ -352,9 +359,60 @@ class CanonicalVectorRepo:
         offset: Any = None
         while True:
             records, offset = await self._client.scroll(
-                CANONICAL_COLLECTION, limit=batch, offset=offset, with_payload=True
+                self.collection, limit=batch, offset=offset, with_payload=True
             )
             if records:
                 yield [StoredPoint(UUID(str(r.id)), dict(r.payload or {})) for r in records]
             if offset is None:
                 return
+
+
+# --- Writes to every live generation (10.3) --------------------------------------------------
+
+
+class CanonicalFanout:
+    """Consent and governance writes to the canonical collection of every live generation,
+    read fresh on each write: a generation being built or just replaced gets them too."""
+
+    def __init__(self, client: AsyncQdrantClient, generations: GenerationSource) -> None:
+        self._client = client
+        self._generations = generations
+
+    async def repos(self) -> list[CanonicalVectorRepo]:
+        return [
+            CanonicalVectorRepo(self._client, g.canonical_collection)
+            for g in await self._generations.live()
+        ]
+
+    async def set_payload(self, scope: CanonicalScope, payload: Mapping[str, Any]) -> None:
+        for repo in await self.repos():
+            await repo.set_payload(scope, payload)
+
+    async def delete(self, scope: CanonicalScope) -> None:
+        for repo in await self.repos():
+            await repo.delete(scope)
+
+
+class PrivateFanout:
+    """Deletions from one member's partition of every live generation's private collection."""
+
+    def __init__(
+        self, client: AsyncQdrantClient, generations: GenerationSource, user_id: UUID
+    ) -> None:
+        self._client = client
+        self._generations = generations
+        self._user_id = user_id
+
+    async def repos(self) -> list[PrivateVectorRepo]:
+        return [
+            PrivateVectorRepo(self._client, self._user_id, g.private_collection)
+            for g in await self._generations.live()
+        ]
+
+    async def delete_derivative(self, derivative_id: UUID) -> None:
+        for repo in await self.repos():
+            await repo.delete_derivative(derivative_id)
+
+    async def delete_note(self, note_id: UUID) -> None:
+        for repo in await self.repos():
+            await repo.delete_note(note_id)

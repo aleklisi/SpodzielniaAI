@@ -178,6 +178,9 @@ class SemanticAnomalyDetector:
         )
 
     async def features(self, history: list[_Entry]) -> Features:
+        if history:  # after an embedding-model change (10.3), older entries are another space
+            size = history[-1].vector.shape[0]
+            history = [e for e in history if e.vector.shape[0] == size]
         n = len(history)
         if n < 2:
             return Features(queries=n)

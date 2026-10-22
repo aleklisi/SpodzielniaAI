@@ -15,20 +15,21 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import create_async_engine
 
 from spoldzielnia_ai.core.crypto import EnvelopeCipher, StaticKeyProvider, row_aad
-from spoldzielnia_ai.core.settings import QdrantSettings, RagSettings
+from spoldzielnia_ai.core.settings import RagSettings
 from spoldzielnia_ai.db.enums import ConsentStatus, DerivativeStatus, OutboxStatus, Role
 from spoldzielnia_ai.db.models import ArticleBlock, NoteDerivative, VectorOutbox
 from spoldzielnia_ai.db.rls import rls_session
 from spoldzielnia_ai.db.session import SessionFactory, create_session_factory
 from spoldzielnia_ai.llm.gateway import LLMPurpose
 from spoldzielnia_ai.notebook.service import DERIVATIVE, NotebookService
+from spoldzielnia_ai.vector.collections import CANONICAL_COLLECTION
 from spoldzielnia_ai.vector.embedding import Embedder
 from spoldzielnia_ai.vector.indexing import Indexer
 from spoldzielnia_ai.vector.repositories import CanonicalVectorRepo
 from spoldzielnia_ai.vector.sync import VectorSync
 from spoldzielnia_ai.workers.jobs import DerivativeJob
 from tests.fixtures.governance import governance_harness
-from tests.fixtures.llm import EMBED_DIM, FakeLLMGateway, hash_embedding
+from tests.fixtures.llm import FakeLLMGateway, hash_embedding, static_generations
 from tests.fixtures.rag import canonical, citing, named_user, paraphrase, rag_service, sources
 
 if TYPE_CHECKING:
@@ -136,7 +137,7 @@ async def test_block_suspended_in_postgres_is_dropped_and_repaired(
             .where(ArticleBlock.id == block_id)
             .values(consent_status=ConsentStatus.SUSPENDED)
         )
-    repo = CanonicalVectorRepo(qdrant)
+    repo = CanonicalVectorRepo(qdrant, CANONICAL_COLLECTION)
     assert block_id in {h.block_id for h in await repo.search(hash_embedding(QUESTION), 10)}
     rag, llm = rag_service(factory, qdrant)
 
@@ -187,7 +188,6 @@ def _small(settings: Settings, **rag: float) -> Settings:
     return settings.model_copy(
         update={
             "rag": RagSettings.model_validate(rag),
-            "qdrant": QdrantSettings(vector_size=EMBED_DIM),
         }
     )
 
@@ -216,7 +216,7 @@ async def test_notebook_qa_answers_from_own_notes_only(
             dek = cipher.unwrap(row.dek_wrapped, aad)
             row.content_ciphertext = cipher.encrypt_field(dek, VARROA.encode(), aad, "content")
             row.status = DerivativeStatus.DONE
-        indexer = Indexer(factory, cipher, Embedder(FakeLLMGateway(), EMBED_DIM), qdrant)
+        indexer = Indexer(factory, cipher, Embedder(FakeLLMGateway(), static_generations()), qdrant)
         job = DerivativeJob(derivative_id=link.id, owner_id=alice_id)
         await indexer.index_private_derivative(job, True)
 

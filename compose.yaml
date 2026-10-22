@@ -50,7 +50,6 @@ x-llm-env: &llm-env
 # Qdrant over internal TLS (4.1). The vector size must match LLM_EMBED_MODEL's dimension.
 x-qdrant-env: &qdrant-env
   SPOLDZIELNIA_QDRANT__CA_BUNDLE: /run/secrets/internal_ca
-  SPOLDZIELNIA_QDRANT__VECTOR_SIZE: ${LLM_EMBED_DIM:-1024}
 
 x-infra: &infra
   restart: unless-stopped

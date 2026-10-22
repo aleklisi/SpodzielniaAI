@@ -190,6 +190,63 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/llm/index": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Index */
+        get: operations["get_index_admin_llm_index_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/llm/index/rebuild": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Rebuild Index
+         * @description Re-embed everything with the active model into a new generation (``reindex``).
+         */
+        post: operations["rebuild_index_admin_llm_index_rebuild_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/llm/index/{number}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cancel Index
+         * @description Abandon a build before the swap: the serving generation stays as it is.
+         */
+        post: operations["cancel_index_admin_llm_index__number__cancel_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/llm/models": {
         parameters: {
             query?: never;
@@ -2391,6 +2448,35 @@ export interface components {
             revoked_since: number;
             status: components["schemas"]["AtlasExportStatus"];
         };
+        /** GenerationOut */
+        GenerationOut: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Dimension */
+            dimension: number;
+            /** Done */
+            done: number;
+            /** Drop After */
+            drop_after: string | null;
+            /** Dropped */
+            dropped: boolean;
+            /** Failed */
+            failed: number;
+            /** Model */
+            model: string;
+            /** Number */
+            number: number;
+            /** Retired At */
+            retired_at: string | null;
+            /** Serving Since */
+            serving_since: string | null;
+            status: components["schemas"]["IndexGenerationStatus"];
+            /** Total */
+            total: number;
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -2460,6 +2546,21 @@ export interface components {
             required_actions: string[];
             /** Totp */
             totp: boolean;
+        };
+        /**
+         * IndexGenerationStatus
+         * @description A version of the text index built by one embedding model (10.3, P8).
+         * @enum {string}
+         */
+        IndexGenerationStatus: "BUILDING" | "SERVING" | "RETIRED" | "CANCELLED";
+        /** IndexOut */
+        IndexOut: {
+            /** Generations */
+            generations: components["schemas"]["GenerationOut"][];
+            /** Items */
+            items: number;
+            /** Reembed Per Minute */
+            reembed_per_minute: number;
         };
         /** InjectIn */
         InjectIn: {
@@ -3610,8 +3711,6 @@ export interface components {
             process_revision: number;
             /** Purposes */
             purposes: components["schemas"]["PurposeOut"][];
-            /** Vector Size */
-            vector_size: number;
         };
         /** StoredCanaryOut */
         StoredCanaryOut: {
@@ -4272,6 +4371,77 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ScanOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_index_admin_llm_index_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IndexOut"];
+                };
+            };
+        };
+    };
+    rebuild_index_admin_llm_index_rebuild_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IndexOut"];
+                };
+            };
+        };
+    };
+    cancel_index_admin_llm_index__number__cancel_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                number: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IndexOut"];
                 };
             };
             /** @description Validation Error */

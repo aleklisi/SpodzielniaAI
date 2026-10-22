@@ -23,7 +23,9 @@ from spoldzielnia_ai.db.rls import rls_session
 from spoldzielnia_ai.db.session import SessionFactory, create_session_factory
 from spoldzielnia_ai.notebook.service import DERIVATIVE, NotebookService
 from spoldzielnia_ai.vector.client import make_qdrant
+from spoldzielnia_ai.vector.collections import CANONICAL_COLLECTION
 from spoldzielnia_ai.vector.consistency import ConsistencyAuditor
+from spoldzielnia_ai.vector.reembed import count_items
 from spoldzielnia_ai.vector.reindex import rebuild
 from spoldzielnia_ai.vector.repositories import (
     CanonicalPayload,
@@ -35,7 +37,7 @@ from spoldzielnia_ai.vector.repositories import (
 from spoldzielnia_ai.vector.revalidate import revalidate
 from spoldzielnia_ai.vector.sync import VectorSync, resume_blocks, suspend_blocks
 from tests.fixtures.governance import approve, governance_harness, login_expert
-from tests.fixtures.llm import EMBED_DIM, FakeLLMGateway, hash_embedding
+from tests.fixtures.llm import FakeLLMGateway, hash_embedding, static_generations
 from tests.fixtures.wiki import make_article, make_user
 
 if TYPE_CHECKING:
@@ -88,18 +90,23 @@ async def _noop(_article_id: UUID) -> None:
 
 
 def _sync(factory: SessionFactory, client: AsyncQdrantClient, timeout: float = 5) -> VectorSync:
-    return VectorSync(factory, CanonicalVectorRepo(client), _noop, timeout)
+    return VectorSync(factory, CanonicalVectorRepo(client, CANONICAL_COLLECTION), _noop, timeout)
 
 
 async def _search(qdrant: AsyncQdrantClient, factory: SessionFactory, text: str) -> set[UUID]:
     """Canonical search as retrieval will do it: Qdrant, then re-validation in Postgres."""
-    hits = await CanonicalVectorRepo(qdrant).search(hash_embedding(text), 50)
+    hits = await CanonicalVectorRepo(qdrant, CANONICAL_COLLECTION).search(hash_embedding(text), 50)
     async with factory() as session:
         return {h.block_id for h in await revalidate(session, hits)}
 
 
 async def _raw(qdrant: AsyncQdrantClient, text: str) -> set[UUID]:
-    return {h.block_id for h in await CanonicalVectorRepo(qdrant).search(hash_embedding(text), 50)}
+    return {
+        h.block_id
+        for h in await CanonicalVectorRepo(qdrant, CANONICAL_COLLECTION).search(
+            hash_embedding(text), 50
+        )
+    }
 
 
 async def _pending(factory: SessionFactory) -> list[VectorOutbox]:
@@ -164,7 +171,7 @@ async def test_revoke_during_qdrant_outage_is_reconciled_later(
     assert (await sync.reconcile()).applied == 2
 
     assert await _pending(factory) == []
-    assert await CanonicalVectorRepo(qdrant).retrieve([b_block]) == []
+    assert await CanonicalVectorRepo(qdrant, CANONICAL_COLLECTION).retrieve([b_block]) == []
     assert await _raw(qdrant, TEXT_B) | await _raw(qdrant, TEXT_A) == set()
 
 
@@ -176,7 +183,9 @@ async def test_outbox_applies_in_commit_order_and_stops_at_failures(
     payload = CanonicalPayload(
         block, article_id, author, ConsentStatus.ACTIVE, ArticleStatus.CANONICAL, False, None
     )
-    await CanonicalVectorRepo(qdrant).upsert([CanonicalPoint(payload, hash_embedding(TEXT_A))])
+    await CanonicalVectorRepo(qdrant, CANONICAL_COLLECTION).upsert(
+        [CanonicalPoint(payload, hash_embedding(TEXT_A))]
+    )
     down = _sync(factory, dead_qdrant)
     for op in (suspend_blocks(author, None), resume_blocks(author, (article_id,), activate=True)):
         async with factory() as session, session.begin():
@@ -186,7 +195,7 @@ async def test_outbox_applies_in_commit_order_and_stops_at_failures(
     await _time_passes(factory)
     assert (await _sync(factory, qdrant).reconcile()).applied == 2
 
-    (point,) = await CanonicalVectorRepo(qdrant).retrieve([block])
+    (point,) = await CanonicalVectorRepo(qdrant, CANONICAL_COLLECTION).retrieve([block])
     assert (point.payload["consent_status"], point.payload["is_active"]) == ("ACTIVE", True)
 
 
@@ -210,7 +219,7 @@ async def test_drift_audit_fixes_stale_and_orphaned_points(
 ) -> None:
     alice, bob = await h.login(), await h.login()
     article_id, (a_block, b_block) = await _canonical(h, factory, [(alice, TEXT_A), (bob, TEXT_B)])
-    repo = CanonicalVectorRepo(qdrant)
+    repo = CanonicalVectorRepo(qdrant, CANONICAL_COLLECTION)
     # Inject drift: A's point claims SUSPENDED/inactive (it is ACTIVE), B's claims to be in
     # a CANONICAL article that Postgres says is DISPUTED, and a point with no block at all.
     await repo.set_payload(
@@ -226,7 +235,7 @@ async def test_drift_audit_fixes_stale_and_orphaned_points(
     await repo.upsert([CanonicalPoint(orphan, hash_embedding(TEXT_B))])
     assert orphan.block_id in await _raw(qdrant, TEXT_B)
 
-    auditor = ConsistencyAuditor(factory, qdrant, _sync(factory, qdrant))
+    auditor = ConsistencyAuditor(factory, qdrant, _sync(factory, qdrant), static_generations())
     report = await auditor.run()
 
     assert (report.deleted, report.fixed) == (1, 2)
@@ -247,7 +256,7 @@ async def test_drift_audit_fixes_stale_and_orphaned_points(
     assert events[-1].payload | {"deleted": 1, "fixed": 2} == events[-1].payload
 
 
-async def test_reindex_rebuilds_both_collections(
+async def test_reindex_builds_and_swaps_a_new_generation(
     settings: Settings, factory: SessionFactory, qdrant: AsyncQdrantClient
 ) -> None:
     cipher = EnvelopeCipher(StaticKeyProvider(settings.security.kek.get_secret_value()))
@@ -267,13 +276,20 @@ async def test_reindex_rebuilds_both_collections(
         )
         row.status = DerivativeStatus.DONE
     async with factory() as session, session.begin():
-        await VectorSync.record(session, [suspend_blocks(alice, None)])  # obsolete after rebuild
+        await VectorSync.record(session, [suspend_blocks(alice, None)])
 
-    report = await rebuild(factory, cipher, qdrant, FakeLLMGateway(), EMBED_DIM)
+    report = await rebuild(factory, cipher, qdrant, FakeLLMGateway(), settings.llm, settings.qdrant)
 
-    assert report.failed == 0
-    assert report.superseded_ops >= 1
-    assert set(blocks) <= await _raw(qdrant, TEXT_A)
-    hits = await PrivateVectorRepo(qdrant, alice).search(hash_embedding(TEXT_B))
+    # 10.3: ``reindex`` is a re-embed into a new generation, swapped in when complete.
+    assert (report.generation, report.failed, report.swapped) == (1, 0, True)
+    assert report.items == await count_items(factory)  # earlier tests share the database
+    canonical = CanonicalVectorRepo(qdrant, "canonical_wiki_index__g1")
+    hits = await canonical.search(hash_embedding(TEXT_A), 50, None)
+    assert set(blocks) <= {h.block_id for h in hits}
+    private = PrivateVectorRepo(qdrant, alice, "private_notes_index__g1")
+    hits = await private.search(hash_embedding(TEXT_B))
     assert [h.note_id for h in hits] == [note.id]
+    # Nothing is superseded any more: pending operations still apply to every generation.
+    assert len(await _pending(factory)) == 1
+    await _sync(factory, qdrant).drain()
     assert await _pending(factory) == []

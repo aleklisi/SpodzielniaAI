@@ -35,9 +35,11 @@ from spoldzielnia_ai.db.models import ArticleBlock, ExpertReview, User, WikiArti
 from spoldzielnia_ai.db.rls import rls_session
 from spoldzielnia_ai.db.session import create_session_factory
 from spoldzielnia_ai.files.storage import S3ObjectStorage
+from spoldzielnia_ai.llm.config_store import LlmConfigStore
 from spoldzielnia_ai.llm.gateway import LiteLLMGateway
 from spoldzielnia_ai.vector.client import make_qdrant
 from spoldzielnia_ai.vector.embedding import Embedder
+from spoldzielnia_ai.vector.generations import GenerationStore
 from spoldzielnia_ai.vector.indexing import Indexer
 from spoldzielnia_ai.workers.jobs import ArticleJob
 
@@ -81,8 +83,10 @@ async def canonical(factory, settings, cipher, args) -> dict:
         article.last_verified_at = func.now()
     qdrant = make_qdrant(settings.qdrant)
     try:
-        embedder = Embedder(LiteLLMGateway(settings.llm), settings.qdrant.vector_size)
-        indexer = Indexer(factory, cipher, embedder, qdrant)
+        # The index generations' own models (10.3); waits (is parked) if none serves yet.
+        gateway = LiteLLMGateway(settings.llm, source=LlmConfigStore(factory, cipher, settings.llm))
+        generations = GenerationStore(factory, cipher, settings.llm, ttl_seconds=0)
+        indexer = Indexer(factory, cipher, Embedder(gateway, generations), qdrant)
         await indexer.index_canonical_article(ArticleJob(article_id=article_id), True)
     finally:
         await qdrant.close()

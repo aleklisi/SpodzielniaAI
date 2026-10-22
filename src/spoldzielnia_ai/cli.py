@@ -6,7 +6,7 @@ Subcommands:
     audit-verify  re-compute the security audit log hash chain; exit 1 on any break
     worker     run a Celery worker for the given queues (2.5)
     beat       run the Celery beat scheduler (outbox reconciliation, consistency audit, 4.4)
-    reindex    rebuild both Qdrant collections from Postgres (4.4)
+    reindex    re-embed the text index into a new generation, then swap (4.4, 10.3)
     models     download/verify the offline ML models (2.5)
     bootstrap  create the storage bucket (1.2b) and the Qdrant collections (4.1)
     honeypot   inject, list or trace canary blocks (5.4): `docker compose run --rm api honeypot …`
@@ -132,12 +132,12 @@ def _cmd_reindex(args: argparse.Namespace) -> int:
     from spoldzielnia_ai.vector.reindex import run_reindex
 
     if not args.yes:
-        log.error("reindex.not_confirmed", hint="drops and rebuilds both collections: pass --yes")
+        log.error("reindex.not_confirmed", hint="re-embeds every item with the model: pass --yes")
         return 2
     settings = WorkerSettings()  # pyright: ignore[reportCallIssue]  # env/secrets
     configure_logging(settings.log_level, json=settings.environment != "dev")
     report = asyncio.run(run_reindex(settings))
-    return 0 if report.failed == 0 else 1
+    return 0 if report.swapped and report.failed == 0 else 1
 
 
 def _cmd_llm_egress(_args: argparse.Namespace) -> int:
@@ -340,8 +340,8 @@ def build_parser() -> argparse.ArgumentParser:
     beat = sub.add_parser("beat", help="run the Celery beat scheduler")
     beat.set_defaults(handler=_cmd_beat)
 
-    reindex = sub.add_parser("reindex", help="rebuild the Qdrant collections from Postgres")
-    reindex.add_argument("--yes", action="store_true", help="confirm dropping the collections")
+    reindex = sub.add_parser("reindex", help="re-embed the text index from Postgres")
+    reindex.add_argument("--yes", action="store_true", help="confirm re-embedding everything")
     reindex.set_defaults(handler=_cmd_reindex)
 
     models_cmd = sub.add_parser("models", help="download or verify offline ML models")

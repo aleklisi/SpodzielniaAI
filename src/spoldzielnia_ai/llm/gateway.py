@@ -169,7 +169,12 @@ class LLMGateway(Protocol):
     ) -> LLMResult[T]: ...
 
     async def embed(
-        self, texts: list[str], *, private_data: bool = True, purpose: LLMPurpose = ...
+        self,
+        texts: list[str],
+        *,
+        private_data: bool = True,
+        purpose: LLMPurpose = ...,
+        deployment: Deployment | None = None,
     ) -> list[list[float]]: ...
 
 
@@ -478,6 +483,7 @@ class LiteLLMGateway:
         self._fixed_transport = transport
         self._transport: ChatTransport | None = transport
         self._transport_config: ResolvedLlmConfig | None = None
+        self._pinned_transports: dict[Deployment, ChatTransport] = {}
 
     @property
     def config(self) -> ResolvedLlmConfig:
@@ -507,9 +513,15 @@ class LiteLLMGateway:
         return deployment.cleared or not private
 
     def route(self, purpose: LLMPurpose, private_data: bool) -> Deployment:
-        private = private_data or purpose in PRIVATE_PURPOSES
         name = self._config.routes.get(purpose)
         deployment = self._config.deployments.get(name) if name is not None else None
+        return self._allowed(deployment, purpose, private_data)
+
+    def _allowed(
+        self, deployment: Deployment | None, purpose: LLMPurpose, private_data: bool
+    ) -> Deployment:
+        """``deployment`` if policy lets ``purpose`` use it, else ``ModelNotConfigured``."""
+        private = private_data or purpose in PRIVATE_PURPOSES
         if deployment is not None and not deployment.local and not self._settings.allow_cloud:
             deployment = None  # the operator's ceiling (S2), whatever the configuration says
         if deployment is not None and private and not deployment.cleared:
@@ -527,6 +539,16 @@ class LiteLLMGateway:
         if deployment is None:
             raise ModelNotConfigured(purpose)
         return deployment
+
+    def _pinned(self, deployment: Deployment) -> ChatTransport:
+        """A transport for a deployment outside the current configuration (an index
+        generation's embedding model, 10.3), cached per deployment."""
+        if self._fixed_transport is not None:
+            return self._fixed_transport
+        if deployment not in self._pinned_transports:
+            config = ResolvedLlmConfig(-1, {deployment.name: deployment}, {})
+            self._pinned_transports[deployment] = LiteLLMTransport(config, self._settings)
+        return self._pinned_transports[deployment]
 
     @overload
     async def complete(
@@ -626,14 +648,28 @@ class LiteLLMGateway:
         raise LLMOutputInvalid(f"{deployment.name}: output does not match {schema}")
 
     async def embed(
-        self, texts: list[str], *, private_data: bool = True, purpose: LLMPurpose = LLMPurpose.EMBED
+        self,
+        texts: list[str],
+        *,
+        private_data: bool = True,
+        purpose: LLMPurpose = LLMPurpose.EMBED,
+        deployment: Deployment | None = None,
     ) -> list[list[float]]:
-        """``purpose`` is EMBED except for probes (PLAYGROUND: synthetic text only)."""
+        """``purpose`` is EMBED except for probes (PLAYGROUND: synthetic text only).
+
+        ``deployment`` pins the model instead of routing ``purpose`` (10.3): an index
+        generation is searched and written with the model that built it, which after a model
+        change is no longer the routed one. The same policy applies to it as to a route."""
         await self.refresh()
-        deployment = self.route(purpose, private_data)
+        if deployment is None:
+            deployment = self.route(purpose, private_data)
+            router = self._router()
+        else:
+            deployment = self._allowed(deployment, purpose, private_data)
+            router = self._pinned(deployment)
         started = time.monotonic()
         try:
-            response = await self._router().aembedding(deployment.name, input=texts)
+            response = await router.aembedding(deployment.name, input=texts)
         except Exception as exc:
             LLM_ERRORS.labels(deployment=deployment.name, kind="unavailable").inc()
             raise ModelUnavailable(f"{deployment.name}: {type(exc).__name__}") from exc

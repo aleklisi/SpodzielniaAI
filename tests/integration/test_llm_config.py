@@ -83,7 +83,7 @@ def cipher() -> EnvelopeCipher:
 
 def _service(factory: SessionFactory, cipher: EnvelopeCipher, **overrides: Any) -> LlmConfigService:
     settings = ENV.model_copy(update=overrides)
-    return LlmConfigService(factory, cipher, settings, vector_size=DIM)
+    return LlmConfigService(factory, cipher, settings)
 
 
 async def _write(factory: SessionFactory, statement: Executable) -> None:
@@ -145,7 +145,7 @@ async def test_seeding_imports_env_as_active_revision_one(
     assert service.api_key(provider) == "lm-studio-token-0001"
     embed = snapshot.deployment_for(LlmRoutePurpose.EMBED)
     assert embed is not None
-    assert embed.embed_dimension == DIM
+    assert embed.embed_dimension is None  # probed when the index generation is built (10.3)
     async with factory() as session:
         event = await session.scalar(
             select(SecurityAuditLog).where(
@@ -373,7 +373,6 @@ async def test_activation_needs_fresh_probes_and_the_cloud_ceiling(
         factory,
         cipher,
         ENV.model_copy(update={"allow_cloud": False}),
-        vector_size=DIM,
         now=lambda: clock[0],
     )
     await service.ensure_seeded(None)
@@ -521,27 +520,26 @@ async def _activate_with(
     return (await service.activate(None, draft.revision.number)).revision.number
 
 
-async def test_embedding_model_changes_are_refused(
+async def test_embedding_model_changes_are_allowed(
     factory: SessionFactory, cipher: EnvelopeCipher
 ) -> None:
+    """10.3: another embedding model is activated; the worker re-embeds into a new index
+    generation (``vector.reembed``) instead of the change being refused."""
     service = _service(factory, cipher)
     await service.ensure_seeded(None)
     (provider,) = await service.providers()
     other = await service.create_model(
         None,
-        ModelIn(
-            provider_id=provider.id,
-            model_name="bge-m3",
-            capability=LlmCapability.EMBED,
-            embed_dimension=DIM,
-        ),
+        ModelIn(provider_id=provider.id, model_name="bge-m3", capability=LlmCapability.EMBED),
     )
-    with pytest.raises(ConfigError) as exc:
-        await _activate_with(service, {LlmRoutePurpose.EMBED: other.id})
-    assert exc.value.code == "embed_change_requires_reindex"
-    with pytest.raises(ConfigError) as exc:
-        await _activate_with(service, {LlmRoutePurpose.EMBED: None})
-    assert exc.value.code == "embed_change_requires_reindex"
+    number = await _activate_with(service, {LlmRoutePurpose.EMBED: other.id})
+    active = await service.active()
+    assert active is not None
+    assert active.revision.number == number
+    snapshot = ConfigSnapshot.model_validate(active.revision.snapshot)
+    embed = snapshot.deployment_for(LlmRoutePurpose.EMBED)
+    assert embed is not None
+    assert embed.model == "bge-m3"
 
 
 async def test_rollback_restores_a_snapshot_as_a_new_revision(
@@ -590,7 +588,7 @@ async def test_the_store_follows_activations_without_a_restart(
 ) -> None:
     redis = FakeAsyncRedis()
     clock = [0.0]
-    service = LlmConfigService(factory, cipher, ENV, vector_size=DIM, redis=redis)
+    service = LlmConfigService(factory, cipher, ENV, redis=redis)
     store = LlmConfigStore(factory, cipher, ENV, redis, clock=lambda: clock[0])
     recorder = Recorder()
     gateway = LiteLLMGateway(ENV, recorder, source=store)
@@ -659,7 +657,7 @@ async def test_unclearing_stops_private_purposes_at_once_without_a_new_revision(
 ) -> None:
     redis = FakeAsyncRedis()
     clock = [0.0]
-    service = LlmConfigService(factory, cipher, ENV, vector_size=DIM, redis=redis)
+    service = LlmConfigService(factory, cipher, ENV, redis=redis)
     await service.ensure_seeded(None)
     store = LlmConfigStore(factory, cipher, ENV, redis, clock=lambda: clock[0])
     recorder = Recorder()

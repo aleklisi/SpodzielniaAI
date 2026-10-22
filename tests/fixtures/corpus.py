@@ -18,8 +18,9 @@ from typing import TYPE_CHECKING
 
 from pydantic import SecretStr
 
-from spoldzielnia_ai.core.settings import QdrantSettings, ShieldSettings
+from spoldzielnia_ai.core.settings import ShieldSettings
 from spoldzielnia_ai.shield.clusters import refresh_clusters
+from spoldzielnia_ai.vector.collections import CANONICAL_COLLECTION
 from spoldzielnia_ai.vector.repositories import CanonicalVectorRepo
 from tests.fixtures.llm import EMBED_DIM, FakeLLMGateway, hash_embedding
 from tests.fixtures.rag import canonical, named_user, paraphrase
@@ -132,7 +133,12 @@ async def prepared_corpus(h: Harness, factory: SessionFactory, qdrant: AsyncQdra
     """The corpus, indexed, with the topic clusters the nightly task (5.3) would compute."""
     embedding = TopicEmbedding(chapters())
     seeded = await seed_corpus(factory, qdrant, embedding)
-    assert await refresh_clusters(CanonicalVectorRepo(qdrant), h.app.state.redis, 20) == 20
+    assert (
+        await refresh_clusters(
+            CanonicalVectorRepo(qdrant, CANONICAL_COLLECTION), h.app.state.redis, 20
+        )
+        == 20
+    )
     return Corpus(seeded, embedding)
 
 
@@ -148,6 +154,4 @@ def shield_settings(settings: Settings, **shield: object) -> Settings:
             **shield,
         }
     )
-    return settings.model_copy(
-        update={"qdrant": QdrantSettings(vector_size=EMBED_DIM), "shield": config}
-    )
+    return settings.model_copy(update={"shield": config})

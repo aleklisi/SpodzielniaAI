@@ -47,12 +47,11 @@ class NotebookQA:
 
     async def ask(self, notebook: NotebookService, user_id: UUID, question: str) -> NoteAnswer:
         request_id = uuid7()
-        vector = (await self._embedder.embed([question]))[0]
+        query = await self._embedder.query([question])
+        repo = PrivateVectorRepo(self._client, user_id, query.generation.private_collection)
         hits = [
             h
-            for h in await PrivateVectorRepo(self._client, user_id).search(
-                vector, limit=self._settings.top_k
-            )
+            for h in await repo.search(query.vector, limit=self._settings.top_k)
             if h.score >= self._settings.score_threshold
         ]
         derivatives = await notebook.derivative_texts([h.derivative_id for h in hits])

@@ -1787,6 +1787,98 @@
         "title": "ExportOut",
         "type": "object"
       },
+      "GenerationOut": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "dimension": {
+            "title": "Dimension",
+            "type": "integer"
+          },
+          "done": {
+            "title": "Done",
+            "type": "integer"
+          },
+          "drop_after": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Drop After"
+          },
+          "dropped": {
+            "title": "Dropped",
+            "type": "boolean"
+          },
+          "failed": {
+            "title": "Failed",
+            "type": "integer"
+          },
+          "model": {
+            "title": "Model",
+            "type": "string"
+          },
+          "number": {
+            "title": "Number",
+            "type": "integer"
+          },
+          "retired_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Retired At"
+          },
+          "serving_since": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Serving Since"
+          },
+          "status": {
+            "$ref": "#/components/schemas/IndexGenerationStatus"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "number",
+          "status",
+          "model",
+          "dimension",
+          "total",
+          "done",
+          "failed",
+          "created_at",
+          "serving_since",
+          "retired_at",
+          "drop_after",
+          "dropped"
+        ],
+        "title": "GenerationOut",
+        "type": "object"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -2007,6 +2099,43 @@
           "identity_providers"
         ],
         "title": "IdpOut",
+        "type": "object"
+      },
+      "IndexGenerationStatus": {
+        "description": "A version of the text index built by one embedding model (10.3, P8).",
+        "enum": [
+          "BUILDING",
+          "SERVING",
+          "RETIRED",
+          "CANCELLED"
+        ],
+        "title": "IndexGenerationStatus",
+        "type": "string"
+      },
+      "IndexOut": {
+        "properties": {
+          "generations": {
+            "items": {
+              "$ref": "#/components/schemas/GenerationOut"
+            },
+            "title": "Generations",
+            "type": "array"
+          },
+          "items": {
+            "title": "Items",
+            "type": "integer"
+          },
+          "reembed_per_minute": {
+            "title": "Reembed Per Minute",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "generations",
+          "items",
+          "reembed_per_minute"
+        ],
+        "title": "IndexOut",
         "type": "object"
       },
       "InjectIn": {
@@ -5256,10 +5385,6 @@
             },
             "title": "Purposes",
             "type": "array"
-          },
-          "vector_size": {
-            "title": "Vector Size",
-            "type": "integer"
           }
         },
         "required": [
@@ -5269,7 +5394,6 @@
           "cloud_hosts",
           "private_data_endpoints",
           "egress_proxy",
-          "vector_size",
           "probe_max_age_hours",
           "active_revision",
           "process_revision",
@@ -6724,6 +6848,92 @@
         "summary": "Scan Text",
         "tags": [
           "admin"
+        ]
+      }
+    },
+    "/admin/llm/index": {
+      "get": {
+        "operationId": "get_index_admin_llm_index_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IndexOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Index",
+        "tags": [
+          "admin-llm"
+        ]
+      }
+    },
+    "/admin/llm/index/rebuild": {
+      "post": {
+        "description": "Re-embed everything with the active model into a new generation (``reindex``).",
+        "operationId": "rebuild_index_admin_llm_index_rebuild_post",
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IndexOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Rebuild Index",
+        "tags": [
+          "admin-llm"
+        ]
+      }
+    },
+    "/admin/llm/index/{number}/cancel": {
+      "post": {
+        "description": "Abandon a build before the swap: the serving generation stays as it is.",
+        "operationId": "cancel_index_admin_llm_index__number__cancel_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "number",
+            "required": true,
+            "schema": {
+              "title": "Number",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IndexOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Cancel Index",
+        "tags": [
+          "admin-llm"
         ]
       }
     },

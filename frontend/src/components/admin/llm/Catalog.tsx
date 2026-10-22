@@ -636,7 +636,8 @@ function AddModel({ status, providers }: { status: LlmStatus; providers: Provide
         capability,
         temperature: temperature ? Number(temperature) : null,
         max_tokens: maxTokens ? Number(maxTokens) : null,
-        embed_dimension: capability === "EMBED" ? status.vector_size : null,
+        embed_dimension: null, // the probe records it; each index version keeps its own
+
         notes: null,
       });
       toast("Dodano model. Przetestuj go przed użyciem.", "ok");
@@ -692,7 +693,9 @@ function AddModel({ status, providers }: { status: LlmStatus; providers: Provide
               </label>
             </div>
           ) : (
-            <p className="self-end text-xs text-text-muted">Wymiar musi wynosić {status.vector_size} (indeks Qdrant).</p>
+            <p className="self-end text-xs text-text-muted">
+              Wymiar wektora odczyta test modelu. Zmiana modelu embeddingów buduje nową wersję indeksu w tle.
+            </p>
           )}
         </div>
         <div className="flex flex-wrap justify-end gap-2">

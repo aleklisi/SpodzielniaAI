@@ -385,3 +385,65 @@ reference local one.
   only once a vision model is configured; index job parked; `/capabilities`; 503s; admin
   `missing_purposes`); Vitest (chat off, waiting material, admin card, error mapping). The default
   test settings now name three placeholder models so features are on; no test calls them.
+
+### 10.3 — Versioned collections and safe re-embedding
+- **Registry, not aliases:** `index_generation` (migration 0021, no content, no RLS) records each
+  version of the text index: the embedding model (`embed_key` = provider/model@endpoint, the
+  snapshot deployment without secrets, or `None` for `.env`'s model), the **probed** dimension,
+  its two collections (`<family>__g<n>`), status (BUILDING / SERVING / RETIRED / CANCELLED, at
+  most one SERVING and one BUILDING by partial unique indexes), progress (`total`, `done`,
+  `failed`, `cursor`) and the grace-period timestamps. Deviation from §3.4: the application never
+  reads through a Qdrant alias. A query has to be embedded with the searched generation's model
+  anyway (P8), so the reader needs the registry, and an alias would be a second source of
+  truth. The family name is still kept as an alias of the serving generation for operators
+  (`collections.point_aliases`) once no adopted collection holds that name.
+- **P8 in code:** `vector.embedding.Embedder` only embeds *with a generation*
+  (`Generation.deployment`): `query()` returns the vectors together with the generation they may
+  search (`Query`), and RAG / notebook search use that generation's collection. The gateway's
+  `embed(..., deployment=)` pins the model instead of routing EMBED and applies the same policy
+  (cloud ceiling, clearance; refused → `ModelNotConfigured`, never another model). A
+  generation's model is resolved live like an ACTIVE revision (`config_store.resolve`): provider
+  row, endpoint re-classified, clearance re-checked; un-clearing or disabling the provider makes
+  its generation unusable at once.
+- **Writes:** indexing writes to every writable generation (SERVING + BUILDING), each with its own
+  model, under the existing FOR SHARE locking. Consent and governance operations from the outbox
+  go through `CanonicalFanout` to every live generation, read fresh at apply time (RETIRED ones
+  too until dropped: a process that cached the old generation for a few seconds must not find
+  revoked content there). Note and photo deletions use `PrivateFanout`. The nightly consistency
+  audit checks every live generation.
+- **Reconcile** (`vector.reembed.GenerationManager`, run by `index.resume_waiting` every minute
+  and after activate/rollback/clearance): no generation yet → adopt the pre-10.3 collections as
+  generation 1 if their size matches the probe, else create one; EMBED routed to another model →
+  create a BUILDING generation (dimension from a probe of that model, collections created then:
+  lazy, so startup needs neither `LLM_EMBED_DIM` nor a model); configuration back on the
+  serving model → cancel the build; drop CANCELLED generations at once and RETIRED ones after
+  `qdrant.retired_grace_hours` (24). A build an admin cancelled is not restarted for the same
+  revision.
+- **Build** (`ReEmbedder`, task `index.reembed`, worker-core): every CANONICAL article, then each
+  member's DONE derivatives (as the owner, RLS), in id order through the same `Indexer` code,
+  restricted to the BUILDING generation; the cursor is saved every 20 items and at the end of a
+  240 s run, which then sends itself again (interrupted runs resume from the cursor; a try-lock
+  keeps one run at a time). Model down → stop and wait for the next reconcile. At the end the
+  generations swap in one transaction, aliases are pointed and `index.refresh_clusters` is sent
+  (the semantic detector's vector space changed; its per-user history drops entries of another
+  dimension). Cost guard: `llm.reembed_per_minute` (600) for models not on a local endpoint;
+  `GET /admin/llm/index` shows the generations and how many items a switch re-embeds.
+- **Activation:** the `embed_change_requires_reindex` / `embed_dimension_mismatch` refusals are
+  gone; probes report any dimension. `qdrant.vector_size` and `LLM_EMBED_DIM` are removed;
+  bootstrap creates only the atlas collection (images move to generations in 10.6).
+- **`reindex` CLI:** `GenerationManager.start` + `ReEmbedder` to completion: a new generation for
+  the active model, swapped in when complete; nothing is dropped up front and pending outbox
+  operations are no longer superseded (they apply to every generation).
+- **Admin API:** `GET /admin/llm/index`, `POST /admin/llm/index/rebuild`,
+  `POST /admin/llm/index/{n}/cancel` (audited: `INDEX_GENERATION_STARTED/SWAPPED/CANCELLED`).
+  The progress panel is 10.8.
+- **Limits:** in `.env` mode only one embedding model exists, so after changing
+  `LLM_EMBED_MODEL` the old generation cannot be queried until the new one is built (search
+  answers `model_not_configured` meanwhile). Semantic-anomaly history from the old model with
+  the same dimension stays until it expires (scores only, never retrieval).
+- **Tests:** unit (pinned deployment obeys clearance and the cloud ceiling, no fallback; embedder
+  per generation; dimension check; semantic history); integration with real Postgres + Qdrant
+  (adoption; P8 before and after the swap with two vector spaces; an interrupted build resumes;
+  a consent change during the build reaches both generations; cancel keeps the old one serving;
+  rolling the model back cancels the build; un-clearing stops the generation; drop after grace
+  and alias; a first model builds and then serves; `reindex` builds and swaps; admin endpoints).

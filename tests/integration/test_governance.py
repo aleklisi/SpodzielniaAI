@@ -17,6 +17,7 @@ from spoldzielnia_ai.core.settings import GovernanceSettings
 from spoldzielnia_ai.db.enums import ArticleStatus, ConsentStatus
 from spoldzielnia_ai.db.models import SecurityAuditLog, WikiArticle
 from spoldzielnia_ai.db.session import SessionFactory, create_session_factory
+from spoldzielnia_ai.vector.collections import CANONICAL_COLLECTION
 from spoldzielnia_ai.vector.repositories import CanonicalVectorRepo
 from tests.fixtures.governance import approve, governance_harness, login_expert
 from tests.fixtures.llm import hash_embedding
@@ -63,7 +64,12 @@ async def _status(factory: SessionFactory, article_id: UUID) -> WikiArticle:
 
 
 async def _hits(qdrant: AsyncQdrantClient, text: str) -> set[UUID]:
-    return {h.block_id for h in await CanonicalVectorRepo(qdrant).search(hash_embedding(text), 50)}
+    return {
+        h.block_id
+        for h in await CanonicalVectorRepo(qdrant, CANONICAL_COLLECTION).search(
+            hash_embedding(text), 50
+        )
+    }
 
 
 async def _submit(user: LoggedIn, article_id: UUID) -> int:
@@ -133,7 +139,7 @@ async def test_approve_with_supersede_removes_old_vectors_immediately(
     old, new = await _status(factory, old_id), await _status(factory, new_id)
     assert (old.status, old.superseded_by_id) == (ArticleStatus.SUPERSEDED, new_id)
     assert (new.status, new.supersedes_id) == (ArticleStatus.CANONICAL, old_id)
-    stored = await CanonicalVectorRepo(qdrant).retrieve(old_blocks)
+    stored = await CanonicalVectorRepo(qdrant, CANONICAL_COLLECTION).retrieve(old_blocks)
     assert [p.payload["article_status"] for p in stored] == ["SUPERSEDED"]
     # Members can still read the superseded article and follow the link.
     view = (await alice.client.get(f"/wiki/articles/{old_id}")).json()

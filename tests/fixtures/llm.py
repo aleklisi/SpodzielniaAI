@@ -14,14 +14,18 @@ import re
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
+from spoldzielnia_ai.db.enums import IndexGenerationStatus
 from spoldzielnia_ai.llm.gateway import (
     PRIVATE_PURPOSES,
+    Deployment,
     LLMPurpose,
     LLMResult,
     ModelNotConfigured,
     ModelRejected,
     ModelUnavailable,
 )
+from spoldzielnia_ai.vector.collections import CANONICAL_COLLECTION, PRIVATE_COLLECTION
+from spoldzielnia_ai.vector.generations import Generation, StaticGenerations
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -80,6 +84,24 @@ def hash_embedding(text: str, dim: int = EMBED_DIM) -> list[float]:
     return [v / norm for v in vector] if any(vector) else [1.0 / math.sqrt(dim)] * dim
 
 
+TEST_EMBED = Deployment("test-embed", "test-embed", "http://llm:11434/v1", None, local=True)
+
+
+def make_generation(
+    number: int = 1,
+    dim: int = EMBED_DIM,
+    status: IndexGenerationStatus = IndexGenerationStatus.SERVING,
+    deployment: Deployment | None = TEST_EMBED,
+    collections: tuple[str, str] = (PRIVATE_COLLECTION, CANONICAL_COLLECTION),
+) -> Generation:
+    """An index generation over the bare test collections (``qdrant`` fixture), 10.3."""
+    return Generation(number, status, "test-embed", dim, *collections, deployment=deployment)
+
+
+def static_generations(dim: int = EMBED_DIM) -> StaticGenerations:
+    return StaticGenerations((make_generation(dim=dim),))
+
+
 @dataclass
 class FakeLLMGateway:
     reply: Callable[[Call], str] = echo_article
@@ -90,6 +112,7 @@ class FakeLLMGateway:
     embed_dim: int = EMBED_DIM
     embedding: Callable[[str], list[float]] | None = None  # default: hash_embedding
     embedded: list[str] = field(default_factory=list[str])
+    embed_models: list[str | None] = field(default_factory=list[str | None])  # per call
 
     async def complete(
         self,
@@ -114,12 +137,18 @@ class FakeLLMGateway:
         return LLMResult(content, parsed, "local-chat", "fake-model")
 
     async def embed(
-        self, texts: list[str], *, private_data: bool = True, purpose: LLMPurpose = LLMPurpose.EMBED
+        self,
+        texts: list[str],
+        *,
+        private_data: bool = True,
+        purpose: LLMPurpose = LLMPurpose.EMBED,
+        deployment: Deployment | None = None,
     ) -> list[list[float]]:
         assert private_data or purpose != LLMPurpose.EMBED, (
             "embeddings must be called with private_data=True"
         )
         self.embedded.extend(texts)
+        self.embed_models.append(deployment.model if deployment is not None else None)
         if not self.configured:
             raise ModelNotConfigured(purpose)
         if not self.local_available:

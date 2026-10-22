@@ -33,7 +33,6 @@ function status(overrides: Partial<LlmStatus> = {}): LlmStatus {
     private_data_endpoints: ["http://llm:11434", "http://vllm:8000"],
     missing_purposes: [],
     egress_proxy: true,
-    vector_size: 1024,
     probe_max_age_hours: 24,
     active_revision: 1,
     process_revision: 1,

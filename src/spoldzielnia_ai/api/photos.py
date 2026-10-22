@@ -28,15 +28,13 @@ from spoldzielnia_ai.db.enums import AnnotationSource, VisualLabelStatus
 from spoldzielnia_ai.db.rls import RlsSessionDep  # noqa: TC001 - FastAPI resolves it
 from spoldzielnia_ai.notebook.deps import CipherDep  # noqa: TC001 - FastAPI resolves it
 from spoldzielnia_ai.notebook.images import PrivateImages
-from spoldzielnia_ai.vector.deps import QdrantDep  # noqa: TC001 - FastAPI resolves it
-from spoldzielnia_ai.vector.repositories import PrivateVectorRepo
+from spoldzielnia_ai.vector.deps import PrivateIndexesDep  # noqa: TC001 - FastAPI resolves it
 from spoldzielnia_ai.workers.jobs import DerivativeJob
 
 if TYPE_CHECKING:
-    from qdrant_client import AsyncQdrantClient
-
     from spoldzielnia_ai.core.settings import Settings
     from spoldzielnia_ai.notebook.uploads import ProcessingQueue
+    from spoldzielnia_ai.vector.repositories import PrivateFanout
 
 router = APIRouter(prefix="/notes", tags=["photos"])
 log = get_logger(__name__)
@@ -146,9 +144,9 @@ async def get_annotations(
         raise _fail(exc) from None
 
 
-async def _drop_vectors(client: AsyncQdrantClient, owner_id: UUID, derivative_id: UUID) -> None:
+async def _drop_vectors(vectors: PrivateFanout, derivative_id: UUID) -> None:
     try:
-        await PrivateVectorRepo(client, owner_id).delete_derivative(derivative_id)
+        await vectors.delete_derivative(derivative_id)
     except Exception as exc:  # orphaned points are filtered by RLS on read; reindex drops them
         log.warning("photos.vector_delete_failed", error=type(exc).__name__)
 
@@ -162,7 +160,7 @@ async def save_annotations(
     user: CurrentUser,
     session: RlsSessionDep,
     cipher: CipherDep,
-    qdrant: QdrantDep,
+    vectors: PrivateIndexesDep,
     background: BackgroundTasks,
 ) -> PhotoOut:
     """Replace the caption and every mark (the editor sends all of them). 409
@@ -188,5 +186,5 @@ async def save_annotations(
         job = DerivativeJob(derivative_id=result.derivative_id, owner_id=user.id)
         background.add_task(queue.annotations_saved, job)
     if result.dropped_derivative_id is not None:
-        background.add_task(_drop_vectors, qdrant, user.id, result.dropped_derivative_id)
+        background.add_task(_drop_vectors, vectors.of(user.id), result.dropped_derivative_id)
     return PhotoOut.of(result.photo)

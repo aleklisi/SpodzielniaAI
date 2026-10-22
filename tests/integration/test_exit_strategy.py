@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import create_async_engine
 from spoldzielnia_ai.db.enums import ArticleStatus, ConsentStatus
 from spoldzielnia_ai.db.models import ArticleBlock, SecurityAuditLog, WikiArticle
 from spoldzielnia_ai.db.session import SessionFactory, create_session_factory
+from spoldzielnia_ai.vector.collections import CANONICAL_COLLECTION
 from spoldzielnia_ai.vector.repositories import CanonicalVectorRepo
 from spoldzielnia_ai.wiki.consent import REVISION_ALERT
 from tests.fixtures.governance import approve, governance_harness, login_expert
@@ -70,7 +71,12 @@ async def _canonical(
 
 
 async def _hits(qdrant: AsyncQdrantClient, text: str) -> set[UUID]:
-    return {h.block_id for h in await CanonicalVectorRepo(qdrant).search(hash_embedding(text), 50)}
+    return {
+        h.block_id
+        for h in await CanonicalVectorRepo(qdrant, CANONICAL_COLLECTION).search(
+            hash_embedding(text), 50
+        )
+    }
 
 
 async def _article(factory: SessionFactory, article_id: UUID) -> WikiArticle:
@@ -126,7 +132,7 @@ async def test_coauthor_revoke_cascade(
         None,
     )
     assert (a_row.consent_status, a_row.content) == (ConsentStatus.ACTIVE, TEXT_A)
-    repo = CanonicalVectorRepo(qdrant)
+    repo = CanonicalVectorRepo(qdrant, CANONICAL_COLLECTION)
     assert await repo.retrieve([b_block]) == []  # hard-deleted
     (a_point,) = await repo.retrieve([a_block])
     assert (a_point.payload["is_active"], a_point.payload["article_status"]) == (

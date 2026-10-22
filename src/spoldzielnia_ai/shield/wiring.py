@@ -20,7 +20,6 @@ from spoldzielnia_ai.shield.output import OutputShield
 from spoldzielnia_ai.shield.risk import RiskEngine, RiskStore
 from spoldzielnia_ai.shield.semantic import SemanticAnomalyDetector
 from spoldzielnia_ai.shield.watermark import Watermarker
-from spoldzielnia_ai.vector.repositories import CanonicalVectorRepo
 
 if TYPE_CHECKING:
     from spoldzielnia_ai.core.settings import Settings
@@ -33,9 +32,7 @@ def get_guard(request: Request) -> AntiDistillationGuard:
     redis, factory = state.redis, state.session_factory
     locker = get_locker(request)
     store = RiskStore(redis, shield, factory)
-    rag = RAGService(
-        factory, CanonicalVectorRepo(state.qdrant), get_embedder(request), state.llm, settings.rag
-    )
+    rag = RAGService(factory, state.qdrant, get_embedder(request), state.llm, settings.rag)
     return AntiDistillationGuard(
         rag=rag,
         coverage=get_coverage(request),

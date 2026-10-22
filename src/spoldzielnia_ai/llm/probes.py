@@ -9,7 +9,7 @@ token counts and error class names: never the prompt or the model's output.
   prompt mode. The report recommends the structured-output mode that worked (LM Studio + Bielik
   rejects ``json_schema`` with a 400, see 3.4).
 - VLM: describe the colour of a generated 64x64 image.
-- EMBED: the vector dimension (must equal ``qdrant.vector_size``) and whether two unrelated
+- EMBED: the vector dimension (recorded; any size, 10.3) and whether two unrelated
   sentences end up apart (the smoke check of 6.7).
 """
 
@@ -197,7 +197,6 @@ async def _probe_embed(
     deployment: Deployment,
     settings: LlmSettings,
     transport: ChatTransport | None,
-    vector_size: int | None,
 ) -> dict[str, JsonValue]:
     # Synthetic sentences only, so any allowed provider may be probed before it is cleared.
     gateway = single_gateway(deployment, settings, transport)
@@ -212,15 +211,9 @@ async def _probe_embed(
     check["dimension"] = dimension
     check["cosine_unrelated"] = similarity
     separates = similarity < SEPARATION_MAX_COSINE
-    matches = vector_size is None or dimension == vector_size
-    check["ok"] = dimension > 0 and separates and matches
-    report |= {
-        "ok": check["ok"],
-        "dimension": dimension,
-        "dimension_matches": matches,
-        "expected_dimension": vector_size,
-        "separates_unrelated": separates,
-    }
+    # Any dimension: each index generation records its own (10.3).
+    check["ok"] = dimension > 0 and separates
+    report |= {"ok": check["ok"], "dimension": dimension, "separates_unrelated": separates}
     return report
 
 
@@ -229,13 +222,12 @@ async def probe_model(
     deployment: Deployment,
     settings: LlmSettings,
     *,
-    vector_size: int | None = None,
     transport: ChatTransport | None = None,
 ) -> dict[str, JsonValue]:
     if capability == LlmCapability.VLM:
         return await _probe_vlm(deployment, settings, transport)
     if capability == LlmCapability.EMBED:
-        return await _probe_embed(deployment, settings, transport, vector_size)
+        return await _probe_embed(deployment, settings, transport)
     return await _probe_chat(deployment, settings, transport)
 
 

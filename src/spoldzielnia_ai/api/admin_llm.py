@@ -26,6 +26,7 @@ from spoldzielnia_ai.audit.service import AuditService
 from spoldzielnia_ai.auth.deps import CurrentUser, elevated_router
 from spoldzielnia_ai.core.logging import get_logger
 from spoldzielnia_ai.db.enums import (
+    IndexGenerationStatus,
     LlmCapability,
     LlmProviderKind,
     LlmRevisionStatus,
@@ -53,6 +54,12 @@ from spoldzielnia_ai.llm.endpoints import (
 from spoldzielnia_ai.llm.playground import MAX_PROMPT, PRESETS, compare, prompt_digest
 from spoldzielnia_ai.llm.probes import deployment_for, list_models, probe_model, single_gateway
 from spoldzielnia_ai.llm.snapshot import ConfigSnapshot
+from spoldzielnia_ai.vector.reembed import (
+    GenerationError,
+    GenerationManager,
+    count_items,
+    generations_overview,
+)
 
 if TYPE_CHECKING:
     from pydantic import JsonValue
@@ -78,7 +85,6 @@ async def get_service(request: Request, principal: CurrentUser) -> LlmConfigServ
         state.session_factory,
         state.cipher,
         settings.llm,
-        vector_size=settings.qdrant.vector_size,
         redis=state.redis,
     )
     try:
@@ -205,7 +211,6 @@ class StatusOut(BaseModel):
     cloud_hosts: list[str]
     private_data_endpoints: list[str]
     egress_proxy: bool
-    vector_size: int
     probe_max_age_hours: int
     active_revision: int | None
     process_revision: int  # what this API process routes by right now (0 = .env)
@@ -355,7 +360,6 @@ async def get_status(request: Request, service: Service) -> StatusOut:
         cloud_hosts=cloud,
         private_data_endpoints=private_data_endpoints(llm),
         egress_proxy=llm.egress_proxy_url is not None,
-        vector_size=settings.qdrant.vector_size,
         probe_max_age_hours=llm.probe_max_age_hours,
         active_revision=active.revision.number if active else None,
         process_revision=(await store.current()).revision if store is not None else 0,
@@ -545,7 +549,6 @@ async def probe(
         model.capability,
         deployment,
         settings.llm,
-        vector_size=settings.qdrant.vector_size,
         transport=_transport(request),
     )
     updated = await service.record_probe(principal.id, model.id, bool(report.get("ok")), report)
@@ -742,3 +745,92 @@ async def playground(
             for (model_id, _, _), result in zip(runs, results, strict=True)
         ]
     )
+
+
+# --- Index generations (10.3) -------------------------------------------------------------------
+
+
+class GenerationOut(BaseModel):
+    number: int
+    status: IndexGenerationStatus
+    model: str
+    dimension: int
+    total: int
+    done: int
+    failed: int
+    created_at: datetime
+    serving_since: datetime | None
+    retired_at: datetime | None
+    drop_after: datetime | None
+    dropped: bool
+
+
+class IndexOut(BaseModel):
+    generations: list[GenerationOut]
+    # What switching the embedding model re-embeds (cost guard): articles + derivatives.
+    items: int
+    reembed_per_minute: int
+
+
+def _manager(request: Request) -> GenerationManager:
+    state = request.app.state
+    settings: Settings = state.settings
+    return GenerationManager(
+        state.session_factory, state.cipher, state.qdrant, state.llm, settings.llm, settings.qdrant
+    )
+
+
+async def _index_out(request: Request) -> IndexOut:
+    state = request.app.state
+    settings: Settings = state.settings
+    rows = await generations_overview(state.session_factory)
+    return IndexOut(
+        generations=[
+            GenerationOut(
+                number=r.number,
+                status=r.status,
+                model=r.model,
+                dimension=r.dimension,
+                total=r.total,
+                done=r.done,
+                failed=r.failed,
+                created_at=r.created_at,
+                serving_since=r.serving_since,
+                retired_at=r.retired_at,
+                drop_after=r.drop_after,
+                dropped=r.dropped_at is not None,
+            )
+            for r in rows
+        ],
+        items=await count_items(state.session_factory),
+        reembed_per_minute=settings.llm.reembed_per_minute,
+    )
+
+
+@router.get("/index", response_model=IndexOut)
+async def get_index(request: Request, _service: Service) -> IndexOut:
+    return await _index_out(request)
+
+
+@router.post("/index/rebuild", response_model=IndexOut, status_code=status.HTTP_202_ACCEPTED)
+async def rebuild_index(request: Request, _service: Service, principal: CurrentUser) -> IndexOut:
+    """Re-embed everything with the active model into a new generation (``reindex``)."""
+    try:
+        await _manager(request).start(principal.id)
+    except GenerationError as exc:
+        raise _http(ConfigError(exc.code, 409)) from None
+    await _config_changed(request)  # the worker's reconcile sends the build task
+    return await _index_out(request)
+
+
+@router.post("/index/{number}/cancel", response_model=IndexOut)
+async def cancel_index(
+    number: int, request: Request, _service: Service, principal: CurrentUser
+) -> IndexOut:
+    """Abandon a build before the swap: the serving generation stays as it is."""
+    try:
+        await _manager(request).cancel(number, principal.id)
+    except GenerationError as exc:
+        status_code = 404 if exc.code == "generation_not_found" else 409
+        raise _http(ConfigError(exc.code, status_code)) from None
+    return await _index_out(request)

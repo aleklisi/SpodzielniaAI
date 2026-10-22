@@ -1,7 +1,8 @@
 """``RAGService``: grounded, cited answers from canonical knowledge (5.1).
 
-1. Embed the question locally and search ``CanonicalVectorRepo`` (``active_canonical_filter``
-   always applies) for ``top_k`` hits at or above ``rag.score_threshold``.
+1. Embed the question with the serving index generation's model and search that generation's
+   canonical collection (``active_canonical_filter`` always applies, P8: the query and the
+   collection always share one model) for ``top_k`` hits at or above ``rag.score_threshold``.
 2. Re-validate every hit against Postgres and load its text there (Qdrant holds no text).
    Hits Postgres no longer allows are dropped and repair operations go to the outbox.
 3. The ``RetrievalGate`` (``AntiDistillationGuard``, 5.6) sees the retrieval and decides which
@@ -29,6 +30,7 @@ from spoldzielnia_ai.llm.gateway import LLMPurpose
 from spoldzielnia_ai.llm.prompts import RAG_ANSWER
 from spoldzielnia_ai.rag.schemas import NO_OFFICIAL_POSITION, Citation, RagAnswer
 from spoldzielnia_ai.rag.synthesis import Style, Synthesizer, label_sources, renumber
+from spoldzielnia_ai.vector.repositories import CanonicalVectorRepo
 from spoldzielnia_ai.vector.revalidate import load_retrievable, repair_ops
 from spoldzielnia_ai.vector.sync import VectorSync
 
@@ -36,13 +38,14 @@ if TYPE_CHECKING:
     from collections.abc import Sequence
     from uuid import UUID
 
+    from qdrant_client import AsyncQdrantClient
+
     from spoldzielnia_ai.core.settings import RagSettings
     from spoldzielnia_ai.db.session import SessionFactory
     from spoldzielnia_ai.llm.gateway import LLMGateway
     from spoldzielnia_ai.rag.schemas import AnswerDraft
     from spoldzielnia_ai.rag.synthesis import Source
-    from spoldzielnia_ai.vector.embedding import Embedder
-    from spoldzielnia_ai.vector.repositories import CanonicalVectorRepo
+    from spoldzielnia_ai.vector.embedding import Embedder, Query
     from spoldzielnia_ai.vector.revalidate import LiveBlock
 
 log = get_logger(__name__)
@@ -82,24 +85,26 @@ class RAGService:
     def __init__(
         self,
         factory: SessionFactory,
-        repo: CanonicalVectorRepo,
+        client: AsyncQdrantClient,
         embedder: Embedder,
         gateway: LLMGateway,
         settings: RagSettings,
     ) -> None:
         self._factory = factory
-        self._repo = repo
+        self._client = client
         self._embedder = embedder
         self._synth = Synthesizer(gateway, RAG_ANSWER, LLMPurpose.RAG, private_data=False)
         self._settings = settings
 
-    async def embed(self, question: str) -> list[float]:
-        return (await self._embedder.embed([question]))[0]
+    async def embed(self, question: str) -> Query:
+        return await self._embedder.query([question])
 
-    async def retrieve(self, vector: list[float], top_k: int) -> Retrieval:
+    async def retrieve(self, query: Query, top_k: int) -> Retrieval:
+        repo = CanonicalVectorRepo(self._client, query.generation.canonical_collection)
+        vector = query.vector
         hits = [
             h
-            for h in await self._repo.search(vector, limit=top_k)
+            for h in await repo.search(vector, limit=top_k)
             if h.score >= self._settings.score_threshold
         ]
         async with self._factory() as session:
@@ -124,11 +129,11 @@ class RAGService:
         top_k: int | None = None,
         style: Style | None = None,
         gate: RetrievalGate | None = None,
-        vector: list[float] | None = None,
+        vector: Query | None = None,
     ) -> Outcome:
         style = style or Style(max_words=self._settings.answer_max_words)
-        vector = vector if vector is not None else await self.embed(question)
-        retrieval = await self.retrieve(vector, top_k or self._settings.top_k)
+        query = vector if vector is not None else await self.embed(question)
+        retrieval = await self.retrieve(query, top_k or self._settings.top_k)
         admitted = await gate.admit(retrieval) if gate is not None else retrieval.blocks
         admitted = [b for b in admitted if not b.is_honeypot]
         sources = label_sources([(b.content, b.article_id) for b in admitted])

@@ -18,8 +18,9 @@ from spoldzielnia_ai.llm.gateway import LiteLLMGateway
 from spoldzielnia_ai.shield.honeypot import HoneypotInjector, list_canaries, trace
 from spoldzielnia_ai.vector.client import make_qdrant
 from spoldzielnia_ai.vector.embedding import Embedder
+from spoldzielnia_ai.vector.generations import GenerationStore
 from spoldzielnia_ai.vector.indexing import Indexer
-from spoldzielnia_ai.vector.repositories import CanonicalVectorRepo
+from spoldzielnia_ai.vector.repositories import CanonicalFanout
 from spoldzielnia_ai.vector.sync import VectorSync
 from spoldzielnia_ai.workers.jobs import ArticleJob
 
@@ -51,16 +52,15 @@ async def honeypot_command(
             return {"signatures": signatures, "honeypot_ids": [str(b) for b in blocks]}
         cipher = EnvelopeCipher(StaticKeyProvider(settings.security.kek.get_secret_value()))
         source = LlmConfigStore(factory, cipher, settings.llm, redis)
-        embedder = Embedder(
-            LiteLLMGateway(settings.llm, source=source), settings.qdrant.vector_size
-        )
+        generations = GenerationStore(factory, cipher, settings.llm, ttl_seconds=0)
+        embedder = Embedder(LiteLLMGateway(settings.llm, source=source), generations)
         indexer = Indexer(factory, cipher, embedder, qdrant)
 
         async def index(article_id: UUID) -> None:
             await indexer.index_canonical_article(ArticleJob(article_id=article_id), True)
 
         sync = VectorSync(
-            factory, CanonicalVectorRepo(qdrant), index, settings.qdrant.timeout_seconds
+            factory, CanonicalFanout(qdrant, generations), index, settings.qdrant.timeout_seconds
         )
         injector = HoneypotInjector(factory, embedder, sync, settings.shield, redis)
         result = await injector.inject(count, None)

@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import create_async_engine
 
 from spoldzielnia_ai.core.settings import LlmSettings
 from spoldzielnia_ai.db.session import SessionFactory, create_session_factory
+from spoldzielnia_ai.vector.generations import StaticGenerations
 from tests.fixtures.app import SITE, harness
 
 if TYPE_CHECKING:
@@ -46,6 +47,7 @@ async def test_without_models_features_are_off_and_refused_up_front(
 ) -> None:
     bare = settings.model_copy(update={"llm": LlmSettings()})
     async with harness(bare, factory) as h:
+        h.app.state.generations = StaticGenerations(())  # no embedding model, no index (10.3)
         member = await h.login(amr=["pwd", "otp"])
         features = (await member.client.get("/capabilities")).json()["features"]
         assert not any(features.values())

@@ -37,7 +37,7 @@ from spoldzielnia_ai.vector.repositories import (
     PrivateVectorRepo,
 )
 from spoldzielnia_ai.workers.jobs import ArticleJob, DerivativeJob
-from tests.fixtures.llm import EMBED_DIM, FakeLLMGateway, hash_embedding
+from tests.fixtures.llm import EMBED_DIM, FakeLLMGateway, hash_embedding, static_generations
 from tests.fixtures.wiki import make_article, make_user
 
 if TYPE_CHECKING:
@@ -101,22 +101,26 @@ async def test_private_search_never_crosses_tenants(qdrant: AsyncQdrantClient) -
     alice, bob = uuid4(), uuid4()
     note, derivative = uuid4(), uuid4()
     vector = hash_embedding(TEXT)
-    await PrivateVectorRepo(qdrant, alice).upsert([PrivateChunk(note, derivative, 0, vector)])
+    await PrivateVectorRepo(qdrant, alice, PRIVATE_COLLECTION).upsert(
+        [PrivateChunk(note, derivative, 0, vector)]
+    )
 
-    assert [h.note_id for h in await PrivateVectorRepo(qdrant, alice).search(vector)] == [note]
-    assert await PrivateVectorRepo(qdrant, bob).search(vector) == []
+    assert [
+        h.note_id for h in await PrivateVectorRepo(qdrant, alice, PRIVATE_COLLECTION).search(vector)
+    ] == [note]
+    assert await PrivateVectorRepo(qdrant, bob, PRIVATE_COLLECTION).search(vector) == []
 
     # Bob deleting Alice's note id removes nothing: the tenant filter applies to deletes too.
-    await PrivateVectorRepo(qdrant, bob).delete_note(note)
-    assert len(await PrivateVectorRepo(qdrant, alice).search(vector)) == 1
-    await PrivateVectorRepo(qdrant, alice).delete_note(note)
-    assert await PrivateVectorRepo(qdrant, alice).search(vector) == []
+    await PrivateVectorRepo(qdrant, bob, PRIVATE_COLLECTION).delete_note(note)
+    assert len(await PrivateVectorRepo(qdrant, alice, PRIVATE_COLLECTION).search(vector)) == 1
+    await PrivateVectorRepo(qdrant, alice, PRIVATE_COLLECTION).delete_note(note)
+    assert await PrivateVectorRepo(qdrant, alice, PRIVATE_COLLECTION).search(vector) == []
 
 
 async def test_canonical_search_returns_only_active_canonical_points(
     qdrant: AsyncQdrantClient,
 ) -> None:
-    repo = CanonicalVectorRepo(qdrant)
+    repo = CanonicalVectorRepo(qdrant, CANONICAL_COLLECTION)
     vector = hash_embedding(TEXT)
     active = _payload()
     excluded = [
@@ -155,11 +159,11 @@ async def test_index_canonical_article_upserts_governance_payload(
         consents=[ConsentStatus.ACTIVE, ConsentStatus.SUSPENDED, ConsentStatus.ACTIVE],
     )
     llm = FakeLLMGateway()
-    indexer = Indexer(factory, cipher, Embedder(llm, EMBED_DIM), qdrant)
+    indexer = Indexer(factory, cipher, Embedder(llm, static_generations()), qdrant)
 
     assert await indexer.index_canonical_article(ArticleJob(article_id=article), True) is False
 
-    repo = CanonicalVectorRepo(qdrant)
+    repo = CanonicalVectorRepo(qdrant, CANONICAL_COLLECTION)
     stored = {p.id: p.payload for p in await repo.retrieve(blocks)}
     assert set(stored) == set(blocks)  # the suspended block keeps an (inactive) point
     assert stored[blocks[0]]["is_active"] is True
@@ -176,11 +180,11 @@ async def test_non_canonical_article_is_not_indexed(
 ) -> None:
     alice = await make_user(factory)
     article, blocks = await make_article(factory, [(alice, TEXT)], status=ArticleStatus.DRAFT)
-    indexer = Indexer(factory, cipher, Embedder(FakeLLMGateway(), EMBED_DIM), qdrant)
+    indexer = Indexer(factory, cipher, Embedder(FakeLLMGateway(), static_generations()), qdrant)
 
     await indexer.index_canonical_article(ArticleJob(article_id=article), True)
 
-    assert await CanonicalVectorRepo(qdrant).retrieve(blocks) == []
+    assert await CanonicalVectorRepo(qdrant, CANONICAL_COLLECTION).retrieve(blocks) == []
 
 
 async def test_index_private_derivative_into_the_owners_partition(
@@ -200,17 +204,21 @@ async def test_index_private_derivative_into_the_owners_partition(
         row.content_ciphertext = cipher.encrypt_field(dek, long_text.encode(), aad, "content")
         row.status = DerivativeStatus.DONE
     llm = FakeLLMGateway()
-    indexer = Indexer(factory, cipher, Embedder(llm, EMBED_DIM), qdrant)
+    indexer = Indexer(factory, cipher, Embedder(llm, static_generations()), qdrant)
     job = DerivativeJob(derivative_id=link.id, owner_id=alice)
 
     assert await indexer.index_private_derivative(job, True) is False
     assert await indexer.index_private_derivative(job, True) is False  # idempotent
 
-    hits = await PrivateVectorRepo(qdrant, alice).search(hash_embedding(TEXT), limit=50)
+    hits = await PrivateVectorRepo(qdrant, alice, PRIVATE_COLLECTION).search(
+        hash_embedding(TEXT), limit=50
+    )
     assert len(hits) == len(llm.embedded) // 2 > 1  # chunked; re-index replaced, not added
     assert {h.note_id for h in hits} == {note.id}
     assert hits[0].chunk == 0
-    assert await PrivateVectorRepo(qdrant, bob).search(hash_embedding(TEXT)) == []
+    assert (
+        await PrivateVectorRepo(qdrant, bob, PRIVATE_COLLECTION).search(hash_embedding(TEXT)) == []
+    )
 
 
 async def test_private_indexing_retries_while_the_local_model_is_down(
@@ -230,7 +238,10 @@ async def test_private_indexing_retries_while_the_local_model_is_down(
         )
         row.status = DerivativeStatus.DONE
     indexer = Indexer(
-        factory, cipher, Embedder(FakeLLMGateway(local_available=False), EMBED_DIM), qdrant
+        factory,
+        cipher,
+        Embedder(FakeLLMGateway(local_available=False), static_generations()),
+        qdrant,
     )
     job = DerivativeJob(derivative_id=link.id, owner_id=alice)
 
@@ -256,7 +267,7 @@ async def test_private_indexing_without_an_embedding_model_is_parked(
         )
         row.status = DerivativeStatus.DONE
     indexer = Indexer(
-        factory, cipher, Embedder(FakeLLMGateway(configured=False), EMBED_DIM), qdrant
+        factory, cipher, Embedder(FakeLLMGateway(configured=False), static_generations()), qdrant
     )
     job = DerivativeJob(derivative_id=link.id, owner_id=alice)
 
@@ -274,7 +285,7 @@ async def test_private_indexing_without_an_embedding_model_is_parked(
 
 async def test_active_vectors_skip_inactive_and_honeypot_points(qdrant: AsyncQdrantClient) -> None:
     """The nightly topic clusters (5.3) are built from retrievable, real knowledge only."""
-    repo = CanonicalVectorRepo(qdrant)
+    repo = CanonicalVectorRepo(qdrant, CANONICAL_COLLECTION)
     active = _payload()
     honeypot = CanonicalPayload(
         block_id=uuid4(),

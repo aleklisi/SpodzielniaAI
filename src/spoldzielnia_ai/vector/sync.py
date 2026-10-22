@@ -15,6 +15,10 @@ points (say, a "resume" applied before the "suspend" it undoes).
 - ``UPSERT``: (re)index the articles in ``scope.article_ids``. Embedding is slow, so the API
   hands it to the ``index`` queue, and the indexer reads the current state itself.
 
+Generations (10.3): in production the canonical writer is ``CanonicalFanout``, which applies
+SET_PAYLOAD and DELETE to every live generation (read fresh, under the index-writer lock), so a
+consent change made while a new embedding model is being built reaches both versions.
+
 Atlas photos (9.8) share the outbox: their rows carry ``filter_json.target = "atlas"`` and go to
 ``AtlasSink`` (the ``atlas_visual_index`` repository and its re-index hand-off), in the same
 ``seq`` order as the wiki's operations.
@@ -26,7 +30,7 @@ import asyncio
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from datetime import timedelta
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Protocol
 
 from sqlalchemy import delete, func, insert, select, text
 from sqlalchemy.exc import DBAPIError
@@ -48,7 +52,6 @@ if TYPE_CHECKING:
     from spoldzielnia_ai.atlas.vectors import AtlasVectorRepo
     from spoldzielnia_ai.db.enums import ArticleStatus
     from spoldzielnia_ai.db.session import SessionFactory
-    from spoldzielnia_ai.vector.repositories import CanonicalVectorRepo
 
 log = get_logger(__name__)
 
@@ -131,6 +134,14 @@ def delete_blocks(author_id: UUID, article_ids: tuple[UUID, ...] | None) -> Vect
 # --- Applying them -----------------------------------------------------------------------------
 
 
+class CanonicalWriter(Protocol):
+    """``CanonicalFanout`` (every live generation) or one ``CanonicalVectorRepo``."""
+
+    async def set_payload(self, scope: CanonicalScope, payload: Mapping[str, Any]) -> None: ...
+
+    async def delete(self, scope: CanonicalScope) -> None: ...
+
+
 @dataclass(frozen=True, slots=True)
 class AtlasSink:
     """Where atlas operations go: the repository and the re-index hand-off (worker-core)."""
@@ -169,7 +180,7 @@ class VectorSync:
     def __init__(
         self,
         factory: SessionFactory,
-        repo: CanonicalVectorRepo,
+        repo: CanonicalWriter,
         reindex: Callable[[UUID], Awaitable[None]],
         timeout_seconds: float,
         alert_after: int = 5,

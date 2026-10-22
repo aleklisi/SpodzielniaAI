@@ -198,8 +198,10 @@ data region, retention and contract. A cloud API (e.g. Mistral in the EU) can be
 way; un-clearing stops its private purposes at once. This is enforced by the UI, the API,
 database triggers and the gateway. Cloud calls go
 out through the `llm-egress` proxy (CONNECT to `LLM_CLOUD_HOSTS` only); the api has no other
-route to the internet. Changing the embedding model is not possible from the console (it needs
-`make reindex`).
+route to the internet. Changing the embedding model in the console builds a new version of the
+search index in the background (each version records its model and dimension, probed from the
+model); the old one keeps answering, with its own model, until the new one is complete
+(`GET /admin/llm/index`; `make reindex` does the same on demand).
 
 ## Test markers
 

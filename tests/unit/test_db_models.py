@@ -70,6 +70,7 @@ def test_tables_registered() -> None:
         "atlas_review",
         "atlas_export",
         "model_wait",
+        "index_generation",
     }
 
 
@@ -188,6 +189,7 @@ def test_migrations_form_a_single_linear_history() -> None:
         "0018_recognition",
         "0019_provider_clearance",
         "0020_model_wait",
+        "0021_index_generations",
     ]
 
 
@@ -204,6 +206,7 @@ def test_migration_enum_types_match_python_enums() -> None:
             "0015_image_annotation",
             "0016_atlas",
             "0017_atlas_export",
+            "0021_index_generations",
         )
         for e in cast("tuple[SAEnum, ...]", _revision_module(revision).ENUMS)
     }
