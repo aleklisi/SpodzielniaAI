@@ -1,7 +1,8 @@
 """``FakeLLMGateway``: no model calls in pytest, ever (conventions §2.3).
 
-Records every call and enforces the local-only rule like the real gateway, **plus** that
-callers pass ``force_local_llm=True`` explicitly for sensitive purposes (AGENTS.md §3.4).
+Records every call and enforces the private-data rule like the real gateway, **plus** that
+callers pass ``private_data=True`` explicitly for sensitive purposes (AGENTS.md §3 rule 4).
+``local_available=False`` plays "no cleared model reachable".
 """
 
 from __future__ import annotations
@@ -13,10 +14,11 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 from spoldzielnia_ai.llm.gateway import (
-    ALWAYS_LOCAL,
+    PRIVATE_PURPOSES,
+    LLMPurpose,
     LLMResult,
-    LocalModelRejected,
-    LocalModelUnavailable,
+    ModelRejected,
+    ModelUnavailable,
 )
 
 if TYPE_CHECKING:
@@ -24,7 +26,7 @@ if TYPE_CHECKING:
 
     from pydantic import BaseModel
 
-    from spoldzielnia_ai.llm.gateway import ChatMessage, LLMPurpose
+    from spoldzielnia_ai.llm.gateway import ChatMessage
 
 _DATA = re.compile(
     r'<untrusted_data id="[0-9a-f]+"[^>]*>\n(.*?)\n</untrusted_data id="[0-9a-f]+">', re.S
@@ -35,7 +37,7 @@ _DATA = re.compile(
 class Call:
     messages: list[ChatMessage]
     purpose: LLMPurpose
-    force_local_llm: bool
+    private_data: bool
     response_model: type[BaseModel] | None
 
     @property
@@ -80,7 +82,7 @@ def hash_embedding(text: str, dim: int = EMBED_DIM) -> list[float]:
 class FakeLLMGateway:
     reply: Callable[[Call], str] = echo_article
     local_available: bool = True
-    rejects: bool = False  # the server answers 4xx (LocalModelRejected)
+    rejects: bool = False  # the server answers 4xx (ModelRejected)
     calls: list[Call] = field(default_factory=list[Call])
     embed_dim: int = EMBED_DIM
     embedding: Callable[[str], list[float]] | None = None  # default: hash_embedding
@@ -91,26 +93,30 @@ class FakeLLMGateway:
         messages: list[ChatMessage],
         *,
         purpose: LLMPurpose,
-        force_local_llm: bool = False,
+        private_data: bool = False,
         response_model: type[BaseModel] | None = None,
     ) -> LLMResult[Any]:
-        if purpose in ALWAYS_LOCAL:
-            assert force_local_llm, f"{purpose} must be called with force_local_llm=True"
-        call = Call(list(messages), purpose, force_local_llm, response_model)
+        if purpose in PRIVATE_PURPOSES:
+            assert private_data, f"{purpose} must be called with private_data=True"
+        call = Call(list(messages), purpose, private_data, response_model)
         self.calls.append(call)
         if not self.local_available:
-            raise LocalModelUnavailable("fake: no local model")
+            raise ModelUnavailable("fake: no cleared model")
         if self.rejects:
-            raise LocalModelRejected("fake: 400")
+            raise ModelRejected("fake: 400")
         content = self.reply(call)
         parsed = response_model.model_validate_json(content) if response_model else None
         return LLMResult(content, parsed, "local-chat", "fake-model")
 
-    async def embed(self, texts: list[str], *, force_local_llm: bool = True) -> list[list[float]]:
-        assert force_local_llm, "embeddings must be called with force_local_llm=True"
+    async def embed(
+        self, texts: list[str], *, private_data: bool = True, purpose: LLMPurpose = LLMPurpose.EMBED
+    ) -> list[list[float]]:
+        assert private_data or purpose != LLMPurpose.EMBED, (
+            "embeddings must be called with private_data=True"
+        )
         self.embedded.extend(texts)
         if not self.local_available:
-            raise LocalModelUnavailable("fake: no local model")
+            raise ModelUnavailable("fake: no cleared model")
         if self.embedding is not None:
             return [self.embedding(t) for t in texts]
         return [hash_embedding(t, self.embed_dim) for t in texts]

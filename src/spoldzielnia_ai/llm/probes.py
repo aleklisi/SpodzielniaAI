@@ -67,6 +67,7 @@ def deployment_for(
     api_key: str | None,
     kind: LlmProviderKind,
     *,
+    private_data: bool = False,
     temperature: float | None = None,
     max_tokens: int | None = None,
     structured_output: str | None = None,
@@ -78,6 +79,7 @@ def deployment_for(
         base_url=base_url,
         api_key=api_key,
         local=kind == LlmProviderKind.LOCAL,
+        private_data=private_data,
         temperature=temperature,
         max_tokens=max_tokens,
         structured_output=structured_output
@@ -90,11 +92,10 @@ def deployment_for(
 def single_gateway(
     deployment: Deployment, settings: LlmSettings, transport: ChatTransport | None = None
 ) -> LiteLLMGateway:
-    """A gateway that knows one deployment, reachable only under ``PLAYGROUND`` / ``EMBED``.
-    The usual checks still apply: no cloud without ``allow_cloud``."""
+    """A gateway that knows one deployment, reachable only under ``PLAYGROUND`` (synthetic
+    prompts; embedding probes too). The usual checks still apply: no cloud without
+    ``allow_cloud``, and private presets only on cleared deployments."""
     routes = {LLMPurpose.PLAYGROUND: deployment.name}
-    if deployment.local:
-        routes[LLMPurpose.EMBED] = deployment.name
     config = ResolvedLlmConfig(-1, {deployment.name: deployment}, routes)
     return LiteLLMGateway(settings, transport, source=StaticConfig(config))
 
@@ -198,13 +199,11 @@ async def _probe_embed(
     transport: ChatTransport | None,
     vector_size: int | None,
 ) -> dict[str, JsonValue]:
-    if not deployment.local:
-        return {
-            "ok": False,
-            "checks": [{"name": "embed", "ok": False, "error": "embeddings_are_local_only"}],
-        }
+    # Synthetic sentences only, so any allowed provider may be probed before it is cleared.
     gateway = single_gateway(deployment, settings, transport)
-    check, vectors = await _timed("embed", gateway.embed(list(UNRELATED)))
+    check, vectors = await _timed(
+        "embed", gateway.embed(list(UNRELATED), private_data=False, purpose=LLMPurpose.PLAYGROUND)
+    )
     report: dict[str, JsonValue] = {"ok": False, "checks": [check]}
     if vectors is None:
         return report

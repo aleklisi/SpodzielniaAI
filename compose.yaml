@@ -44,6 +44,8 @@ x-llm-env: &llm-env
   SPOLDZIELNIA_LLM__ALLOW_CLOUD: ${LLM_ALLOW_CLOUD:-false}
   SPOLDZIELNIA_LLM__LOCAL_ENDPOINTS: ${LLM_LOCAL_ENDPOINTS:-[]}
   SPOLDZIELNIA_LLM__CLOUD_HOSTS: ${LLM_CLOUD_HOSTS:-[]}
+  # 10.1: endpoints that may be cleared for private data (null = the local endpoints).
+  SPOLDZIELNIA_LLM__PRIVATE_DATA_ENDPOINTS: ${LLM_PRIVATE_DATA_ENDPOINTS:-null}
 
 # Qdrant over internal TLS (4.1). The vector size must match LLM_EMBED_MODEL's dimension.
 x-qdrant-env: &qdrant-env

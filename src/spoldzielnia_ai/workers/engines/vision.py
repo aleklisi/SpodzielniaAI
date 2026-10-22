@@ -15,8 +15,8 @@ from typing import TYPE_CHECKING
 from spoldzielnia_ai.llm.gateway import (
     LLMError,
     LLMPurpose,
-    LocalModelRejected,
-    LocalModelUnavailable,
+    ModelRejected,
+    ModelUnavailable,
 )
 from spoldzielnia_ai.llm.prompts import IMAGE_DESCRIPTION
 from spoldzielnia_ai.workers.engines.base import PermanentError, TransientError
@@ -65,12 +65,12 @@ class GatewayVisionEngine:
         try:
             result = asyncio.run(
                 self._gateway().complete(
-                    [messages[0], user], purpose=LLMPurpose.VLM, force_local_llm=True
+                    [messages[0], user], purpose=LLMPurpose.VLM, private_data=True
                 )
             )
-        except LocalModelUnavailable as exc:
+        except ModelUnavailable as exc:
             raise PermanentError("vision_unavailable") from exc
-        except LocalModelRejected as exc:
+        except ModelRejected as exc:
             raise PermanentError("vision_rejected") from exc
         except LLMError as exc:
             raise TransientError(str(exc)) from exc

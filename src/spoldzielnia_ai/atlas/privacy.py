@@ -1,6 +1,6 @@
 """People, faces, documents and plates on a photo before it is shared (chunk 9.4, A3).
 
-The local VLM (purpose ``VLM``, ``force_local_llm=True``) answers yes/no per kind. The result is
+The local VLM (purpose ``VLM``, ``private_data=True``) answers yes/no per kind. The result is
 advisory: the member sees it before sending and the experts see it in review. Without a local
 VLM the check reports ``unavailable`` instead of pretending the photo is clean.
 """
@@ -15,8 +15,8 @@ from pydantic import BaseModel
 from spoldzielnia_ai.llm.gateway import (
     LLMOutputInvalid,
     LLMPurpose,
-    LocalModelRejected,
-    LocalModelUnavailable,
+    ModelRejected,
+    ModelUnavailable,
 )
 from spoldzielnia_ai.llm.prompts import PRIVACY_CHECK
 
@@ -64,10 +64,10 @@ class PrivacyChecker:
             result = await self._gateway.complete(
                 [messages[0], user],
                 purpose=LLMPurpose.VLM,
-                force_local_llm=True,
+                private_data=True,
                 response_model=PrivacyCheck,
             )
-        except (LocalModelUnavailable, LocalModelRejected, LLMOutputInvalid):
+        except (ModelUnavailable, ModelRejected, LLMOutputInvalid):
             return {"check": "unavailable"}
         parsed = result.parsed or PrivacyCheck()
         return {"check": "ok", **parsed.model_dump()}

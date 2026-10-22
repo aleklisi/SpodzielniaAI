@@ -2,8 +2,9 @@
 
 /**
  * LLM configuration console (7.6): providers, models, probes, revisions, playground. ADMIN + MFA
- * on every call (the API enforces both). The rules (local-only purposes, the cloud ceiling,
- * allowlists, probes before activation) are the backend's; the UI explains them up front.
+ * on every call (the API enforces both). The rules (private purposes need providers cleared for
+ * private data (10.1), the cloud ceiling, allowlists, probes before activation) are the
+ * backend's; the UI explains them up front.
  */
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -16,6 +17,7 @@ export type LlmStatus = components["schemas"]["StatusOut"];
 export type Provider = components["schemas"]["ProviderOut"];
 export type ProviderInput = components["schemas"]["ProviderIn"];
 export type ProviderPatch = components["schemas"]["ProviderPatch"];
+export type Clearance = components["schemas"]["ClearanceIn"];
 export type LlmModel = components["schemas"]["ModelOut"];
 export type ModelInput = components["schemas"]["ModelIn"];
 export type ModelPatch = components["schemas"]["ModelPatch"];
@@ -71,6 +73,19 @@ export function useUpdateProvider() {
 export function useProviderDisabled() {
   return useLlmMutation(async ({ id, disabled }: { id: string; disabled: boolean }) =>
     unwrap(await api.POST("/admin/llm/providers/{provider_id}/disabled", { params: { path: { provider_id: id } }, body: { disabled } })),
+  );
+}
+
+/** Clearing needs a recent login: a stale one rejects with ``StepUpRequired``. */
+export function useClearProvider() {
+  return useLlmMutation(async ({ id, clearance }: { id: string; clearance: Clearance }) =>
+    unwrap(await api.POST("/admin/llm/providers/{provider_id}/clearance", { params: { path: { provider_id: id } }, body: clearance })),
+  );
+}
+
+export function useUnclearProvider() {
+  return useLlmMutation(async (id: string) =>
+    unwrap(await api.DELETE("/admin/llm/providers/{provider_id}/clearance", { params: { path: { provider_id: id } } })),
   );
 }
 
@@ -181,7 +196,11 @@ const ERRORS: Record<string, string> = {
   model_disabled: "Model lub jego dostawca jest wyłączony.",
   embed_dimension_only_for_embed: "Wymiar wektora dotyczy tylko modeli embeddingów.",
   capability_mismatch: "Ten model nie nadaje się do tego zastosowania.",
-  local_only_purpose: "To zastosowanie przetwarza dane prywatne i może używać tylko modeli lokalnych.",
+  provider_not_cleared:
+    "To zastosowanie przetwarza dane prywatne: wybierz model dostawcy dopuszczonego do danych prywatnych.",
+  endpoint_not_clearable:
+    "Tego adresu nie ma na liście serwerów, które mogą otrzymywać dane prywatne (LLM_PRIVATE_DATA_ENDPOINTS w .env).",
+  provider_cleared: "Dostawca jest dopuszczony do danych prywatnych: najpierw cofnij dopuszczenie, potem zmień adres.",
   cloud_not_allowed: "Modele chmurowe są wyłączone w konfiguracji serwera (LLM_ALLOW_CLOUD).",
   probe_required: "Najpierw przetestuj model — aktywacja wymaga udanego testu z ostatnich godzin.",
   embed_change_requires_reindex: "Zmiana modelu embeddingów wymaga przebudowy indeksu i nie jest jeszcze możliwa z panelu.",
@@ -210,9 +229,9 @@ export function llmError(error: unknown, fallback = "Operacja nie powiodła się
   return fallback;
 }
 
-/** The models a purpose may use: the right capability, enabled, and local for local-only purposes. */
+/** The models a purpose may use: the right capability, enabled, and cleared for private purposes. */
 export function eligibleModels(
-  purpose: { capability: Capability; local_only: boolean },
+  purpose: { capability: Capability; private_data: boolean },
   models: LlmModel[],
   providers: Provider[],
 ): LlmModel[] {
@@ -221,7 +240,7 @@ export function eligibleModels(
     const provider = byId.get(m.provider_id);
     if (!provider || provider.disabled || !provider.allowed || m.disabled) return false;
     if (m.capability !== purpose.capability) return false;
-    return !purpose.local_only || provider.kind === "LOCAL";
+    return !purpose.private_data || provider.private_data_cleared;
   });
 }
 

@@ -42,7 +42,7 @@ class Preset:
     key: str
     title: str
     prompt: str
-    local_only: bool = False
+    private_data: bool = False  # only models of cleared providers (10.1)
     response_model: type[BaseModel] | None = None
 
 
@@ -78,7 +78,7 @@ PRESETS: dict[str, Preset] = {
             "summary_pii",
             "Streszczenie notatki z danymi osobowymi (syntetycznymi)",
             f"Streść notatkę w dwóch zdaniach, bez danych osobowych: {SYNTHETIC_NOTE}",
-            local_only=True,
+            private_data=True,
         ),
     )
 }
@@ -103,7 +103,7 @@ async def run_one(
         reply: Any = await gateway.complete(
             [SYSTEM, {"role": "user", "content": prompt}],
             purpose=LLMPurpose.PLAYGROUND,
-            force_local_llm=bool(preset and preset.local_only),
+            private_data=bool(preset and preset.private_data),
             response_model=response_model,
         )
     except LLMError as exc:

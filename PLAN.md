@@ -243,7 +243,7 @@ Rejestr historyjek dodanych poza Etapami 1–6: [docs/USER_STORIES_LOG.md](docs/
 
 ### Etap 10: Wszystkie modele przez konfigurowalne API — bez wbudowanego LLM i modelu embeddingów (US-04)
 *Dokumentacja: [docs/implementation/10_MODEL_PROVIDERS_API.md](docs/implementation/10_MODEL_PROVIDERS_API.md)*
-- [ ] 10.1 Model zaufania „dopuszczony do danych prywatnych” zamiast lokalności (lista operatora w `.env`, zgoda ADMIN z MFA, trigger, `private_data=True`, nowa reguła 4 w AGENTS.md)
+- [x] 10.1 Model zaufania „dopuszczony do danych prywatnych” zamiast lokalności (lista operatora w `.env`, zgoda ADMIN z MFA, trigger, `private_data=True`, nowa reguła 4 w AGENTS.md)
 - [ ] 10.2 „Model nie jest skonfigurowany” zamiast awarii (`/api/capabilities`, zadania czekające na model, start bez modeli)
 - [ ] 10.3 Wersjonowane kolekcje Qdrant i bezpieczna zmiana modelu embeddingów (aliasy, ponowne embedowanie, zgody w obu wersjach)
 - [ ] 10.4 Transkrypcja mowy przez API (`/v1/audio/transcriptions`), wbudowany Whisper opcjonalny

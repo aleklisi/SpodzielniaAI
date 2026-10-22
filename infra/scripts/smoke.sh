@@ -234,12 +234,12 @@ check "worker-core: Qdrant over internal TLS, collections bootstrapped" \
 EMBED_PY='
 import asyncio
 from spoldzielnia_ai.core.settings import WorkerSettings
-from spoldzielnia_ai.llm.gateway import LiteLLMGateway, LocalModelUnavailable
+from spoldzielnia_ai.llm.gateway import LiteLLMGateway, ModelUnavailable
 from spoldzielnia_ai.vector.embedding import Embedder
 s = WorkerSettings()
 try:  # EmbeddingMismatch (wrong LLM_EMBED_DIM) fails the check; a model that is down does not
     asyncio.run(Embedder(LiteLLMGateway(s.llm), s.qdrant.vector_size).embed(["pszczoły"]))
-except LocalModelUnavailable as exc:
+except ModelUnavailable as exc:
     print("embedding model unavailable, size not checked:", exc)
 '
 check "worker-core: embedding size matches qdrant.vector_size" \

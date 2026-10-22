@@ -307,3 +307,44 @@ against the compose stack.
 2. **First cloud provider to support end to end:** Mistral (chat, embeddings, Voxtral
    transcription, OCR, all in the EU)? (Default: yes, as the reference cloud provider in tests
    and docs, with LM Studio as the reference local one.)
+
+---
+
+## Implementation notes
+
+**Open questions (§6), 2026-10-22:** implementation started on the defaults: transparency page +
+banner (no per-member opt-out); Mistral as the reference cloud provider, LM Studio as the
+reference local one.
+
+### 10.1 — Clearance trust model
+- **Data:** migration `0019_provider_clearance` adds `private_data_cleared`, `cleared_region`,
+  `cleared_retention`, `cleared_contract_ref`, `cleared_by`, `cleared_at` to `llm_provider`, with a
+  CHECK that a clearance carries region, retention, contract and time (P3). Existing LOCAL
+  providers are cleared by the migration. The three triggers of 0012 are redefined: private
+  routes and ACTIVE snapshots need a cleared provider; a cleared provider cannot change its
+  endpoint (un-clear first). The old "LOCAL cannot turn CLOUD" rule is gone: locality now only
+  decides the network path.
+- **Settings:** `llm.private_data_endpoints` (`LLM_PRIVATE_DATA_ENDPOINTS`, compose default
+  `null` = the local endpoints). `endpoints.may_receive_private_data` checks the origin.
+- **Gateway:** `ALWAYS_LOCAL` → `PRIVATE_PURPOSES`; `force_local_llm` → `private_data` everywhere;
+  `LocalModelUnavailable`/`LocalModelRejected` → `ModelUnavailable`/`ModelRejected` (any
+  deployment that fails now raises them, cloud included; promotion error codes became
+  `model_unavailable`/`model_rejected`). `Deployment.private_data` (with `.cleared`) is set from
+  the live provider row plus the env list when a process loads the configuration, so a tampered
+  snapshot or a clearance outside the list counts for nothing.
+- **Un-clearing at once:** the service bumps Redis `llm:config:clearance`; the config store
+  reloads when it changes (or within the TTL without Redis) and re-resolves when the snapshot's
+  providers' clearance or URL changed, even under the same revision number.
+- **Probes:** embedding probes now run under `PLAYGROUND` with `private_data=False` (synthetic
+  sentences), so a cloud embedding model can be probed before it is cleared; the
+  "embeddings_are_local_only" refusal is gone, and cloud providers may have EMBED models.
+- **Seeding from `.env`:** the local provider is cleared when its endpoint is on the list; if it
+  is not, only RAG is routed (private purposes stay off).
+- **API:** `POST /admin/llm/providers/{id}/clearance` (ADMIN + MFA + recent login, else 403
+  `reauthentication_required`), `DELETE …/clearance` (no step-up: it only narrows). Provider,
+  route, purpose, preset and status outputs carry `private_data*` fields instead of `local_only`.
+- **UI (moved forward from 10.8 so that new local providers stay usable):** „Dane prywatne”
+  column, „Dopuść do danych prywatnych” dialog with step-up notice, „Cofnij dopuszczenie” with a
+  warning about stopped features; routing offers private purposes only cleared providers'
+  models; playground private presets likewise. E2E scenario 9 clears its new provider.
+- **Docs:** AGENTS.md rule 4 rewritten as approved; ARCHITECTURE §1, README, `.env.example`.

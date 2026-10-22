@@ -235,7 +235,7 @@ async def test_promotion_end_to_end(
     # What reached the LLM: local only, no hidden instruction, no identifiers.
     (call,) = llm.calls
     assert call.purpose == LLMPurpose.PROMOTION
-    assert call.force_local_llm is True
+    assert call.private_data is True
     assert INJECTION not in call.text
     assert PESEL not in call.text
     assert find_checksum_identifiers(call.text) == []
@@ -297,7 +297,7 @@ async def test_no_local_model_fails_after_retries(h: Harness, llm: FakeLLMGatewa
     note_id = await _note(alice, "Notatka", "Ramki, odkład, matka.")
     accepted = (await _promote(alice, note_ids=[note_id])).json()
     promotion = (await alice.client.get(f"/promotions/{accepted['promotion_id']}")).json()
-    assert (promotion["status"], promotion["error"]) == ("FAILED", "local_model_unavailable")
+    assert (promotion["status"], promotion["error"]) == ("FAILED", "model_unavailable")
     assert len(llm.calls) == 4  # first attempt + 3 retries, never a cloud call
 
 
@@ -307,7 +307,7 @@ async def test_a_rejected_request_fails_without_retrying(h: Harness, llm: FakeLL
     note_id = await _note(alice, "Notatka", "Ramki, odkład, matka.")
     accepted = (await _promote(alice, note_ids=[note_id])).json()
     promotion = (await alice.client.get(f"/promotions/{accepted['promotion_id']}")).json()
-    assert (promotion["status"], promotion["error"]) == ("FAILED", "local_model_rejected")
+    assert (promotion["status"], promotion["error"]) == ("FAILED", "model_rejected")
     assert len(llm.calls) == 1
 
 

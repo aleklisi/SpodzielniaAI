@@ -18,7 +18,7 @@ committed, add the commit hash to the story's *Delivery* list.
 | [US-01](#us-01) | Administrator configures LLM models (local / cloud) in the UI and tests them | DONE | [07_LLM_MODEL_CONFIG.md](implementation/07_LLM_MODEL_CONFIG.md) · Etap 7 | 2026-10-20 |
 | [US-02](#us-02) | Administrator manages users: create accounts, reset passwords, block access, force password change, manage roles | DONE | [08_USER_MANAGEMENT.md](implementation/08_USER_MANAGEMENT.md) · Etap 8 | 2026-10-21 |
 | [US-03](#us-03) | Member adds photos with a description, marks and describes elements on them; experts verify; the atlas powers image recognition | DONE | [09_IMAGE_ATLAS.md](implementation/09_IMAGE_ATLAS.md) · Etap 9 | 2026-10-21 |
-| [US-04](#us-04) | Every model (LLM, embeddings, speech, OCR, image embeddings) is configured and provided over an API — local (LM Studio) or cloud; no built-in model required | PLANNED | [10_MODEL_PROVIDERS_API.md](implementation/10_MODEL_PROVIDERS_API.md) · Etap 10 | 2026-10-22 |
+| [US-04](#us-04) | Every model (LLM, embeddings, speech, OCR, image embeddings) is configured and provided over an API — local (LM Studio) or cloud; no built-in model required | IN PROGRESS | [10_MODEL_PROVIDERS_API.md](implementation/10_MODEL_PROVIDERS_API.md) · Etap 10 | 2026-10-22 |
 
 ---
 
@@ -168,7 +168,7 @@ configurable and provided over an API: a model run locally (e.g. in LM Studio) o
 
 - **Source:** product owner request, 2026-10-22 (refinement session, after a hosting question
   about a GPU-less VPS and Mistral's API).
-- **Status:** PLANNED.
+- **Status:** IN PROGRESS (10.1 done 2026-10-22).
 - **Plan:** [docs/implementation/10_MODEL_PROVIDERS_API.md](implementation/10_MODEL_PROVIDERS_API.md)
 - **Refinement decisions:** private data goes only to providers an admin has cleared for it
   (operator env list as the ceiling; replaces "local only" in AGENTS.md rule 4); image

@@ -1,5 +1,6 @@
 """Chunk 7.2: routing by a configuration source, the gateway's own checks against a tampered
-configuration, hot swapping of transports, and resolving a stored snapshot."""
+configuration, hot swapping of transports, and resolving a stored snapshot. Chunk 10.1: private
+purposes need deployments cleared for private data, wherever they run."""
 
 from __future__ import annotations
 
@@ -22,13 +23,13 @@ from spoldzielnia_ai.db.models import LlmProvider
 from spoldzielnia_ai.llm import gateway as gateway_module
 from spoldzielnia_ai.llm.config_store import resolve
 from spoldzielnia_ai.llm.gateway import (
-    ALWAYS_LOCAL,
+    PRIVATE_PURPOSES,
     Deployment,
     LiteLLMGateway,
     LiteLLMTransport,
     LLMError,
     LLMPurpose,
-    LocalModelUnavailable,
+    ModelUnavailable,
     ResolvedLlmConfig,
     StaticConfig,
     env_config,
@@ -38,6 +39,12 @@ from spoldzielnia_ai.llm.snapshot import ConfigSnapshot, SnapshotDeployment
 MESSAGES: list[Any] = [{"role": "user", "content": "x"}]
 LOCAL = Deployment("vllm/qwen", "qwen", "http://vllm:8000/v1", None, local=True)
 CLOUD = Deployment("cloud/gpt", "gpt", "https://api.example.com/v1", "sk", local=False)
+CLEARED_CLOUD = Deployment(
+    "mistral/small", "small", "https://api.mistral.ai/v1", "sk", local=False, private_data=True
+)
+UNCLEARED_LOCAL = Deployment(
+    "lmstudio/qwen", "qwen", "http://lan:1234/v1", None, local=True, private_data=False
+)
 
 
 @dataclass
@@ -77,21 +84,44 @@ def _refused(purpose: LLMPurpose) -> float:
     return value or 0.0
 
 
-@pytest.mark.parametrize("purpose", sorted(ALWAYS_LOCAL))
-async def test_a_tampered_route_to_the_cloud_is_refused(purpose: LLMPurpose) -> None:
-    gateway, transport = _gateway(_config({purpose: CLOUD}), allow_cloud=True)
+@pytest.mark.parametrize("purpose", sorted(PRIVATE_PURPOSES))
+@pytest.mark.parametrize("deployment", [CLOUD, UNCLEARED_LOCAL], ids=["cloud", "local"])
+async def test_a_route_to_an_uncleared_deployment_is_refused(
+    purpose: LLMPurpose, deployment: Deployment
+) -> None:
+    gateway, transport = _gateway(_config({purpose: deployment}), allow_cloud=True)
     before = _refused(purpose)
-    with pytest.raises(LocalModelUnavailable):
-        await gateway.complete(MESSAGES, purpose=purpose, force_local_llm=True)
+    call = (
+        gateway.embed(["x"])
+        if purpose == LLMPurpose.EMBED
+        else gateway.complete(MESSAGES, purpose=purpose, private_data=True)
+    )
+    with pytest.raises(ModelUnavailable):
+        await call
     assert transport.calls == []
     after = _refused(purpose)
     assert after == before + 1
 
 
-async def test_force_local_refuses_a_cloud_rag_route() -> None:
+@pytest.mark.parametrize("purpose", sorted(PRIVATE_PURPOSES - {LLMPurpose.EMBED}))
+async def test_a_cleared_cloud_deployment_serves_private_purposes(purpose: LLMPurpose) -> None:
+    gateway, transport = _gateway(_config({purpose: CLEARED_CLOUD}), allow_cloud=True)
+    result = await gateway.complete(MESSAGES, purpose=purpose, private_data=True)
+    assert result.deployment == "mistral/small"
+    assert transport.calls[0][0] == "mistral/small"
+
+
+async def test_a_cleared_cloud_deployment_still_needs_allow_cloud() -> None:
+    gateway, transport = _gateway(_config({LLMPurpose.PROMOTION: CLEARED_CLOUD}))
+    with pytest.raises(ModelUnavailable):
+        await gateway.complete(MESSAGES, purpose=LLMPurpose.PROMOTION, private_data=True)
+    assert transport.calls == []
+
+
+async def test_private_data_refuses_an_uncleared_rag_route() -> None:
     gateway, transport = _gateway(_config({LLMPurpose.RAG: CLOUD}), allow_cloud=True)
-    with pytest.raises(LocalModelUnavailable):
-        await gateway.complete(MESSAGES, purpose=LLMPurpose.RAG, force_local_llm=True)
+    with pytest.raises(ModelUnavailable):
+        await gateway.complete(MESSAGES, purpose=LLMPurpose.RAG, private_data=True)
     assert transport.calls == []
 
 
@@ -119,7 +149,7 @@ async def test_each_purpose_has_its_own_model_and_parameters() -> None:
     config = _config({LLMPurpose.RAG: LOCAL, LLMPurpose.PROMOTION: tuned})
     gateway, transport = _gateway(config, temperature=0.7, max_tokens=4096)
     await gateway.complete(MESSAGES, purpose=LLMPurpose.RAG)
-    await gateway.complete(MESSAGES, purpose=LLMPurpose.PROMOTION, force_local_llm=True)
+    await gateway.complete(MESSAGES, purpose=LLMPurpose.PROMOTION, private_data=True)
     (rag_model, rag), (promo_model, promo) = transport.calls
     assert (rag_model, rag["temperature"], rag["max_tokens"]) == ("vllm/qwen", 0.7, 4096)
     assert (promo_model, promo["temperature"], promo["max_tokens"]) == ("vllm/bielik", 0.0, 512)
@@ -127,7 +157,7 @@ async def test_each_purpose_has_its_own_model_and_parameters() -> None:
 
 async def test_unrouted_purposes_are_unavailable() -> None:
     gateway, _ = _gateway(_config({LLMPurpose.RAG: LOCAL}))
-    with pytest.raises(LocalModelUnavailable):
+    with pytest.raises(ModelUnavailable):
         await gateway.embed(["x"])
     with pytest.raises(LLMError):
         await gateway.complete(MESSAGES, purpose=LLMPurpose.PLAYGROUND)
@@ -265,11 +295,11 @@ def test_resolve_derives_locality_again_and_drops_disallowed_endpoints() -> None
     assert LLMPurpose.PII_SCRUB not in config.routes
     gateway = LiteLLMGateway(SETTINGS, Recorder(), source=StaticConfig(config))
     gateway._config = config  # pyright: ignore[reportPrivateUsage]
-    with pytest.raises(LocalModelUnavailable):
-        gateway.route(LLMPurpose.PROMOTION, force_local_llm=True)
-    with pytest.raises(LocalModelUnavailable):
-        gateway.route(LLMPurpose.PII_SCRUB, force_local_llm=True)
-    assert gateway.route(LLMPurpose.RAG, force_local_llm=False).name == "p/bielik"
+    with pytest.raises(ModelUnavailable):
+        gateway.route(LLMPurpose.PROMOTION, private_data=True)
+    with pytest.raises(ModelUnavailable):
+        gateway.route(LLMPurpose.PII_SCRUB, private_data=True)
+    assert gateway.route(LLMPurpose.RAG, private_data=False).name == "p/bielik"
 
 
 def test_resolve_skips_unreadable_keys_and_missing_providers() -> None:
@@ -287,3 +317,61 @@ def test_resolve_skips_unreadable_keys_and_missing_providers() -> None:
     config = resolve(3, snapshot, {provider.id: provider}, _cipher(), SETTINGS)
     assert dict(config.routes) == {}
     assert dict(config.deployments) == {}
+
+
+def test_resolve_takes_clearance_from_the_provider_row_within_the_env_list() -> None:
+    settings = SETTINGS.model_copy(
+        update={
+            "cloud_hosts": ["api.example.com", "api.mistral.ai"],
+            "private_data_endpoints": ["http://vllm:8000", "https://api.mistral.ai"],
+        }
+    )
+    lan = _provider("http://vllm:8000/v1", LlmProviderKind.LOCAL)
+    lan.private_data_cleared = True
+    mistral = _provider("https://api.mistral.ai/v1", LlmProviderKind.CLOUD)
+    mistral.private_data_cleared = True
+    other = _provider("https://api.example.com/v1", LlmProviderKind.CLOUD)
+    other.private_data_cleared = True  # cleared in the database, but not on the env list
+    plain = _provider("http://vllm:8000/v1", LlmProviderKind.LOCAL)  # on the list, not cleared
+    providers = [lan, mistral, other, plain]
+    for index, provider in enumerate(providers):
+        provider.name = f"p{index}"
+    snapshot = ConfigSnapshot(
+        routes={
+            LlmRoutePurpose.PROMOTION: "a",
+            LlmRoutePurpose.PRIVATE_NOTE: "b",
+            LlmRoutePurpose.PII_SCRUB: "c",
+            LlmRoutePurpose.VLM: "d",
+        },
+        deployments={
+            "a": _item(lan, "bielik", LlmProviderKind.LOCAL, private_data=True),
+            "b": _item(mistral, "small", LlmProviderKind.CLOUD, private_data=True),
+            "c": _item(other, "gpt", LlmProviderKind.CLOUD, private_data=True),
+            "d": _item(plain, "vl", LlmProviderKind.LOCAL, private_data=True),
+        },
+    )
+    config = resolve(9, snapshot, {p.id: p for p in providers}, _cipher(), settings)
+    cleared = {d.name for d in config.deployments.values() if d.cleared}
+    assert cleared == {"p0/bielik", "p1/small"}
+    gateway = LiteLLMGateway(settings, Recorder(), source=StaticConfig(config))
+    gateway._config = config  # pyright: ignore[reportPrivateUsage]
+    assert gateway.route(LLMPurpose.PROMOTION, private_data=True).name == "p0/bielik"
+    assert gateway.route(LLMPurpose.PRIVATE_NOTE, private_data=True).name == "p1/small"
+    for purpose in (LLMPurpose.PII_SCRUB, LLMPurpose.VLM):
+        with pytest.raises(ModelUnavailable):
+            gateway.route(purpose, private_data=True)
+
+
+def test_env_config_clears_the_local_endpoint_only_within_the_list() -> None:
+    assert env_config(LlmSettings(chat_model="c")).deployments["local-chat"].cleared
+    off = env_config(LlmSettings(chat_model="c", private_data_endpoints=[]))
+    assert not off.deployments["local-chat"].cleared
+    cloud = env_config(
+        LlmSettings(
+            allow_cloud=True,
+            cloud_model="gpt",
+            cloud_base_url="https://api.example.com/v1",
+            private_data_endpoints=["https://api.example.com"],
+        )
+    )
+    assert not cloud.deployments["cloud-chat"].cleared  # .env has no clearance step

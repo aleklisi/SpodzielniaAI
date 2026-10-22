@@ -1,5 +1,6 @@
 """Chunk 7.1: LLM configuration in Postgres: seeding, encrypted keys, revisions, and the
-database layer of the local-only rule (triggers of migration 0012)."""
+database layer of the private-data rule (triggers of migrations 0012 and 0019). Chunk 10.1:
+providers cleared for private data replace "local only"."""
 
 from __future__ import annotations
 
@@ -36,6 +37,7 @@ from spoldzielnia_ai.db.models import (
 )
 from spoldzielnia_ai.db.session import SessionFactory, create_session_factory
 from spoldzielnia_ai.llm.config_service import (
+    ClearanceIn,
     ConfigError,
     LlmConfigService,
     ModelIn,
@@ -43,7 +45,7 @@ from spoldzielnia_ai.llm.config_service import (
     ProviderPatch,
 )
 from spoldzielnia_ai.llm.config_store import LlmConfigStore
-from spoldzielnia_ai.llm.gateway import LiteLLMGateway, LLMPurpose
+from spoldzielnia_ai.llm.gateway import LiteLLMGateway, LLMPurpose, ModelUnavailable
 from spoldzielnia_ai.llm.snapshot import ConfigSnapshot
 
 if TYPE_CHECKING:
@@ -64,6 +66,7 @@ ENV = LlmSettings(
 )
 DIM = 32
 MESSAGES: list[Any] = [{"role": "user", "content": "x"}]
+CLEARANCE = ClearanceIn(region="UE (Francja)", retention="30 dni", contract_ref="DPA 2026/01")
 
 
 @pytest.fixture
@@ -153,6 +156,32 @@ async def test_seeding_imports_env_as_active_revision_one(
     assert event.payload["seeded"] is True
 
 
+async def test_seeding_clears_the_local_endpoint_only_within_the_operator_list(
+    factory: SessionFactory, cipher: EnvelopeCipher
+) -> None:
+    service = _service(factory, cipher)
+    await service.ensure_seeded(None)
+    (provider,) = await service.providers()
+    assert provider.private_data_cleared
+    assert provider.cleared_contract_ref == "konfiguracja serwera (.env)"
+    active = await service.active()
+    assert active is not None
+    snapshot = ConfigSnapshot.model_validate(active.revision.snapshot)
+    assert all(d.private_data for d in snapshot.deployments.values())
+
+
+async def test_seeding_without_a_cleared_endpoint_routes_rag_only(
+    factory: SessionFactory, cipher: EnvelopeCipher
+) -> None:
+    service = _service(factory, cipher, private_data_endpoints=[])
+    await service.ensure_seeded(None)
+    (provider,) = await service.providers()
+    assert not provider.private_data_cleared
+    active = await service.active()
+    assert active is not None
+    assert set(active.routing) == {LlmRoutePurpose.RAG}
+
+
 async def test_seeding_without_models_activates_an_empty_revision(
     factory: SessionFactory, cipher: EnvelopeCipher
 ) -> None:
@@ -232,23 +261,24 @@ async def test_api_keys_are_encrypted_write_only_and_bound_to_their_row(
     assert not any(key in p or "ABCD" in p for p in payloads)
 
 
-async def test_local_only_purposes_refuse_cloud_models_in_service_and_database(
+async def test_private_purposes_refuse_uncleared_providers_in_service_and_database(
     factory: SessionFactory, cipher: EnvelopeCipher
 ) -> None:
     service = _service(factory, cipher, allow_cloud=True)
     await service.ensure_seeded(None)
-    _, cloud_chat = await _two_chat_models(service)
+    local_chat, cloud_chat = await _two_chat_models(service)  # neither is cleared
     draft = await service.create_draft(None, None, "test")
-    for purpose in (
-        LlmRoutePurpose.PII_SCRUB,
-        LlmRoutePurpose.PRIVATE_NOTE,
-        LlmRoutePurpose.PROMOTION,
-    ):
-        with pytest.raises(ConfigError) as exc:
-            await service.set_routing(None, draft.revision.number, {purpose: cloud_chat.id})
-        assert exc.value.code == "local_only_purpose"
+    for model in (local_chat, cloud_chat):
+        for purpose in (
+            LlmRoutePurpose.PII_SCRUB,
+            LlmRoutePurpose.PRIVATE_NOTE,
+            LlmRoutePurpose.PROMOTION,
+        ):
+            with pytest.raises(ConfigError) as exc:
+                await service.set_routing(None, draft.revision.number, {purpose: model.id})
+            assert exc.value.code == "provider_not_cleared"
     # Bypassing the service: the trigger still says no.
-    with pytest.raises(DBAPIError, match="LOCAL provider"):
+    with pytest.raises(DBAPIError, match="cleared for private data"):
         await _write(
             factory,
             update(LlmRouting)
@@ -256,7 +286,7 @@ async def test_local_only_purposes_refuse_cloud_models_in_service_and_database(
                 LlmRouting.revision_id == draft.revision.id,
                 LlmRouting.purpose == LlmRoutePurpose.PROMOTION,
             )
-            .values(model_id=cloud_chat.id),
+            .values(model_id=local_chat.id),
         )
     (embed,) = [m for m in await service.models() if m.capability == LlmCapability.EMBED]
     with pytest.raises(DBAPIError, match="cannot use a EMBED model"):
@@ -269,11 +299,70 @@ async def test_local_only_purposes_refuse_cloud_models_in_service_and_database(
             )
             .values(model_id=embed.id),
         )
-    # RAG may use the cloud model in a draft.
+    # RAG may use any allowed model in a draft.
     view = await service.set_routing(
         None, draft.revision.number, {LlmRoutePurpose.RAG: cloud_chat.id}
     )
     assert view.routing[LlmRoutePurpose.RAG] == cloud_chat.id
+
+
+async def test_a_cleared_cloud_provider_serves_private_purposes(
+    factory: SessionFactory, cipher: EnvelopeCipher
+) -> None:
+    service = _service(
+        factory,
+        cipher,
+        allow_cloud=True,
+        private_data_endpoints=["http://llm:11434", "https://api.example.com"],
+    )
+    await service.ensure_seeded(None)
+    _, cloud_chat = await _two_chat_models(service)
+    await service.clear_provider(None, cloud_chat.provider_id, CLEARANCE)
+    number = await _activate_with(service, {LlmRoutePurpose.PROMOTION: cloud_chat.id})
+    active = await service.active()
+    assert active is not None
+    assert active.revision.number == number
+    snapshot = ConfigSnapshot.model_validate(active.revision.snapshot)
+    promotion = snapshot.deployment_for(LlmRoutePurpose.PROMOTION)
+    assert promotion is not None
+    assert (promotion.kind, promotion.private_data) == (LlmProviderKind.CLOUD, True)
+    async with factory() as session:
+        event = await session.scalar(
+            select(SecurityAuditLog).where(
+                SecurityAuditLog.event_type == EventType.LLM_PROVIDER_CLEARED.value
+            )
+        )
+    assert event is not None
+    assert event.payload["region"] == "UE (Francja)"
+    assert event.payload["contract_ref"] == "DPA 2026/01"
+
+
+async def test_clearing_needs_the_operator_list_and_the_cloud_ceiling(
+    factory: SessionFactory, cipher: EnvelopeCipher
+) -> None:
+    service = _service(factory, cipher, allow_cloud=True)
+    local_chat, cloud_chat = await _two_chat_models(service)
+    with pytest.raises(ConfigError) as exc:  # the default list is the local endpoints only
+        await service.clear_provider(None, cloud_chat.provider_id, CLEARANCE)
+    assert exc.value.code == "endpoint_not_clearable"
+    listed = _service(
+        factory, cipher, allow_cloud=False, private_data_endpoints=["https://api.example.com"]
+    )
+    with pytest.raises(ConfigError) as exc:
+        await listed.clear_provider(None, cloud_chat.provider_id, CLEARANCE)
+    assert exc.value.code == "cloud_not_allowed"
+    await service.set_provider_disabled(None, local_chat.provider_id, True)
+    with pytest.raises(ConfigError) as exc:
+        await service.clear_provider(None, local_chat.provider_id, CLEARANCE)
+    assert exc.value.code == "provider_disabled"
+    # The database refuses a clearance without the facts members are shown (P3).
+    with pytest.raises(DBAPIError, match="clearance_complete"):
+        await _write(
+            factory,
+            update(LlmProvider)
+            .where(LlmProvider.id == cloud_chat.provider_id)
+            .values(private_data_cleared=True),
+        )
 
 
 async def test_activation_needs_fresh_probes_and_the_cloud_ceiling(
@@ -381,9 +470,10 @@ async def test_a_tampered_snapshot_cannot_route_private_data_to_the_cloud(
         "capability": "CHAT",
         "base_url": "https://api.example.com/v1",
         "kind": "LOCAL",  # lie
+        "private_data": True,  # lie
     }
     snapshot = {"version": 1, "routes": {"PRIVATE_NOTE": "d"}, "deployments": {"d": deployment}}
-    with pytest.raises(DBAPIError, match="not LOCAL"):
+    with pytest.raises(DBAPIError, match="not cleared for private data"):
         await _write(
             factory,
             insert(LlmConfigRevision).values(
@@ -392,7 +482,7 @@ async def test_a_tampered_snapshot_cannot_route_private_data_to_the_cloud(
         )
 
 
-async def test_a_provider_serving_local_only_purposes_cannot_turn_cloud(
+async def test_a_cleared_provider_cannot_change_its_endpoint_until_uncleared(
     factory: SessionFactory, cipher: EnvelopeCipher
 ) -> None:
     service = _service(factory, cipher)
@@ -400,19 +490,25 @@ async def test_a_provider_serving_local_only_purposes_cannot_turn_cloud(
     (provider,) = await service.providers()
     with pytest.raises(ConfigError) as exc:
         await service.update_provider(
-            None, provider.id, ProviderPatch(base_url="https://api.example.com/v1")
+            None, provider.id, ProviderPatch(base_url="http://vllm:8000/v1")
         )
-    assert exc.value.code == "local_only_purpose"
-    with pytest.raises(DBAPIError, match="cannot become CLOUD"):
+    assert exc.value.code == "provider_cleared"
+    with pytest.raises(DBAPIError, match="un-clear it"):
         await _write(
             factory,
             update(LlmProvider)
             .where(LlmProvider.id == provider.id)
-            .values(kind=LlmProviderKind.CLOUD),
+            .values(base_url="https://api.example.com/v1"),
         )
     with pytest.raises(ConfigError) as exc:
         await service.set_provider_disabled(None, provider.id, True)
     assert exc.value.code == "provider_in_use"
+    uncleared = await service.unclear_provider(None, provider.id)
+    assert not uncleared.private_data_cleared
+    moved = await service.update_provider(
+        None, provider.id, ProviderPatch(base_url="http://vllm:8000/v1")
+    )
+    assert moved.base_url == "http://vllm:8000/v1"
 
 
 async def _activate_with(
@@ -507,7 +603,7 @@ async def test_the_store_follows_activations_without_a_restart(
     local_chat, _ = await _two_chat_models(service)
     second = await _activate_with(service, {LlmRoutePurpose.RAG: local_chat.id})
     await gateway.complete(MESSAGES, purpose=LLMPurpose.RAG)
-    await gateway.complete(MESSAGES, purpose=LLMPurpose.PROMOTION, force_local_llm=True)
+    await gateway.complete(MESSAGES, purpose=LLMPurpose.PROMOTION, private_data=True)
     assert recorder.models == [
         "local-chat",
         "local/bielik-11b",
@@ -556,3 +652,56 @@ async def test_env_mode_ignores_the_database(
     config = await store.current()
     assert config.revision == 0
     assert config.routes[LLMPurpose.RAG] == "local-chat"
+
+
+async def test_unclearing_stops_private_purposes_at_once_without_a_new_revision(
+    factory: SessionFactory, cipher: EnvelopeCipher
+) -> None:
+    redis = FakeAsyncRedis()
+    clock = [0.0]
+    service = LlmConfigService(factory, cipher, ENV, vector_size=DIM, redis=redis)
+    await service.ensure_seeded(None)
+    store = LlmConfigStore(factory, cipher, ENV, redis, clock=lambda: clock[0])
+    recorder = Recorder()
+    gateway = LiteLLMGateway(ENV, recorder, source=store)
+    await gateway.complete(MESSAGES, purpose=LLMPurpose.PROMOTION, private_data=True)
+    (provider,) = await service.providers()
+
+    await service.unclear_provider(None, provider.id)
+    with pytest.raises(ModelUnavailable):  # same revision, no TTL wait: Redis said so
+        await gateway.complete(MESSAGES, purpose=LLMPurpose.PROMOTION, private_data=True)
+    await gateway.complete(MESSAGES, purpose=LLMPurpose.RAG)  # public purposes keep working
+    assert gateway.config.revision == 1
+    assert recorder.models == ["local/bielik-11b", "local/bielik-11b"]
+    async with factory() as session:
+        event = await session.scalar(
+            select(SecurityAuditLog).where(
+                SecurityAuditLog.event_type == EventType.LLM_PROVIDER_UNCLEARED.value
+            )
+        )
+    assert event is not None
+    assert set(event.payload["purposes_stopped"]) == {
+        "PII_SCRUB",
+        "PRIVATE_NOTE",
+        "PROMOTION",
+        "VLM",
+        "EMBED",
+    }
+
+    await service.clear_provider(None, provider.id, CLEARANCE)
+    await gateway.complete(MESSAGES, purpose=LLMPurpose.PROMOTION, private_data=True)
+    assert recorder.models[-1] == "local/bielik-11b"
+
+
+async def test_without_redis_unclearing_takes_effect_within_the_ttl(
+    factory: SessionFactory, cipher: EnvelopeCipher
+) -> None:
+    clock = [0.0]
+    service = _service(factory, cipher)
+    await service.ensure_seeded(None)
+    store = LlmConfigStore(factory, cipher, ENV, None, clock=lambda: clock[0])
+    assert (await store.current()).deployments["local/bielik-11b"].cleared
+    (provider,) = await service.providers()
+    await service.unclear_provider(None, provider.id)
+    clock[0] += ENV.config_ttl_seconds
+    assert not (await store.current()).deployments["local/bielik-11b"].cleared

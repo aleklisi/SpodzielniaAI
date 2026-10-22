@@ -336,6 +336,31 @@ export interface paths {
         patch: operations["update_provider_admin_llm_providers__provider_id__patch"];
         trace?: never;
     };
+    "/admin/llm/providers/{provider_id}/clearance": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Clear Provider
+         * @description Allow private purposes to use this provider (P2/P3): needs a recent login (step-up).
+         */
+        post: operations["clear_provider_admin_llm_providers__provider_id__clearance_post"];
+        /**
+         * Unclear Provider
+         * @description Stop private data going to this provider, at once. Private purposes it served stop too
+         *     until another cleared model takes them over (no fallback).
+         */
+        delete: operations["unclear_provider_admin_llm_providers__provider_id__clearance_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/llm/providers/{provider_id}/disabled": {
         parameters: {
             query?: never;
@@ -1996,6 +2021,18 @@ export interface components {
             /** Labels */
             labels: string[];
         };
+        /**
+         * ClearanceIn
+         * @description What members are shown about a provider that receives their private data (P3, P4).
+         */
+        ClearanceIn: {
+            /** Contract Ref */
+            contract_ref: string;
+            /** Region */
+            region: string;
+            /** Retention */
+            retention: string;
+        };
         /** ConnectionOut */
         ConnectionOut: {
             /** Error */
@@ -2926,8 +2963,8 @@ export interface components {
         PresetOut: {
             /** Key */
             key: string;
-            /** Local Only */
-            local_only: boolean;
+            /** Private Data */
+            private_data: boolean;
             /** Prompt */
             prompt: string;
             /** Structured */
@@ -3038,6 +3075,16 @@ export interface components {
             allowed: boolean;
             /** Base Url */
             base_url: string;
+            /** Clearable */
+            clearable: boolean;
+            /** Cleared At */
+            cleared_at: string | null;
+            /** Cleared Contract Ref */
+            cleared_contract_ref: string | null;
+            /** Cleared Region */
+            cleared_region: string | null;
+            /** Cleared Retention */
+            cleared_retention: string | null;
             /**
              * Created At
              * Format: date-time
@@ -3063,6 +3110,8 @@ export interface components {
             litellm_provider: string;
             /** Name */
             name: string;
+            /** Private Data Cleared */
+            private_data_cleared: boolean;
             /** Structured Output */
             structured_output: string | null;
             /** Timeout Seconds */
@@ -3095,8 +3144,8 @@ export interface components {
         /** PurposeOut */
         PurposeOut: {
             capability: components["schemas"]["LlmCapability"];
-            /** Local Only */
-            local_only: boolean;
+            /** Private Data */
+            private_data: boolean;
             purpose: components["schemas"]["LlmRoutePurpose"];
         };
         /** QueueItemOut */
@@ -3456,6 +3505,8 @@ export interface components {
             model_id: string;
             /** Name */
             name: string;
+            /** Private Data */
+            private_data: boolean;
         };
         /** RoutingIn */
         RoutingIn: {
@@ -3525,6 +3576,8 @@ export interface components {
             egress_proxy: boolean;
             /** Local Endpoints */
             local_endpoints: string[];
+            /** Private Data Endpoints */
+            private_data_endpoints: string[];
             /** Probe Max Age Hours */
             probe_max_age_hours: number;
             /** Process Revision */
@@ -4480,6 +4533,72 @@ export interface operations {
                 "application/json": components["schemas"]["ProviderPatch"];
             };
         };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProviderOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    clear_provider_admin_llm_providers__provider_id__clearance_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                provider_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ClearanceIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProviderOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    unclear_provider_admin_llm_providers__provider_id__clearance_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                provider_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
         responses: {
             /** @description Successful Response */
             200: {

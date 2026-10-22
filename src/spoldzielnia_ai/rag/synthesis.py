@@ -115,12 +115,12 @@ class Synthesizer:
         template: PromptTemplate,
         purpose: LLMPurpose,
         *,
-        force_local_llm: bool,
+        private_data: bool,
     ) -> None:
         self._gateway = gateway
         self._template = template
         self._purpose = purpose
-        self._force_local = force_local_llm
+        self._force_local = private_data
 
     def messages(self, question: str, sources: Sequence[Source], style: Style) -> list[ChatMessage]:
         messages, _ = self._template.messages(
@@ -135,7 +135,7 @@ class Synthesizer:
         self, question: str, sources: Sequence[Source], style: Style
     ) -> AnswerDraft | None:
         """A grounded draft, or None (insufficient sources, ungrounded twice, invalid output).
-        ``LocalModelUnavailable`` propagates: that is an outage, not an answer."""
+        ``ModelUnavailable`` propagates: that is an outage, not an answer."""
         if not sources:
             return None
         labels = {s.label for s in sources}
@@ -145,7 +145,7 @@ class Synthesizer:
                 result = await self._gateway.complete(
                     messages,
                     purpose=self._purpose,
-                    force_local_llm=self._force_local,
+                    private_data=self._force_local,
                     response_model=AnswerDraft,
                 )
             except LLMOutputInvalid:

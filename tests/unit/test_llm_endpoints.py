@@ -8,14 +8,16 @@ import pytest
 
 from spoldzielnia_ai.core.settings import LlmSettings
 from spoldzielnia_ai.db.enums import LlmCapability, LlmProviderKind, LlmRoutePurpose
-from spoldzielnia_ai.llm.config_service import LOCAL_ONLY_PURPOSES, capability_for
+from spoldzielnia_ai.llm.config_service import PRIVATE_ROUTE_PURPOSES, capability_for
 from spoldzielnia_ai.llm.endpoints import (
     EndpointNotAllowed,
     allowed_endpoints,
     classify,
+    may_receive_private_data,
     normalize_base_url,
+    private_data_endpoints,
 )
-from spoldzielnia_ai.llm.gateway import ALWAYS_LOCAL, LLMPurpose
+from spoldzielnia_ai.llm.gateway import PRIVATE_PURPOSES, LLMPurpose
 
 SETTINGS = LlmSettings(
     local_base_url="http://llm:11434/v1",
@@ -95,11 +97,13 @@ def test_normalize_strips_trailing_slashes() -> None:
     assert normalize_base_url(" http://llm:11434/v1// ") == "http://llm:11434/v1"
 
 
-def test_local_only_purposes_match_the_gateway_and_the_migration() -> None:
-    migration = importlib.import_module("spoldzielnia_ai.db.migrations.versions.0012_llm_config")
-    gateway = {p.value for p in ALWAYS_LOCAL}
-    assert {p.value for p in LOCAL_ONLY_PURPOSES} == gateway
-    assert set(migration.LOCAL_ONLY) == gateway
+def test_private_purposes_match_the_gateway_and_the_migration() -> None:
+    migration = importlib.import_module(
+        "spoldzielnia_ai.db.migrations.versions.0019_provider_clearance"
+    )
+    gateway = {p.value for p in PRIVATE_PURPOSES}
+    assert {p.value for p in PRIVATE_ROUTE_PURPOSES} == gateway
+    assert set(migration.PRIVATE) == gateway
     assert {p.value for p in LlmRoutePurpose} == {p.value for p in LLMPurpose} - {"PLAYGROUND"}
 
 
@@ -108,3 +112,27 @@ def test_capability_per_purpose() -> None:
     assert capability_for(LlmRoutePurpose.EMBED) == LlmCapability.EMBED
     assert capability_for(LlmRoutePurpose.RAG) == LlmCapability.CHAT
     assert capability_for(LlmRoutePurpose.PII_SCRUB) == LlmCapability.CHAT
+
+
+def test_private_data_endpoints_default_to_the_local_ones() -> None:
+    assert private_data_endpoints(SETTINGS) == [
+        "http://host.docker.internal:1234",
+        "http://llm:11434",
+        "http://vllm:8000",
+    ]
+    assert may_receive_private_data("http://vllm:8000/v1", SETTINGS)
+    assert not may_receive_private_data("https://api.mistral.ai/v1", SETTINGS)
+
+
+def test_the_operator_list_replaces_the_default() -> None:
+    settings = SETTINGS.model_copy(
+        update={"private_data_endpoints": ["https://api.mistral.ai", "not a url"]}
+    )
+    assert private_data_endpoints(settings) == ["https://api.mistral.ai"]
+    assert may_receive_private_data("https://API.mistral.ai/v1", settings)
+    assert not may_receive_private_data("http://api.mistral.ai/v1", settings)  # scheme counts
+    assert not may_receive_private_data("https://api.mistral.ai:8443/v1", settings)
+    assert not may_receive_private_data("http://vllm:8000/v1", settings)
+    none = SETTINGS.model_copy(update={"private_data_endpoints": []})
+    assert private_data_endpoints(none) == []
+    assert not may_receive_private_data("http://llm:11434/v1", none)

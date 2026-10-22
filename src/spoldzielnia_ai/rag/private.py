@@ -3,7 +3,7 @@
 Same synthesis and grounding rules as cooperative RAG, with three differences: the search is
 ``PrivateVectorRepo(user_id)`` (tenant filter), the text is decrypted through the member's
 ``RlsSession`` (``NotebookService``, AGENTS.md §3.1), and the model is always local
-(``force_local_llm=True``, AGENTS.md §3.4). Quarantined derivatives are never indexed, and
+(``private_data=True``, AGENTS.md §3.4). Quarantined derivatives are never indexed, and
 ``derivative_texts`` re-checks that.
 """
 
@@ -41,7 +41,7 @@ class NotebookQA:
         self._client = client
         self._embedder = embedder
         self._synth = Synthesizer(
-            gateway, NOTEBOOK_ANSWER, LLMPurpose.PRIVATE_NOTE, force_local_llm=True
+            gateway, NOTEBOOK_ANSWER, LLMPurpose.PRIVATE_NOTE, private_data=True
         )
         self._settings = settings
 

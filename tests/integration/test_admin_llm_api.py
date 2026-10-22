@@ -1,9 +1,11 @@
-"""Chunk 7.4: the ``/admin/llm`` API (ADMIN + MFA): providers, models, probes, revisions."""
+"""Chunk 7.4: the ``/admin/llm`` API (ADMIN + MFA): providers, models, probes, revisions.
+Chunk 10.1: clearing providers for private data (step-up)."""
 
 from __future__ import annotations
 
 import hashlib
 import json
+import time
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any
 
@@ -89,8 +91,8 @@ async def h(settings: Settings, factory: SessionFactory) -> AsyncIterator[Harnes
         yield h
 
 
-async def _admin(h: Harness) -> LoggedIn:
-    return await h.login(roles=["ADMIN", "MEMBER"], amr=["pwd", "otp"])
+async def _admin(h: Harness, *, auth_time: int | None = None) -> LoggedIn:
+    return await h.login(roles=["ADMIN", "MEMBER"], amr=["pwd", "otp"], auth_time=auth_time)
 
 
 async def test_authorization_matrix(h: Harness) -> None:
@@ -114,8 +116,9 @@ async def test_first_visit_shows_the_env_configuration_as_revision_one(h: Harnes
     assert status["process_revision"] == 1  # the API process already routes by it
     assert status["allow_cloud"] is False
     assert status["local_endpoints"] == ["http://llm:11434", "http://vllm:8000"]
-    local_only = {p["purpose"]: p["local_only"] for p in status["purposes"]}
-    assert local_only == {
+    assert status["private_data_endpoints"] == ["http://llm:11434", "http://vllm:8000"]
+    private = {p["purpose"]: p["private_data"] for p in status["purposes"]}
+    assert private == {
         "PII_SCRUB": True,
         "PRIVATE_NOTE": True,
         "PROMOTION": True,
@@ -129,6 +132,8 @@ async def test_first_visit_shows_the_env_configuration_as_revision_one(h: Harnes
     (provider,) = (await admin.client.get("/admin/llm/providers")).json()
     assert provider["inherit_env_key"] is True
     assert provider["in_active"] is True
+    assert (provider["private_data_cleared"], provider["clearable"]) == (True, True)
+    assert revision["routes"]["PROMOTION"]["private_data"] is True
 
 
 async def test_keys_are_write_only_and_urls_are_checked(
@@ -336,7 +341,7 @@ async def test_policy_errors_are_explained(h: Harness) -> None:
         headers=admin.headers,
     )
     assert response.status_code == 422
-    assert response.json()["detail"] == {"error": "local_only_purpose", "purpose": "PRIVATE_NOTE"}
+    assert response.json()["detail"] == {"error": "provider_not_cleared", "purpose": "PRIVATE_NOTE"}
 
     (local,) = [
         p for p in (await admin.client.get("/admin/llm/providers")).json() if p["name"] == "local"
@@ -399,7 +404,7 @@ async def test_playground_compares_models_and_audits_only_a_hash(
     presets = {
         p["key"]: p for p in (await admin.client.get("/admin/llm/playground/presets")).json()
     }
-    assert presets["summary_pii"]["local_only"] is True
+    assert presets["summary_pii"]["private_data"] is True
     assert presets["json_extract"]["structured"] is True
     bielik = (await admin.client.get("/admin/llm/models")).json()[0]
     qwen = await _model(admin, await _vllm(admin), "qwen3-32b")
@@ -490,7 +495,7 @@ async def test_playground_and_cloud_models(settings: Settings, factory: SessionF
         if allow_cloud:
             assert free.status_code == 200, free.text
             assert free.json()["results"][0]["local"] is False
-            assert pii.json()["detail"]["error"] == "local_only_purpose"
+            assert pii.json()["detail"]["error"] == "provider_not_cleared"
         else:
             assert free.json()["detail"]["error"] == "cloud_not_allowed"
             assert pii.json()["detail"]["error"] == "cloud_not_allowed"
@@ -512,3 +517,77 @@ async def test_playground_is_rate_limited(settings: Settings, factory: SessionFa
             for _ in range(3)
         ]
     assert codes == [200, 200, 429]
+
+
+async def test_clearing_a_provider_needs_step_up_and_the_operator_list(
+    settings: Settings, factory: SessionFactory
+) -> None:
+    configured = _settings(
+        settings,
+        allow_cloud=True,
+        private_data_endpoints=["http://llm:11434", "https://api.example.com"],
+    )
+    async with harness(configured, factory) as h:
+        h.app.state.llm_probe_transport = ProbeTransport()
+        fresh = await _admin(h, auth_time=int(time.time()))
+        stale = await _admin(h, auth_time=int(time.time()) - 3600)
+        cloud = (
+            await fresh.client.post(
+                "/admin/llm/providers",
+                json={"name": "mistral", "base_url": "https://api.example.com/v1"},
+                headers=fresh.headers,
+            )
+        ).json()
+        vllm = await _vllm(fresh)
+        assert (cloud["clearable"], cloud["private_data_cleared"]) == (True, False)
+        body = {"region": "UE (Francja)", "retention": "0 dni", "contract_ref": "DPA-7"}
+        url = f"/admin/llm/providers/{cloud['id']}/clearance"
+
+        refused = await stale.client.post(url, json=body, headers=stale.headers)
+        assert refused.status_code == 403
+        assert refused.json()["detail"]["error"] == "reauthentication_required"
+        missing = await fresh.client.post(url, json={"region": "UE"}, headers=fresh.headers)
+        assert missing.status_code == 422
+        not_listed = await fresh.client.post(
+            f"/admin/llm/providers/{vllm}/clearance", json=body, headers=fresh.headers
+        )
+        assert not_listed.status_code == 409
+        assert not_listed.json()["detail"]["error"] == "endpoint_not_clearable"
+
+        cleared = await fresh.client.post(url, json=body, headers=fresh.headers)
+        assert cleared.status_code == 200, cleared.text
+        out = cleared.json()
+        assert out["private_data_cleared"] is True
+        assert (out["cleared_region"], out["cleared_retention"], out["cleared_contract_ref"]) == (
+            "UE (Francja)",
+            "0 dni",
+            "DPA-7",
+        )
+        small = await _model(fresh, cloud["id"], "mistral-small")
+        draft = (
+            await fresh.client.post("/admin/llm/revisions", json={}, headers=fresh.headers)
+        ).json()
+        routed = await fresh.client.put(
+            f"/admin/llm/revisions/{draft['number']}/routing",
+            json={"routes": {"PRIVATE_NOTE": small["id"]}},
+            headers=fresh.headers,
+        )
+        assert routed.status_code == 200, routed.text
+
+        uncleared = await stale.client.delete(url, headers=stale.headers)  # no step-up needed
+        assert uncleared.status_code == 200
+        assert uncleared.json()["private_data_cleared"] is False
+        async with factory() as session:
+            events = list(
+                await session.scalars(
+                    select(SecurityAuditLog.event_type).where(
+                        SecurityAuditLog.event_type.in_(
+                            [
+                                EventType.LLM_PROVIDER_CLEARED.value,
+                                EventType.LLM_PROVIDER_UNCLEARED.value,
+                            ]
+                        )
+                    )
+                )
+            )
+        assert sorted(events) == ["LLM_PROVIDER_CLEARED", "LLM_PROVIDER_UNCLEARED"]

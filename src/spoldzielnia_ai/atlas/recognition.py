@@ -7,7 +7,7 @@
    photos (mandatory filter, A5) in the photo's domain (or all domains). Labels scoring at least
    ``atlas.recognition_min_score`` become candidates.
    - No candidate → "no verified examples": no model is asked to guess (strict grounding).
-   - Otherwise the **local** VLM (``force_local_llm=True``, A8) gets the photo, the candidates'
+   - Otherwise the **local** VLM (``private_data=True``, A8) gets the photo, the candidates'
      vocabulary descriptions and a few verified reference crops, and answers with boxes. Only
      candidate labels are kept, boxes are clamped, and the answer passes the injection guard.
      Without a local VLM the answer falls back to the retrieval (approximate boxes), labelled
@@ -61,8 +61,8 @@ from spoldzielnia_ai.llm.gateway import (
     LLMError,
     LLMOutputInvalid,
     LLMPurpose,
-    LocalModelRejected,
-    LocalModelUnavailable,
+    ModelRejected,
+    ModelUnavailable,
 )
 from spoldzielnia_ai.llm.prompts import RECOGNITION
 from spoldzielnia_ai.notebook.images import IMAGE_TYPES
@@ -464,10 +464,10 @@ class AtlasRecognizer:
             result = await self._gateway.complete(
                 [messages[0], user],
                 purpose=LLMPurpose.VLM,
-                force_local_llm=True,
+                private_data=True,
                 response_model=RecognitionAnswer,
             )
-        except (LocalModelUnavailable, LocalModelRejected):
+        except (ModelUnavailable, ModelRejected):
             return self._fallback(candidates, "unavailable")
         except LLMOutputInvalid:
             return self._fallback(candidates, "invalid")

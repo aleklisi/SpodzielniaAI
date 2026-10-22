@@ -29,7 +29,7 @@ def test_image_is_described_locally_inline(tmp_path: Path) -> None:
     assert text == "Ramka z zasklepionym czerwiem."
     (call,) = gateway.calls
     assert call.purpose == LLMPurpose.VLM
-    assert call.force_local_llm is True
+    assert call.private_data is True
     content = call.messages[1]["content"]
     assert isinstance(content, list)
     image = next(part for part in content if part["type"] == "image_url")
@@ -46,6 +46,6 @@ def test_fake_gateway_enforces_the_local_flag() -> None:
     import asyncio
 
     gateway = FakeLLMGateway()
-    with pytest.raises(AssertionError, match="force_local_llm"):
+    with pytest.raises(AssertionError, match="private_data"):
         asyncio.run(gateway.complete([], purpose=LLMPurpose.PROMOTION))
     assert gateway.calls == []

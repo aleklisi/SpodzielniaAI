@@ -26,7 +26,7 @@ from spoldzielnia_ai.core.logging import get_logger
 from spoldzielnia_ai.db.enums import ArticleStatus, ConsentStatus, DerivativeStatus
 from spoldzielnia_ai.db.models import ArticleBlock, NoteDerivative, WikiArticle
 from spoldzielnia_ai.db.rls import rls_session
-from spoldzielnia_ai.llm.gateway import LLMError, LocalModelUnavailable
+from spoldzielnia_ai.llm.gateway import LLMError, ModelUnavailable
 from spoldzielnia_ai.notebook.service import DERIVATIVE
 from spoldzielnia_ai.vector.chunking import chunk_text
 from spoldzielnia_ai.vector.repositories import (
@@ -93,7 +93,7 @@ class Indexer:
         chunks = chunk_text(text)
         try:
             vectors = await self._embedder.embed(chunks)
-        except LocalModelUnavailable:
+        except ModelUnavailable:
             return not final_attempt
         except LLMError as exc:
             log.error("index.private_failed", derivative=str(job.derivative_id), error=str(exc))
@@ -129,7 +129,7 @@ class Indexer:
         ids = list(snapshot)
         try:
             embedded = await self._embedder.embed([snapshot[i] for i in ids])
-        except LocalModelUnavailable:
+        except ModelUnavailable:
             return not final_attempt
         except LLMError as exc:
             log.error("index.canonical_failed", article=str(job.article_id), error=str(exc))

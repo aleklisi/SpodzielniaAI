@@ -758,6 +758,36 @@
         "title": "CitationOut",
         "type": "object"
       },
+      "ClearanceIn": {
+        "description": "What members are shown about a provider that receives their private data (P3, P4).",
+        "properties": {
+          "contract_ref": {
+            "maxLength": 200,
+            "minLength": 2,
+            "title": "Contract Ref",
+            "type": "string"
+          },
+          "region": {
+            "maxLength": 64,
+            "minLength": 2,
+            "title": "Region",
+            "type": "string"
+          },
+          "retention": {
+            "maxLength": 64,
+            "minLength": 2,
+            "title": "Retention",
+            "type": "string"
+          }
+        },
+        "required": [
+          "region",
+          "retention",
+          "contract_ref"
+        ],
+        "title": "ClearanceIn",
+        "type": "object"
+      },
       "ConnectionOut": {
         "properties": {
           "error": {
@@ -3470,8 +3500,8 @@
             "title": "Key",
             "type": "string"
           },
-          "local_only": {
-            "title": "Local Only",
+          "private_data": {
+            "title": "Private Data",
             "type": "boolean"
           },
           "prompt": {
@@ -3491,7 +3521,7 @@
           "key",
           "title",
           "prompt",
-          "local_only",
+          "private_data",
           "structured"
         ],
         "title": "PresetOut",
@@ -3755,6 +3785,55 @@
             "title": "Base Url",
             "type": "string"
           },
+          "clearable": {
+            "title": "Clearable",
+            "type": "boolean"
+          },
+          "cleared_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cleared At"
+          },
+          "cleared_contract_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cleared Contract Ref"
+          },
+          "cleared_region": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cleared Region"
+          },
+          "cleared_retention": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cleared Retention"
+          },
           "created_at": {
             "format": "date-time",
             "title": "Created At",
@@ -3803,6 +3882,10 @@
             "title": "Name",
             "type": "string"
           },
+          "private_data_cleared": {
+            "title": "Private Data Cleared",
+            "type": "boolean"
+          },
           "structured_output": {
             "anyOf": [
               {
@@ -3845,6 +3928,12 @@
           "timeout_seconds",
           "disabled",
           "in_active",
+          "private_data_cleared",
+          "clearable",
+          "cleared_region",
+          "cleared_retention",
+          "cleared_contract_ref",
+          "cleared_at",
           "created_at",
           "updated_at"
         ],
@@ -3923,8 +4012,8 @@
           "capability": {
             "$ref": "#/components/schemas/LlmCapability"
           },
-          "local_only": {
-            "title": "Local Only",
+          "private_data": {
+            "title": "Private Data",
             "type": "boolean"
           },
           "purpose": {
@@ -3934,7 +4023,7 @@
         "required": [
           "purpose",
           "capability",
-          "local_only"
+          "private_data"
         ],
         "title": "PurposeOut",
         "type": "object"
@@ -4918,12 +5007,17 @@
           "name": {
             "title": "Name",
             "type": "string"
+          },
+          "private_data": {
+            "title": "Private Data",
+            "type": "boolean"
           }
         },
         "required": [
           "model_id",
           "name",
-          "kind"
+          "kind",
+          "private_data"
         ],
         "title": "RouteOut",
         "type": "object"
@@ -5117,6 +5211,13 @@
             "title": "Local Endpoints",
             "type": "array"
           },
+          "private_data_endpoints": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Private Data Endpoints",
+            "type": "array"
+          },
           "probe_max_age_hours": {
             "title": "Probe Max Age Hours",
             "type": "integer"
@@ -5142,6 +5243,7 @@
           "allow_cloud",
           "local_endpoints",
           "cloud_hosts",
+          "private_data_endpoints",
           "egress_proxy",
           "vector_size",
           "probe_max_age_hours",
@@ -6993,6 +7095,102 @@
           }
         },
         "summary": "Update Provider",
+        "tags": [
+          "admin-llm"
+        ]
+      }
+    },
+    "/admin/llm/providers/{provider_id}/clearance": {
+      "delete": {
+        "description": "Stop private data going to this provider, at once. Private purposes it served stop too\nuntil another cleared model takes them over (no fallback).",
+        "operationId": "unclear_provider_admin_llm_providers__provider_id__clearance_delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "provider_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Provider Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProviderOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Unclear Provider",
+        "tags": [
+          "admin-llm"
+        ]
+      },
+      "post": {
+        "description": "Allow private purposes to use this provider (P2/P3): needs a recent login (step-up).",
+        "operationId": "clear_provider_admin_llm_providers__provider_id__clearance_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "provider_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Provider Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClearanceIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProviderOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Clear Provider",
         "tags": [
           "admin-llm"
         ]

@@ -1,4 +1,4 @@
-"""Embeddings through the gateway, always on the local model (``force_local_llm=True``, 4.1).
+"""Embeddings through the gateway, always on the local model (``private_data=True``, 4.1).
 
 Both private notes and canonical knowledge are embedded on the server: neither leaves it.
 """
@@ -29,7 +29,7 @@ class Embedder:
         vectors: list[list[float]] = []
         for start in range(0, len(texts), self._batch_size):
             batch = texts[start : start + self._batch_size]
-            out = await self._gateway.embed(batch, force_local_llm=True)
+            out = await self._gateway.embed(batch, private_data=True)
             if len(out) != len(batch):
                 raise EmbeddingMismatch(f"{len(out)} vectors for {len(batch)} texts")
             for vector in out:

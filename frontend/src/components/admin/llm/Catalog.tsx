@@ -2,20 +2,24 @@
 
 import { useState, type FormEvent } from "react";
 
+import { StepUpNotice } from "@/components/auth/RequireRole";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Dialog } from "@/components/ui/Dialog";
 import { useToast } from "@/components/ui/Toast";
+import { StepUpRequired } from "@/lib/api";
 import {
   CAPABILITIES,
   llmError,
+  useClearProvider,
   useCreateModel,
   useCreateProvider,
   useModelDisabled,
   useProbe,
   useProviderDisabled,
   useTestProvider,
+  useUnclearProvider,
   useUpdateProvider,
   type Capability,
   type Connection,
@@ -54,6 +58,8 @@ function keyLabel(provider: Provider): string {
 
 export function ProvidersPanel({ status, providers }: { status: LlmStatus; providers: Provider[] }) {
   const [editing, setEditing] = useState<Provider | "new" | null>(null);
+  const [clearing, setClearing] = useState<Provider | null>(null);
+  const [unclearing, setUnclearing] = useState<Provider | null>(null);
   const [tests, setTests] = useState<Record<string, Connection | string>>({});
   const test = useTestProvider();
   const disable = useProviderDisabled();
@@ -86,6 +92,10 @@ export function ProvidersPanel({ status, providers }: { status: LlmStatus; provi
           Dozwolone API chmurowe: <code>{status.cloud_hosts.join(", ") || "—"}</code>
           {!status.allow_cloud && " · chmura wyłączona w konfiguracji serwera"}
         </p>
+        <p>
+          Mogą otrzymywać dane prywatne: <code>{status.private_data_endpoints.join(", ") || "—"}</code>
+          {status.private_data_endpoints.length === 0 && " · funkcje na danych prywatnych są wyłączone"}
+        </p>
         <p className="text-text-muted">Listy ustawia administrator serwera (.env); panel nie może ich rozszerzyć.</p>
       </Card>
       <div className="flex justify-end">
@@ -99,6 +109,7 @@ export function ProvidersPanel({ status, providers }: { status: LlmStatus; provi
               <th className="py-2 pr-3">Rodzaj</th>
               <th className="py-2 pr-3">Adres</th>
               <th className="py-2 pr-3">Klucz API</th>
+              <th className="py-2 pr-3">Dane prywatne</th>
               <th className="py-2 pr-3">Stan</th>
               <th className="py-2">Akcje</th>
             </tr>
@@ -116,6 +127,9 @@ export function ProvidersPanel({ status, providers }: { status: LlmStatus; provi
                     <code className="break-all">{p.base_url}</code>
                   </td>
                   <td className="py-2 pr-3">{keyLabel(p)}</td>
+                  <td className="py-2 pr-3">
+                    <ClearanceCell provider={p} onClear={() => setClearing(p)} onUnclear={() => setUnclearing(p)} />
+                  </td>
                   <td className="py-2 pr-3">
                     <div className="flex flex-wrap gap-1">
                       {p.in_active && <Badge tone="primary">W aktywnej konfiguracji</Badge>}
@@ -149,7 +163,142 @@ export function ProvidersPanel({ status, providers }: { status: LlmStatus; provi
         </table>
       </div>
       <ProviderDialog status={status} provider={editing} onClose={() => setEditing(null)} />
+      <ClearanceDialog provider={clearing} onClose={() => setClearing(null)} />
+      <UnclearDialog provider={unclearing} onClose={() => setUnclearing(null)} />
     </div>
+  );
+}
+
+// --- Clearance for private data (10.1) -----------------------------------------------------------
+
+export function ClearanceCell({ provider, onClear, onUnclear }: { provider: Provider; onClear: () => void; onUnclear: () => void }) {
+  if (provider.private_data_cleared) {
+    return (
+      <div className="flex flex-col items-start gap-1">
+        <Badge tone="ok">Dopuszczony do danych prywatnych</Badge>
+        <span className="text-xs text-text-muted">
+          {provider.cleared_region} · przechowywanie: {provider.cleared_retention} · {provider.cleared_contract_ref}
+        </span>
+        <Button variant="ghost" onClick={onUnclear}>
+          Cofnij dopuszczenie
+        </Button>
+      </div>
+    );
+  }
+  if (!provider.clearable) {
+    return <span className="text-xs text-text-muted">Poza listą serwera dla danych prywatnych</span>;
+  }
+  return (
+    <Button variant="secondary" disabled={provider.disabled} onClick={onClear}>
+      Dopuść do danych prywatnych
+    </Button>
+  );
+}
+
+function ClearanceDialog({ provider, onClose }: { provider: Provider | null; onClose: () => void }) {
+  return (
+    <Dialog open={provider !== null} onClose={onClose} title={`Dopuszczenie do danych prywatnych: ${provider?.name ?? ""}`}>
+      {provider !== null && <ClearanceForm key={provider.id} provider={provider} onDone={onClose} />}
+    </Dialog>
+  );
+}
+
+export function ClearanceForm({ provider, onDone }: { provider: Provider; onDone: () => void }) {
+  const [region, setRegion] = useState("");
+  const [retention, setRetention] = useState("");
+  const [contract, setContract] = useState("");
+  const clear = useClearProvider();
+  const toast = useToast();
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    try {
+      await clear.mutateAsync({ id: provider.id, clearance: { region, retention, contract_ref: contract } });
+      toast(`${provider.name} może teraz przetwarzać dane prywatne.`, "ok");
+      onDone();
+    } catch (error) {
+      if (!(error instanceof StepUpRequired)) toast(llmError(error), "error");
+    }
+  }
+
+  if (clear.error instanceof StepUpRequired) {
+    return (
+      <StepUpNotice
+        stepUp={clear.error.stepUp}
+        reason="Dopuszczenie dostawcy do danych prywatnych wymaga niedawnego logowania. Zaloguj się ponownie i powtórz operację."
+      />
+    );
+  }
+  return (
+    <form onSubmit={submit} className="flex flex-col gap-3 text-sm">
+      <p>
+        Prywatne notatki, anonimizacja, szkice do Wiki, opisy zdjęć i embeddingi będą mogły trafiać do{" "}
+        <code className="break-all">{provider.base_url}</code>
+        {provider.kind === "CLOUD" ? " — to serwer zewnętrzny, poza spółdzielnią." : "."}
+      </p>
+      <p className="text-text-muted">
+        Członkowie zobaczą te informacje na stronie „Gdzie przetwarzane są Twoje dane”. Dopuszczaj tylko dostawców, z którymi
+        spółdzielnia ma umowę powierzenia danych (lub własne serwery).
+      </p>
+      <label className="flex flex-col gap-1">
+        Region przetwarzania
+        <input className={INPUT} required minLength={2} maxLength={64} value={region} onChange={(e) => setRegion(e.target.value)} placeholder="np. UE (Francja)" />
+      </label>
+      <label className="flex flex-col gap-1">
+        Przechowywanie danych przez dostawcę
+        <input className={INPUT} required minLength={2} maxLength={64} value={retention} onChange={(e) => setRetention(e.target.value)} placeholder="np. brak przechowywania, 30 dni" />
+      </label>
+      <label className="flex flex-col gap-1">
+        Umowa (numer lub odnośnik)
+        <input className={INPUT} required minLength={2} maxLength={200} value={contract} onChange={(e) => setContract(e.target.value)} placeholder="np. DPA 2026/01" />
+      </label>
+      <div className="flex justify-end gap-2">
+        <Button type="button" variant="ghost" onClick={onDone}>
+          Anuluj
+        </Button>
+        <Button type="submit" busy={clear.isPending}>
+          Dopuść
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+function UnclearDialog({ provider, onClose }: { provider: Provider | null; onClose: () => void }) {
+  const unclear = useUnclearProvider();
+  const toast = useToast();
+
+  async function confirm() {
+    if (!provider) return;
+    try {
+      await unclear.mutateAsync(provider.id);
+      toast(`${provider.name} nie otrzymuje już danych prywatnych.`, "ok");
+      onClose();
+    } catch (error) {
+      toast(llmError(error), "error");
+    }
+  }
+
+  return (
+    <Dialog open={provider !== null} onClose={onClose} title={`Cofnij dopuszczenie: ${provider?.name ?? ""}`}>
+      <div className="flex flex-col gap-3 text-sm">
+        <p>Dane prywatne przestaną trafiać do tego dostawcy od razu.</p>
+        {provider?.in_active && (
+          <p className="text-warn">
+            Dostawca obsługuje aktywną konfigurację: funkcje na danych prywatnych, które z niego korzystają, zatrzymają się, dopóki
+            nie przypiszesz im innego dopuszczonego modelu. System nie przełączy ich na innego dostawcę sam.
+          </p>
+        )}
+        <div className="flex justify-end gap-2">
+          <Button variant="ghost" onClick={onClose}>
+            Anuluj
+          </Button>
+          <Button variant="danger" busy={unclear.isPending} onClick={() => void confirm()}>
+            Cofnij dopuszczenie
+          </Button>
+        </div>
+      </div>
+    </Dialog>
   );
 }
 
@@ -525,7 +674,7 @@ function AddModel({ status, providers }: { status: LlmStatus; providers: Provide
             Typ
             <select className={INPUT} value={capability} onChange={(e) => setCapability(e.target.value as Capability)}>
               {(Object.keys(CAPABILITIES) as Capability[]).map((c) => (
-                <option key={c} value={c} disabled={c === "EMBED" && provider?.kind === "CLOUD"}>
+                <option key={c} value={c}>
                   {CAPABILITIES[c]}
                 </option>
               ))}

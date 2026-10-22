@@ -143,9 +143,9 @@ export function RoutingPanel({
                     <td className="py-2 pr-3">
                       <div className="font-medium">{PURPOSES[p.purpose].label}</div>
                       <div className="text-xs text-text-muted">{PURPOSES[p.purpose].hint}</div>
-                      {p.local_only && (
-                        <Badge tone="ok" className="mt-1" title="Dane prywatne: tylko modele lokalne">
-                          🔒 tylko lokalnie
+                      {p.private_data && (
+                        <Badge tone="ok" className="mt-1" title="Dane prywatne: tylko dostawcy dopuszczeni do danych prywatnych">
+                          🔒 dane prywatne
                         </Badge>
                       )}
                     </td>

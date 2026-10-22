@@ -2,11 +2,12 @@
 on every route (``elevated_router``).
 
 Every request first imports ``.env`` as revision 1 if nothing is stored yet, so the console
-always shows what the system actually runs. Rules (local-only purposes, the cloud ceiling,
-endpoint allowlists, probe freshness, no embedding model change) live in
+always shows what the system actually runs. Rules (private purposes need cleared providers,
+the cloud ceiling, endpoint allowlists, probe freshness, no embedding model change) live in
 ``llm.config_service``; this module maps their ``ConfigError`` codes to HTTP answers. API keys
 are accepted, never returned (``key_set`` / ``key_hint`` only). Connection tests and probes are
-rate limited per admin (twice ``llm.playground_per_hour``).
+rate limited per admin (twice ``llm.playground_per_hour``). Clearing a provider for private
+data (10.1, P3) also needs a recent login (step-up), like revoking consent.
 """
 
 from __future__ import annotations
@@ -16,8 +17,10 @@ from typing import TYPE_CHECKING, Annotated, Any
 from uuid import UUID  # noqa: TC003 - pydantic resolves annotations at runtime
 
 from fastapi import Depends, HTTPException, Request, Response, status
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
+from spoldzielnia_ai.api.contributions import recently_authenticated
 from spoldzielnia_ai.audit.events import EventType
 from spoldzielnia_ai.audit.service import AuditService
 from spoldzielnia_ai.auth.deps import CurrentUser, elevated_router
@@ -30,7 +33,8 @@ from spoldzielnia_ai.db.enums import (
     Role,
 )
 from spoldzielnia_ai.llm.config_service import (
-    LOCAL_ONLY_PURPOSES,
+    PRIVATE_ROUTE_PURPOSES,
+    ClearanceIn,
     ConfigError,
     LlmConfigService,
     ModelIn,
@@ -40,7 +44,11 @@ from spoldzielnia_ai.llm.config_service import (
     RevisionView,
     capability_for,
 )
-from spoldzielnia_ai.llm.endpoints import allowed_endpoints
+from spoldzielnia_ai.llm.endpoints import (
+    allowed_endpoints,
+    may_receive_private_data,
+    private_data_endpoints,
+)
 from spoldzielnia_ai.llm.playground import MAX_PROMPT, PRESETS, compare, prompt_digest
 from spoldzielnia_ai.llm.probes import deployment_for, list_models, probe_model, single_gateway
 from spoldzielnia_ai.llm.snapshot import ConfigSnapshot
@@ -124,6 +132,13 @@ class ProviderOut(BaseModel):
     timeout_seconds: float | None
     disabled: bool
     in_active: bool
+    # 10.1: may receive private data (cleared by an admin and within the operator's list).
+    private_data_cleared: bool
+    clearable: bool  # the endpoint is on ``llm.private_data_endpoints``
+    cleared_region: str | None
+    cleared_retention: str | None
+    cleared_contract_ref: str | None
+    cleared_at: datetime | None
     created_at: datetime
     updated_at: datetime
 
@@ -148,6 +163,7 @@ class RouteOut(BaseModel):
     model_id: UUID
     name: str
     kind: LlmProviderKind
+    private_data: bool
 
 
 class RevisionOut(BaseModel):
@@ -168,7 +184,7 @@ class RevisionOut(BaseModel):
 class PurposeOut(BaseModel):
     purpose: LlmRoutePurpose
     capability: LlmCapability
-    local_only: bool
+    private_data: bool  # needs a provider cleared for private data
 
 
 class StatusOut(BaseModel):
@@ -176,6 +192,7 @@ class StatusOut(BaseModel):
     allow_cloud: bool
     local_endpoints: list[str]
     cloud_hosts: list[str]
+    private_data_endpoints: list[str]
     egress_proxy: bool
     vector_size: int
     probe_max_age_hours: int
@@ -240,6 +257,14 @@ def _provider_out(
         timeout_seconds=provider.timeout_seconds,
         disabled=provider.disabled_at is not None,
         in_active=provider.id in active,
+        private_data_cleared=service.cleared(provider),
+        clearable=may_receive_private_data(provider.base_url, service.settings),
+        cleared_region=provider.cleared_region if provider.private_data_cleared else None,
+        cleared_retention=provider.cleared_retention if provider.private_data_cleared else None,
+        cleared_contract_ref=provider.cleared_contract_ref
+        if provider.private_data_cleared
+        else None,
+        cleared_at=provider.cleared_at,
         created_at=provider.created_at,
         updated_at=provider.updated_at,
     )
@@ -269,7 +294,9 @@ def _revision_out(view: RevisionView) -> RevisionOut:
     if revision.snapshot is not None:
         snapshot = ConfigSnapshot.model_validate(revision.snapshot)
         routes = {
-            purpose: RouteOut(model_id=d.model_id, name=d.display_name, kind=d.kind)
+            purpose: RouteOut(
+                model_id=d.model_id, name=d.display_name, kind=d.kind, private_data=d.private_data
+            )
             for purpose in snapshot.routes
             if (d := snapshot.deployment_for(purpose)) is not None
         }
@@ -312,13 +339,16 @@ async def get_status(request: Request, service: Service) -> StatusOut:
         allow_cloud=llm.allow_cloud,
         local_endpoints=local,
         cloud_hosts=cloud,
+        private_data_endpoints=private_data_endpoints(llm),
         egress_proxy=llm.egress_proxy_url is not None,
         vector_size=settings.qdrant.vector_size,
         probe_max_age_hours=llm.probe_max_age_hours,
         active_revision=active.revision.number if active else None,
         process_revision=(await store.current()).revision if store is not None else 0,
         purposes=[
-            PurposeOut(purpose=p, capability=capability_for(p), local_only=p in LOCAL_ONLY_PURPOSES)
+            PurposeOut(
+                purpose=p, capability=capability_for(p), private_data=p in PRIVATE_ROUTE_PURPOSES
+            )
             for p in LlmRoutePurpose
         ],
     )
@@ -362,6 +392,44 @@ async def disable_provider(
 ) -> ProviderOut:
     try:
         provider = await service.set_provider_disabled(principal.id, provider_id, payload.disabled)
+    except ConfigError as exc:
+        raise _http(exc) from None
+    active, _ = await _active_providers(service)
+    return _provider_out(provider, service, active)
+
+
+@router.post("/providers/{provider_id}/clearance", response_model=ProviderOut)
+async def clear_provider(
+    provider_id: UUID,
+    payload: ClearanceIn,
+    request: Request,
+    service: Service,
+    principal: CurrentUser,
+) -> ProviderOut | JSONResponse:
+    """Allow private purposes to use this provider (P2/P3): needs a recent login (step-up)."""
+    settings: Settings = request.app.state.settings
+    if not recently_authenticated(principal, settings):
+        step_up = f"{settings.root_path}/auth/login?prompt=login"
+        return JSONResponse(
+            {"detail": {"error": "reauthentication_required", "step_up": step_up}},
+            status_code=status.HTTP_403_FORBIDDEN,
+        )
+    try:
+        provider = await service.clear_provider(principal.id, provider_id, payload)
+    except ConfigError as exc:
+        raise _http(exc) from None
+    active, _ = await _active_providers(service)
+    return _provider_out(provider, service, active)
+
+
+@router.delete("/providers/{provider_id}/clearance", response_model=ProviderOut)
+async def unclear_provider(
+    provider_id: UUID, service: Service, principal: CurrentUser
+) -> ProviderOut:
+    """Stop private data going to this provider, at once. Private purposes it served stop too
+    until another cleared model takes them over (no fallback)."""
+    try:
+        provider = await service.unclear_provider(principal.id, provider_id)
     except ConfigError as exc:
         raise _http(exc) from None
     active, _ = await _active_providers(service)
@@ -544,7 +612,7 @@ class PresetOut(BaseModel):
     key: str
     title: str
     prompt: str
-    local_only: bool
+    private_data: bool
     structured: bool
 
 
@@ -579,7 +647,7 @@ async def get_presets() -> list[PresetOut]:
             key=p.key,
             title=p.title,
             prompt=p.prompt,
-            local_only=p.local_only,
+            private_data=p.private_data,
             structured=p.response_model is not None,
         )
         for p in PRESETS.values()
@@ -614,17 +682,18 @@ async def playground(
             raise _http(ConfigError("capability_mismatch", model=model.model_name))
         if model.disabled_at is not None or provider.disabled_at is not None:
             raise _http(ConfigError("model_disabled", model=model.model_name))
-        if kind == LlmProviderKind.CLOUD:
-            if not settings.llm.allow_cloud:
-                raise _http(ConfigError("cloud_not_allowed", model=model.model_name))
-            if preset is not None and preset.local_only:
-                raise _http(ConfigError("local_only_purpose", model=model.model_name))
+        if kind == LlmProviderKind.CLOUD and not settings.llm.allow_cloud:
+            raise _http(ConfigError("cloud_not_allowed", model=model.model_name))
+        cleared = service.cleared(provider)
+        if preset is not None and preset.private_data and not cleared:
+            raise _http(ConfigError("provider_not_cleared", model=model.model_name))
         deployment = deployment_for(
             f"{provider.name}/{model.model_name}",
             model.model_name,
             provider.base_url,
             service.api_key(provider),
             kind,
+            private_data=cleared,
             temperature=model.temperature,
             max_tokens=model.max_tokens,
             structured_output=provider.structured_output,

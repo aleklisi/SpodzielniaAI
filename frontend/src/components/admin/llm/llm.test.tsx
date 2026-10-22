@@ -30,18 +30,19 @@ function status(overrides: Partial<LlmStatus> = {}): LlmStatus {
     allow_cloud: true,
     local_endpoints: ["http://llm:11434", "http://vllm:8000"],
     cloud_hosts: ["api.example.com"],
+    private_data_endpoints: ["http://llm:11434", "http://vllm:8000"],
     egress_proxy: true,
     vector_size: 1024,
     probe_max_age_hours: 24,
     active_revision: 1,
     process_revision: 1,
     purposes: [
-      { purpose: "PII_SCRUB", capability: "CHAT", local_only: true },
-      { purpose: "PRIVATE_NOTE", capability: "CHAT", local_only: true },
-      { purpose: "PROMOTION", capability: "CHAT", local_only: true },
-      { purpose: "VLM", capability: "VLM", local_only: true },
-      { purpose: "EMBED", capability: "EMBED", local_only: true },
-      { purpose: "RAG", capability: "CHAT", local_only: false },
+      { purpose: "PII_SCRUB", capability: "CHAT", private_data: true },
+      { purpose: "PRIVATE_NOTE", capability: "CHAT", private_data: true },
+      { purpose: "PROMOTION", capability: "CHAT", private_data: true },
+      { purpose: "VLM", capability: "VLM", private_data: true },
+      { purpose: "EMBED", capability: "EMBED", private_data: true },
+      { purpose: "RAG", capability: "CHAT", private_data: false },
     ],
     ...overrides,
   };
@@ -52,7 +53,10 @@ function provider(id: string, name: string, kind: "LOCAL" | "CLOUD", overrides: 
     id, name, kind, allowed: true, base_url: kind === "LOCAL" ? "http://llm:11434/v1" : "https://api.example.com/v1",
     litellm_provider: "openai", key_set: kind === "CLOUD", key_hint: kind === "CLOUD" ? "WXYZ" : null,
     inherit_env_key: kind === "LOCAL", structured_output: null, timeout_seconds: null, disabled: false,
-    in_active: kind === "LOCAL", created_at: NOW, updated_at: NOW, ...overrides,
+    in_active: kind === "LOCAL", private_data_cleared: kind === "LOCAL", clearable: kind === "LOCAL",
+    cleared_region: kind === "LOCAL" ? "serwer spółdzielni" : null, cleared_retention: kind === "LOCAL" ? "brak" : null,
+    cleared_contract_ref: kind === "LOCAL" ? ".env" : null, cleared_at: kind === "LOCAL" ? NOW : null,
+    created_at: NOW, updated_at: NOW, ...overrides,
   };
 }
 
@@ -81,21 +85,21 @@ function revision(number: number, state: Revision["status"], routing: Record<str
       state === "DRAFT"
         ? null
         : Object.fromEntries(
-            Object.entries(routing).map(([p, id]) => [p, { model_id: id, name: `local/${MODELS.find((m) => m.id === id)?.model_name}`, kind: "LOCAL" as const }]),
+            Object.entries(routing).map(([p, id]) => [p, { model_id: id, name: `local/${MODELS.find((m) => m.id === id)?.model_name}`, kind: "LOCAL" as const, private_data: true }]),
           ),
   };
 }
 
-function mount(revisions: Revision[], s: LlmStatus = status()) {
+function mount(revisions: Revision[], s: LlmStatus = status(), providers: Provider[] = PROVIDERS) {
   server.use(
     http.get(`${API}/admin/llm/status`, () => HttpResponse.json(s)),
-    http.get(`${API}/admin/llm/providers`, () => HttpResponse.json(PROVIDERS)),
+    http.get(`${API}/admin/llm/providers`, () => HttpResponse.json(providers)),
     http.get(`${API}/admin/llm/models`, () => HttpResponse.json(MODELS)),
     http.get(`${API}/admin/llm/revisions`, () => HttpResponse.json(revisions)),
     http.get(`${API}/admin/llm/playground/presets`, () =>
       HttpResponse.json([
-        { key: "pl_qa", title: "Pytanie merytoryczne", prompt: "Wyjaśnij…", local_only: false, structured: false },
-        { key: "summary_pii", title: "Streszczenie z danymi", prompt: "Streść…", local_only: true, structured: false },
+        { key: "pl_qa", title: "Pytanie merytoryczne", prompt: "Wyjaśnij…", private_data: false, structured: false },
+        { key: "summary_pii", title: "Streszczenie z danymi", prompt: "Streść…", private_data: true, structured: false },
       ]),
     ),
   );
@@ -114,11 +118,17 @@ describe("helpers", () => {
     expect(previewKind("nonsense", s)).toBeNull();
   });
 
-  it("offers local-only purposes local models only", () => {
-    const local = eligibleModels({ capability: "CHAT", local_only: true }, MODELS, PROVIDERS).map((m) => m.model_name);
-    const any = eligibleModels({ capability: "CHAT", local_only: false }, MODELS, PROVIDERS).map((m) => m.model_name);
-    expect(local).toEqual(["bielik-11b", "qwen3-32b"]);
+  it("offers private purposes the models of cleared providers only", () => {
+    const priv = eligibleModels({ capability: "CHAT", private_data: true }, MODELS, PROVIDERS).map((m) => m.model_name);
+    const any = eligibleModels({ capability: "CHAT", private_data: false }, MODELS, PROVIDERS).map((m) => m.model_name);
+    expect(priv).toEqual(["bielik-11b", "qwen3-32b"]);
     expect(any).toEqual(["bielik-11b", "qwen3-32b", "gpt-x"]);
+    const clearedCloud = [
+      provider(LOCAL, "local", "LOCAL", { private_data_cleared: false }),
+      provider(CLOUD, "cloud", "CLOUD", { private_data_cleared: true }),
+    ];
+    const swapped = eligibleModels({ capability: "CHAT", private_data: true }, MODELS, clearedCloud).map((m) => m.model_name);
+    expect(swapped).toEqual(["gpt-x"]);
   });
 
   it("lists changes and marks cloud-bound purposes", () => {
@@ -131,8 +141,8 @@ describe("helpers", () => {
   });
 
   it("explains backend error codes", () => {
-    const error = new ApiError(422, { detail: { error: "local_only_purpose", purpose: "PROMOTION" } });
-    expect(llmError(error)).toMatch(/tylko modeli lokalnych/);
+    const error = new ApiError(422, { detail: { error: "provider_not_cleared", purpose: "PROMOTION" } });
+    expect(llmError(error)).toMatch(/dopuszczonego do danych prywatnych/);
     expect(llmError(new ApiError(429, { detail: { error: "rate_limited" } }))).toMatch(/Limit/);
   });
 
@@ -156,7 +166,7 @@ describe("helpers", () => {
 });
 
 describe("routing", () => {
-  it("locks local-only purposes and confirms activation with a cloud warning", async () => {
+  it("locks private purposes to cleared providers and confirms activation with a cloud warning", async () => {
     const draft = revision(2, "DRAFT", { ...ROUTING });
     let routed: unknown = null;
     let activated = false;
@@ -177,7 +187,7 @@ describe("routing", () => {
     expect(promotionOptions).toEqual(["— brak —", "local/bielik-11b", "local/qwen3-32b"]);
     const rag = screen.getByLabelText("Model dla: Czat spółdzielni (RAG)");
     expect(within(rag).getAllByRole("option").map((o) => o.textContent)).toContain("cloud/gpt-x (chmura)");
-    expect(screen.getAllByText("🔒 tylko lokalnie")).toHaveLength(5);
+    expect(screen.getAllByText("🔒 dane prywatne")).toHaveLength(5);
     expect(screen.getByLabelText("Model dla: Embeddingi")).toBeDisabled();
 
     await userEvent.selectOptions(promotion, QWEN);
@@ -240,6 +250,68 @@ describe("providers", () => {
   });
 });
 
+describe("clearance", () => {
+  it("clears a provider with region, retention and contract", async () => {
+    let sent: unknown = null;
+    server.use(
+      http.post(`${API}/admin/llm/providers/${CLOUD}/clearance`, async ({ request }) => {
+        sent = await request.json();
+        return HttpResponse.json(provider(CLOUD, "cloud", "CLOUD", { private_data_cleared: true, clearable: true }));
+      }),
+    );
+    const providers = [provider(LOCAL, "local", "LOCAL"), provider(CLOUD, "cloud", "CLOUD", { clearable: true })];
+    mount([revision(1, "ACTIVE", ROUTING)], status({ private_data_endpoints: ["https://api.example.com"] }), providers);
+    await userEvent.click(await screen.findByRole("tab", { name: "Dostawcy" }));
+    expect(screen.getByText("https://api.example.com")).toBeInTheDocument();
+    const localRow = screen.getByRole("row", { name: /local/ });
+    expect(within(localRow).getByText("Dopuszczony do danych prywatnych")).toBeInTheDocument();
+    const cloudRow = screen.getByRole("row", { name: /cloud/ });
+    await userEvent.click(within(cloudRow).getByRole("button", { name: "Dopuść do danych prywatnych" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText(/serwer zewnętrzny/)).toBeInTheDocument();
+    await userEvent.type(within(dialog).getByLabelText("Region przetwarzania"), "UE (Francja)");
+    await userEvent.type(within(dialog).getByLabelText("Przechowywanie danych przez dostawcę"), "brak");
+    await userEvent.type(within(dialog).getByLabelText(/Umowa/), "DPA 2026/01");
+    await userEvent.click(within(dialog).getByRole("button", { name: "Dopuść" }));
+    await waitFor(() => expect(sent).toEqual({ region: "UE (Francja)", retention: "brak", contract_ref: "DPA 2026/01" }));
+  });
+
+  it("asks for a fresh login when the session is too old", async () => {
+    server.use(
+      http.post(`${API}/admin/llm/providers/${CLOUD}/clearance`, () =>
+        HttpResponse.json({ detail: { error: "reauthentication_required", step_up: "/api/auth/login?prompt=login" } }, { status: 403 }),
+      ),
+    );
+    const providers = [provider(LOCAL, "local", "LOCAL"), provider(CLOUD, "cloud", "CLOUD", { clearable: true })];
+    mount([revision(1, "ACTIVE", ROUTING)], status(), providers);
+    await userEvent.click(await screen.findByRole("tab", { name: "Dostawcy" }));
+    await userEvent.click(within(screen.getByRole("row", { name: /cloud/ })).getByRole("button", { name: "Dopuść do danych prywatnych" }));
+    const dialog = await screen.findByRole("dialog");
+    await userEvent.type(within(dialog).getByLabelText("Region przetwarzania"), "UE");
+    await userEvent.type(within(dialog).getByLabelText("Przechowywanie danych przez dostawcę"), "brak");
+    await userEvent.type(within(dialog).getByLabelText(/Umowa/), "DPA-1");
+    await userEvent.click(within(dialog).getByRole("button", { name: "Dopuść" }));
+    expect(await within(dialog).findByText(/wymaga niedawnego logowania/)).toBeInTheDocument();
+  });
+
+  it("warns that un-clearing an active provider stops its private features", async () => {
+    let called = false;
+    server.use(
+      http.delete(`${API}/admin/llm/providers/${LOCAL}/clearance`, () => {
+        called = true;
+        return HttpResponse.json(provider(LOCAL, "local", "LOCAL", { private_data_cleared: false }));
+      }),
+    );
+    mount([revision(1, "ACTIVE", ROUTING)]);
+    await userEvent.click(await screen.findByRole("tab", { name: "Dostawcy" }));
+    await userEvent.click(within(screen.getByRole("row", { name: /local/ })).getByRole("button", { name: "Cofnij dopuszczenie" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText(/nie przełączy ich na innego dostawcę/)).toBeInTheDocument();
+    await userEvent.click(within(dialog).getByRole("button", { name: "Cofnij dopuszczenie" }));
+    await waitFor(() => expect(called).toBe(true));
+  });
+});
+
 describe("playground", () => {
   it("compares models side by side and shows answers as plain text", async () => {
     let sent: unknown = null;
@@ -268,7 +340,7 @@ describe("playground", () => {
     expect(within(results).getByText(/1\.5 s · 80 tokenów/)).toBeInTheDocument();
   });
 
-  it("keeps cloud models out of local-only presets", async () => {
+  it("keeps models of uncleared providers out of private presets", async () => {
     mount([revision(1, "ACTIVE", ROUTING)]);
     await userEvent.click(await screen.findByRole("tab", { name: "Playground" }));
     const gpt = screen.getByRole("checkbox", { name: /cloud\/gpt-x/ });

@@ -1,4 +1,5 @@
-"""Which endpoints an admin may configure, and whether they are local (7.1, invariants S3/S4).
+"""Which endpoints an admin may configure, whether they are local (7.1, invariants S3/S4), and
+which may receive private data (10.1, invariant P2).
 
 An admin-entered base URL is never trusted on its own:
 
@@ -13,6 +14,11 @@ An admin-entered base URL is never trusted on its own:
 
 The same classification runs again when a process loads the active configuration, so a
 tampered database row cannot turn a cloud endpoint into a local one either.
+
+Locality only decides the network path (direct, or through the egress proxy). Whether private
+data may go to an endpoint is ``may_receive_private_data``: its origin must be on
+``llm.private_data_endpoints`` (default: the local endpoints), and an admin must have cleared
+the provider. The env list is the ceiling; a cleared flag outside it counts for nothing.
 """
 
 from __future__ import annotations
@@ -87,6 +93,36 @@ def _cloud_hosts(settings: LlmSettings) -> set[str]:
     return hosts
 
 
+def _private_origins(settings: LlmSettings) -> set[tuple[str, str, int]]:
+    if settings.private_data_endpoints is None:
+        return _local_origins(settings)
+    origins: set[tuple[str, str, int]] = set()
+    for url in settings.private_data_endpoints:
+        try:
+            origins.add(_origin(url.strip()))
+        except EndpointNotAllowed:
+            continue
+    return origins
+
+
+def may_receive_private_data(url: str, settings: LlmSettings) -> bool:
+    """True if the operator allows clearing ``url``'s origin for private data (P2)."""
+    try:
+        return _origin(url.strip()) in _private_origins(settings)
+    except EndpointNotAllowed:
+        return False
+
+
+def _display(origin: tuple[str, str, int]) -> str:
+    scheme, host, port = origin
+    return f"{scheme}://{host}" + ("" if _DEFAULT_PORTS[scheme] == port else f":{port}")
+
+
+def private_data_endpoints(settings: LlmSettings) -> list[str]:
+    """For the admin UI: the origins that may be cleared for private data."""
+    return sorted(_display(o) for o in _private_origins(settings))
+
+
 def classify(url: str, settings: LlmSettings) -> LlmProviderKind:
     """LOCAL or CLOUD for an allowed endpoint; ``EndpointNotAllowed`` otherwise."""
     origin = _origin(url.strip())
@@ -102,8 +138,5 @@ def classify(url: str, settings: LlmSettings) -> LlmProviderKind:
 
 def allowed_endpoints(settings: LlmSettings) -> tuple[list[str], list[str]]:
     """For the admin UI: the local origins and the cloud hosts admins may use."""
-    local = sorted(
-        f"{scheme}://{host}" + ("" if _DEFAULT_PORTS[scheme] == port else f":{port}")
-        for scheme, host, port in _local_origins(settings)
-    )
+    local = sorted(_display(o) for o in _local_origins(settings))
     return local, sorted(_cloud_hosts(settings))

@@ -233,7 +233,7 @@ async def test_notebook_qa_answers_from_own_notes_only(
     assert body["citations"] == [{"note_id": str(note.id), "note_title": "Przegląd jesienny"}]
     assert VARROA not in json.dumps(body, ensure_ascii=False)
     assert theirs.json()["no_answer"] is True  # tenant filter: Bob's notebook is empty
-    assert [(c.purpose, c.force_local_llm) for c in llm.calls] == [(LLMPurpose.PRIVATE_NOTE, True)]
+    assert [(c.purpose, c.private_data) for c in llm.calls] == [(LLMPurpose.PRIVATE_NOTE, True)]
 
 
 async def test_notebook_question_length_is_bounded(

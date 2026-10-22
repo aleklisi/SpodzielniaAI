@@ -65,7 +65,17 @@ test("an admin switches the chat model, the API follows without a restart, and r
   const token = secret("llm_api_key"); // LM Studio wants one; Ollama ignores it
   if (token) await dialog.getByLabel(/Klucz API/).fill(token);
   await dialog.getByRole("button", { name: "Zapisz" }).click();
-  await expect(admin.getByRole("row", { name: new RegExp(provider) })).toBeVisible();
+  const providerRow = admin.getByRole("row", { name: new RegExp(provider) });
+  await expect(providerRow).toBeVisible();
+
+  // 1b. Cleared for private data (10.1): a new provider gets none until an admin says so.
+  await providerRow.getByRole("button", { name: "Dopuść do danych prywatnych" }).click();
+  const clearance = admin.locator("dialog[open]");
+  await clearance.getByLabel("Region przetwarzania").fill("serwer spółdzielni");
+  await clearance.getByLabel("Przechowywanie danych przez dostawcę").fill("brak");
+  await clearance.getByLabel(/Umowa/).fill("E2E");
+  await clearance.getByRole("button", { name: "Dopuść" }).click();
+  await expect(providerRow.getByText("Dopuszczony do danych prywatnych")).toBeVisible();
 
   // 2. The same chat model on it, deterministic, then a real probe.
   await admin.getByRole("tab", { name: "Modele" }).click();

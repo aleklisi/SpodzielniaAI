@@ -30,7 +30,7 @@ TEXTS = [("kwas szczawiowy zimą", A), ("odymianie rodzin", A), ("monitoring osy
 
 
 def _synth(llm: FakeLLMGateway) -> Synthesizer:
-    return Synthesizer(llm, RAG_ANSWER, LLMPurpose.RAG, force_local_llm=False)
+    return Synthesizer(llm, RAG_ANSWER, LLMPurpose.RAG, private_data=False)
 
 
 # --- Markers and grounding ----------------------------------------------------------------------
@@ -114,9 +114,9 @@ async def test_sources_are_untrusted_data_and_the_question_is_escaped() -> None:
 
 async def test_notebook_answers_force_the_local_model() -> None:
     llm = FakeLLMGateway(reply=paraphrase)
-    synth = Synthesizer(llm, NOTEBOOK_ANSWER, LLMPurpose.PRIVATE_NOTE, force_local_llm=True)
+    synth = Synthesizer(llm, NOTEBOOK_ANSWER, LLMPurpose.PRIVATE_NOTE, private_data=True)
     assert await synth.draft("Co z warrozą?", label_sources(TEXTS), Style()) is not None
-    assert llm.calls[0].force_local_llm is True
+    assert llm.calls[0].private_data is True
 
 
 # --- Schema contract (AGENTS.md §3.3) -----------------------------------------------------------

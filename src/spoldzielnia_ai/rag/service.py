@@ -90,7 +90,7 @@ class RAGService:
         self._factory = factory
         self._repo = repo
         self._embedder = embedder
-        self._synth = Synthesizer(gateway, RAG_ANSWER, LLMPurpose.RAG, force_local_llm=False)
+        self._synth = Synthesizer(gateway, RAG_ANSWER, LLMPurpose.RAG, private_data=False)
         self._settings = settings
 
     async def embed(self, question: str) -> list[float]:

@@ -388,7 +388,7 @@ class LlmSettings(BaseModel):
 
     The local endpoint is the compose service ``llm``. In dev it relays to the host (LM Studio
     or Ollama), in prod it is an Ollama container. A model left empty means "not available":
-    purposes that must stay local then fail with ``LocalModelUnavailable``, never fall back to
+    purposes that must stay local then fail with ``ModelUnavailable``, never fall back to
     the cloud.
     """
 
@@ -404,7 +404,7 @@ class LlmSettings(BaseModel):
     # How a JSON schema reaches the model: ``response_format`` (constrained decoding) or, for
     # servers/models that can't do that, the system prompt (output is validated either way).
     structured_output: Literal["json_schema", "prompt"] = "json_schema"
-    # Optional cloud deployment, only for purposes that may leave the server (none in Stage 3).
+    # Optional cloud deployment from ``.env`` (RAG only, unless its host is cleared, 10.1).
     allow_cloud: bool = False
     cloud_base_url: str | None = None
     cloud_model: str | None = None
@@ -416,6 +416,11 @@ class LlmSettings(BaseModel):
     local_endpoints: list[str] = Field(default_factory=list[str])
     # Cloud API hosts admins may use (https only), besides the host of ``cloud_base_url``.
     cloud_hosts: list[str] = Field(default_factory=list[str])
+    # Endpoints that may be cleared for private data (10.1, AGENTS.md rule 4): origins
+    # (scheme://host[:port]). ``None`` means the local endpoints (``local_base_url`` and
+    # ``local_endpoints``); ``[]`` means none, so private features stay off. An admin clears a
+    # provider within this list; the UI can narrow it, never widen it.
+    private_data_endpoints: list[str] | None = None
     # Forward proxy for cloud endpoints (`llm-egress`, 7.3). Local endpoints never use it.
     egress_proxy_url: str | None = None
     # How long a process trusts its cached configuration without asking the database.

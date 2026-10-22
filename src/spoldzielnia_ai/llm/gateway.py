@@ -6,18 +6,20 @@ is a ``ConfigSource``: ``.env`` (``local-chat``, ``local-vlm``, ``local-embed`` 
 ``cloud-chat``) or, since Stage 7, the admin's ACTIVE revision (``llm.config_store``), which a
 process picks up without a restart. Each purpose has its own route.
 
-Routing policy (AGENTS.md §3.4):
+Routing policy (AGENTS.md §3 rule 4, chunk 10.1):
 
-- Purposes in ``ALWAYS_LOCAL`` (PII scrubbing, private notes, promotion, vision, embeddings)
-  are local **whatever the caller passes**. That is defence in depth against a missing
-  ``force_local_llm=True``.
-- ``force_local_llm=True`` → local deployments only. If none is configured, or the call to it
-  fails, ``LocalModelUnavailable`` is raised. **There is never a fallback to the cloud.**
-- The cloud is used only if ``llm.allow_cloud`` is set, for purposes outside
-  ``ALWAYS_LOCAL`` and without ``force_local_llm``. The configuration source cannot widen this:
-  a route to a non-local deployment for a local-only call is refused here, whatever the
-  database says (``llm_route_refused_total``).
-- Cloud deployments go out through ``llm.egress_proxy_url`` (7.3) when it is set.
+- Purposes in ``PRIVATE_PURPOSES`` (PII scrubbing, private notes, promotion, vision,
+  embeddings) go only to deployments **cleared for private data**, whatever the caller passes.
+  That is defence in depth against a missing ``private_data=True``.
+- ``private_data=True`` → cleared deployments only. A deployment is cleared when an admin
+  cleared its provider and its endpoint is on ``llm.private_data_endpoints``; locality alone no
+  longer decides. If none is configured, or the call to it fails, ``ModelUnavailable`` is
+  raised. **There is never a fallback to another deployment.**
+- Cloud deployments are used only if ``llm.allow_cloud`` is set. The configuration source
+  cannot widen this: a route to an uncleared deployment for a private call is refused here,
+  whatever the database says (``llm_route_refused_total``).
+- Cloud deployments go out through ``llm.egress_proxy_url`` (7.3) when it is set; ``local``
+  only decides that network path.
 
 Structured output: ``response_model`` (pydantic) is sent as a JSON schema, and the reply is
 validated. An invalid reply gets one corrective retry, then ``LLMOutputInvalid``. With
@@ -26,8 +28,8 @@ validated. An invalid reply gets one corrective retry, then ``LLMOutputInvalid``
 grammar sampler fails on Bielik's chat template with a 400), and the validation and retry stay
 the same.
 
-Failures: connection errors, timeouts, 5xx and 408/429 are ``LocalModelUnavailable`` (worth
-retrying later). Any other 4xx from a local server is ``LocalModelRejected``: the same request
+Failures: connection errors, timeouts, 5xx and 408/429 are ``ModelUnavailable`` (worth
+retrying later). Any other 4xx from the server is ``ModelRejected``: the same request
 would fail again.
 No prompt or completion is logged, and LiteLLM's callbacks, telemetry and cost-map download are
 off.
@@ -47,6 +49,7 @@ from pydantic import BaseModel, ValidationError
 
 from spoldzielnia_ai.core.logging import get_logger
 from spoldzielnia_ai.core.metrics import LLM_ERRORS, LLM_REQUEST_SECONDS, LLM_ROUTE_REFUSED
+from spoldzielnia_ai.llm.endpoints import may_receive_private_data
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -69,7 +72,7 @@ class LLMPurpose(StrEnum):
     PLAYGROUND = "PLAYGROUND"  # 7.5: an admin's own test prompt, never retrieval or user data
 
 
-ALWAYS_LOCAL = frozenset(
+PRIVATE_PURPOSES = frozenset(
     {
         LLMPurpose.PII_SCRUB,
         LLMPurpose.PRIVATE_NOTE,
@@ -91,12 +94,13 @@ class LLMError(Exception):
     pass
 
 
-class LocalModelUnavailable(LLMError):
-    """No local deployment for a purpose that must stay on the server (or it failed)."""
+class ModelUnavailable(LLMError):
+    """No usable deployment for a purpose (for a private one: none cleared), or the call to it
+    failed. Worth retrying later."""
 
 
-class LocalModelRejected(LLMError):
-    """The local server refused the request (4xx): retrying the same request won't help."""
+class ModelRejected(LLMError):
+    """The model server refused the request (4xx): retrying the same request won't help."""
 
 
 class LLMOutputInvalid(LLMError):
@@ -139,7 +143,7 @@ class LLMGateway(Protocol):
         messages: list[ChatMessage],
         *,
         purpose: LLMPurpose,
-        force_local_llm: bool = False,
+        private_data: bool = False,
         response_model: None = None,
     ) -> LLMResult[BaseModel]: ...
 
@@ -149,12 +153,12 @@ class LLMGateway(Protocol):
         messages: list[ChatMessage],
         *,
         purpose: LLMPurpose,
-        force_local_llm: bool = False,
+        private_data: bool = False,
         response_model: type[T],
     ) -> LLMResult[T]: ...
 
     async def embed(
-        self, texts: list[str], *, force_local_llm: bool = True
+        self, texts: list[str], *, private_data: bool = True, purpose: LLMPurpose = ...
     ) -> list[list[float]]: ...
 
 
@@ -169,18 +173,27 @@ class ChatTransport(Protocol):
 
 @dataclass(frozen=True, slots=True)
 class Deployment:
-    """One model on one endpoint. ``None`` parameters fall back to ``LlmSettings``."""
+    """One model on one endpoint. ``None`` parameters fall back to ``LlmSettings``.
+
+    ``local`` decides the network path (direct or through the egress proxy). ``private_data``
+    decides whether private purposes may use it (10.1); ``None`` (test shorthand) means
+    "as local"."""
 
     name: str
     model: str
     base_url: str
     api_key: str | None
     local: bool
+    private_data: bool | None = None
     temperature: float | None = None
     max_tokens: int | None = None
     structured_output: Literal["json_schema", "prompt"] | None = None
     timeout_seconds: float | None = None
     provider: str = "openai"
+
+    @property
+    def cleared(self) -> bool:
+        return self.local if self.private_data is None else self.private_data
 
 
 @dataclass(frozen=True, slots=True)
@@ -214,11 +227,24 @@ def deployments(settings: LlmSettings) -> dict[str, Deployment]:
         (LOCAL_EMBED, settings.embed_model),
     ):
         if model:
-            found[name] = Deployment(name, model, settings.local_base_url, key, local=True)
+            found[name] = Deployment(
+                name,
+                model,
+                settings.local_base_url,
+                key,
+                local=True,
+                private_data=may_receive_private_data(settings.local_base_url, settings),
+            )
     if settings.allow_cloud and settings.cloud_model and settings.cloud_base_url:
         cloud_key = settings.cloud_api_key.get_secret_value() if settings.cloud_api_key else None
         found[CLOUD_CHAT] = Deployment(
-            CLOUD_CHAT, settings.cloud_model, settings.cloud_base_url, cloud_key, local=False
+            CLOUD_CHAT,
+            settings.cloud_model,
+            settings.cloud_base_url,
+            cloud_key,
+            local=False,
+            # ``.env`` has no clearance step: its cloud model never gets private data.
+            private_data=False,
         )
     return found
 
@@ -233,7 +259,7 @@ def _kind_deployment(purpose: LLMPurpose) -> str:
 
 def env_config(settings: LlmSettings) -> ResolvedLlmConfig:
     """``.env`` as before Stage 7: one local model per kind; the cloud chat model only for
-    purposes that may leave the server, and only when there is no local chat model."""
+    purposes without private data, and only when there is no local chat model."""
     found = deployments(settings)
     routes: dict[LLMPurpose, str] = {}
     for purpose in LLMPurpose:
@@ -242,7 +268,7 @@ def env_config(settings: LlmSettings) -> ResolvedLlmConfig:
         wanted = _kind_deployment(purpose)
         if wanted in found:
             routes[purpose] = wanted
-        elif wanted == LOCAL_CHAT and purpose not in ALWAYS_LOCAL and CLOUD_CHAT in found:
+        elif wanted == LOCAL_CHAT and purpose not in PRIVATE_PURPOSES and CLOUD_CHAT in found:
             routes[purpose] = CLOUD_CHAT
     return ResolvedLlmConfig(0, found, routes)
 
@@ -459,15 +485,16 @@ class LiteLLMGateway:
             self._transport_config = self._config
         return self._transport
 
-    def route(self, purpose: LLMPurpose, force_local_llm: bool) -> Deployment:
-        local_only = force_local_llm or purpose in ALWAYS_LOCAL
+    def route(self, purpose: LLMPurpose, private_data: bool) -> Deployment:
+        private = private_data or purpose in PRIVATE_PURPOSES
         name = self._config.routes.get(purpose)
         deployment = self._config.deployments.get(name) if name is not None else None
         if deployment is not None and not deployment.local and not self._settings.allow_cloud:
             deployment = None  # the operator's ceiling (S2), whatever the configuration says
-        if deployment is not None and local_only and not deployment.local:
-            # Unreachable through the admin service and the database triggers (S1): if this
-            # fires, the configuration was tampered with. Refuse, never fall back.
+        if deployment is not None and private and not deployment.cleared:
+            # Unreachable through the admin service and the database triggers (P1) unless the
+            # provider was un-cleared after activation, or the configuration was tampered with.
+            # Refuse, never fall back.
             LLM_ROUTE_REFUSED.labels(purpose=purpose.value).inc()
             log.error(
                 "llm.route_refused",
@@ -477,8 +504,8 @@ class LiteLLMGateway:
             )
             deployment = None
         if deployment is None:
-            if local_only:
-                raise LocalModelUnavailable(f"no local deployment for {purpose.value}")
+            if private:
+                raise ModelUnavailable(f"no cleared deployment for {purpose.value}")
             raise LLMError(f"no deployment for {purpose.value}")
         return deployment
 
@@ -488,7 +515,7 @@ class LiteLLMGateway:
         messages: list[ChatMessage],
         *,
         purpose: LLMPurpose,
-        force_local_llm: bool = False,
+        private_data: bool = False,
         response_model: None = None,
     ) -> LLMResult[BaseModel]: ...
 
@@ -498,7 +525,7 @@ class LiteLLMGateway:
         messages: list[ChatMessage],
         *,
         purpose: LLMPurpose,
-        force_local_llm: bool = False,
+        private_data: bool = False,
         response_model: type[T],
     ) -> LLMResult[T]: ...
 
@@ -507,11 +534,11 @@ class LiteLLMGateway:
         messages: list[ChatMessage],
         *,
         purpose: LLMPurpose,
-        force_local_llm: bool = False,
+        private_data: bool = False,
         response_model: type[BaseModel] | None = None,
     ) -> LLMResult[Any]:
         await self.refresh()
-        deployment = self.route(purpose, force_local_llm)
+        deployment = self.route(purpose, private_data)
         settings = self._settings
         kwargs: dict[str, Any] = {
             "max_tokens": deployment.max_tokens or settings.max_tokens,
@@ -544,11 +571,9 @@ class LiteLLMGateway:
                     if rejected and "response_format" in kwargs
                     else None,
                 )
-                if deployment.local and rejected:
-                    raise LocalModelRejected(f"{deployment.name}: {type(exc).__name__}") from exc
-                if deployment.local:
-                    raise LocalModelUnavailable(f"{deployment.name}: {type(exc).__name__}") from exc
-                raise LLMError(f"{deployment.name}: {type(exc).__name__}") from exc
+                if rejected:
+                    raise ModelRejected(f"{deployment.name}: {type(exc).__name__}") from exc
+                raise ModelUnavailable(f"{deployment.name}: {type(exc).__name__}") from exc
             LLM_REQUEST_SECONDS.labels(deployment=deployment.name, purpose=purpose.value).observe(
                 time.monotonic() - started
             )
@@ -581,16 +606,19 @@ class LiteLLMGateway:
         schema = response_model.__name__ if response_model is not None else "text"
         raise LLMOutputInvalid(f"{deployment.name}: output does not match {schema}")
 
-    async def embed(self, texts: list[str], *, force_local_llm: bool = True) -> list[list[float]]:
+    async def embed(
+        self, texts: list[str], *, private_data: bool = True, purpose: LLMPurpose = LLMPurpose.EMBED
+    ) -> list[list[float]]:
+        """``purpose`` is EMBED except for probes (PLAYGROUND: synthetic text only)."""
         await self.refresh()
-        deployment = self.route(LLMPurpose.EMBED, force_local_llm)
+        deployment = self.route(purpose, private_data)
         started = time.monotonic()
         try:
             response = await self._router().aembedding(deployment.name, input=texts)
         except Exception as exc:
             LLM_ERRORS.labels(deployment=deployment.name, kind="unavailable").inc()
-            raise LocalModelUnavailable(f"{deployment.name}: {type(exc).__name__}") from exc
-        LLM_REQUEST_SECONDS.labels(deployment=deployment.name, purpose="EMBED").observe(
+            raise ModelUnavailable(f"{deployment.name}: {type(exc).__name__}") from exc
+        LLM_REQUEST_SECONDS.labels(deployment=deployment.name, purpose=purpose.value).observe(
             time.monotonic() - started
         )
         return [list(map(float, item["embedding"])) for item in response.data]

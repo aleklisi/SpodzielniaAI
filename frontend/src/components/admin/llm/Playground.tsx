@@ -35,6 +35,7 @@ export function PlaygroundPanel({ status, providers, models }: { status: LlmStat
   });
   const current = presets.data?.find((p) => p.key === preset);
   const isCloud = (m: LlmModel) => byProvider.get(m.provider_id)?.kind === "CLOUD";
+  const isCleared = (m: LlmModel) => byProvider.get(m.provider_id)?.private_data_cleared === true;
 
   function toggle(id: string) {
     setChosen((c) => (c.includes(id) ? c.filter((x) => x !== id) : c.length < MAX_MODELS ? [...c, id] : c));
@@ -62,13 +63,13 @@ export function PlaygroundPanel({ status, providers, models }: { status: LlmStat
           <div className="flex flex-wrap gap-3">
             {candidates.map((m) => {
               const cloudOff = isCloud(m) && !status.allow_cloud;
-              const localOnly = mode === "preset" && current?.local_only && isCloud(m);
+              const notCleared = mode === "preset" && current?.private_data && !isCleared(m);
               return (
                 <label key={m.id} className="flex items-center gap-2">
                   <input
                     type="checkbox"
                     checked={chosen.includes(m.id)}
-                    disabled={cloudOff || Boolean(localOnly) || (!chosen.includes(m.id) && chosen.length >= MAX_MODELS)}
+                    disabled={cloudOff || Boolean(notCleared) || (!chosen.includes(m.id) && chosen.length >= MAX_MODELS)}
                     onChange={() => toggle(m.id)}
                   />
                   {modelLabel(m, providers)}
@@ -95,15 +96,15 @@ export function PlaygroundPanel({ status, providers, models }: { status: LlmStat
               value={preset}
               onChange={(e) => {
                 setPreset(e.target.value);
-                if (presets.data?.find((p) => p.key === e.target.value)?.local_only) {
-                  setChosen((c) => c.filter((id) => !isCloud(models.find((m) => m.id === id) as LlmModel)));
+                if (presets.data?.find((p) => p.key === e.target.value)?.private_data) {
+                  setChosen((c) => c.filter((id) => isCleared(models.find((m) => m.id === id) as LlmModel)));
                 }
               }}
             >
               {presets.data?.map((p) => (
                 <option key={p.key} value={p.key}>
                   {p.title}
-                  {p.local_only ? " (tylko lokalnie)" : ""}
+                  {p.private_data ? " (tylko dostawcy dopuszczeni do danych prywatnych)" : ""}
                 </option>
               ))}
             </select>

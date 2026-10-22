@@ -169,8 +169,8 @@ LLM_STRUCTURED_OUTPUT=prompt                      # if the server 400s on JSON-s
 ```
 
 If the server requires a token (LM Studio), paste it into `secrets/llm_api_key`. Private data
-never goes to a cloud model: without a local model, promotion and image descriptions fail with
-`LocalModelUnavailable` / `vision_unavailable`.
+goes only to providers cleared for it (below): without one, promotion and image descriptions
+fail with `ModelUnavailable` / `vision_unavailable`, and nothing falls back to another model.
 
 ### Choosing models in the admin console (Stage 7)
 
@@ -186,11 +186,17 @@ and any earlier revision can be restored.
 LLM_LOCAL_ENDPOINTS=["http://vllm:8000"]  # extra local OpenAI-compatible servers (origins)
 LLM_ALLOW_CLOUD=false                     # true: the cooperative chat (RAG) may use a cloud model
 LLM_CLOUD_HOSTS=["api.openai.com"]        # https hosts admins may configure
+# LLM_PRIVATE_DATA_ENDPOINTS=["http://llm:11434","https://api.mistral.ai"]  # see below
 # SPOLDZIELNIA_LLM__CONFIG_SOURCE=env     # emergency: ignore the database and use .env only
 ```
 
-Private-data purposes (notes, promotion, PII scrubbing, images, embeddings) can only use local
-models, which is enforced by the UI, the API, database triggers and the gateway. Cloud calls go
+Private-data purposes (notes, promotion, PII scrubbing, images, embeddings) can only use
+providers **cleared for private data** (Stage 10.1, AGENTS.md rule 4). An endpoint can be cleared
+only if it is on `LLM_PRIVATE_DATA_ENDPOINTS` (unset: the local endpoints; `[]`: none), and an
+admin clears it in „Dostawcy” → „Dopuść do danych prywatnych” with a fresh login, recording the
+data region, retention and contract. A cloud API (e.g. Mistral in the EU) can be cleared this
+way; un-clearing stops its private purposes at once. This is enforced by the UI, the API,
+database triggers and the gateway. Cloud calls go
 out through the `llm-egress` proxy (CONNECT to `LLM_CLOUD_HOSTS` only); the api has no other
 route to the internet. Changing the embedding model is not possible from the console (it needs
 `make reindex`).

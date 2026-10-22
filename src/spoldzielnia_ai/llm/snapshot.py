@@ -29,6 +29,9 @@ class SnapshotDeployment(BaseModel):
     litellm_provider: str = "openai"
     # As classified at activation; processes classify ``base_url`` again on load (S4).
     kind: LlmProviderKind
+    # Cleared for private data at activation (10.1); processes re-check the live provider row
+    # and ``llm.private_data_endpoints`` on load (P1/P2).
+    private_data: bool = False
     inherit_env_key: bool = False
     temperature: float | None = None
     max_tokens: int | None = None

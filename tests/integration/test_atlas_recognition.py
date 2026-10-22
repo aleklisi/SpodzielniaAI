@@ -196,7 +196,7 @@ async def test_recognition_is_grounded_local_and_cites_visible_photos(setup: Set
     assert "Matka pszczela" in result["citations"][0]["labels"]
     # The local VLM saw the member's photo plus verified reference crops, nothing went to a cloud.
     [call] = setup.vlm.calls
-    assert (call.purpose, call.force_local_llm) == (LLMPurpose.VLM, True)
+    assert (call.purpose, call.private_data) == (LLMPurpose.VLM, True)
     images = [
         p for p in call.messages[1]["content"] if isinstance(p, dict) and p["type"] == "image_url"
     ]  # pyright: ignore[reportUnknownVariableType]

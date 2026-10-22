@@ -3,7 +3,10 @@
 Every write is one transaction together with its audit entry. The rules enforced here are
 enforced again by the database (migration 0012) and by the gateway at call time (7.2):
 
-- S1: purposes in ``ALWAYS_LOCAL`` only ever use LOCAL providers.
+- P1 (10.1, was S1): purposes in ``PRIVATE_PURPOSES`` only ever use providers cleared for
+  private data. Clearing needs an endpoint on ``llm.private_data_endpoints`` (P2) and records
+  region, retention and contract (P3); un-clearing is never blocked and reaches every process
+  at once (``llm:config:clearance``).
 - S2: cloud providers can be stored, but not activated unless ``llm.allow_cloud``.
 - S3/S4: base URLs must be on the endpoint allowlists; ``kind`` follows from the match.
 - S5: API keys are envelope-encrypted (AAD ``llm_provider:<id>``), write-only, never audited.
@@ -37,8 +40,13 @@ from spoldzielnia_ai.db.enums import (
     LlmRoutePurpose,
 )
 from spoldzielnia_ai.db.models import LlmConfigRevision, LlmModel, LlmProvider, LlmRouting
-from spoldzielnia_ai.llm.endpoints import EndpointNotAllowed, classify, normalize_base_url
-from spoldzielnia_ai.llm.gateway import ALWAYS_LOCAL, LLMPurpose
+from spoldzielnia_ai.llm.endpoints import (
+    EndpointNotAllowed,
+    classify,
+    may_receive_private_data,
+    normalize_base_url,
+)
+from spoldzielnia_ai.llm.gateway import PRIVATE_PURPOSES, LLMPurpose
 from spoldzielnia_ai.llm.snapshot import ConfigSnapshot, SnapshotDeployment
 
 if TYPE_CHECKING:
@@ -54,12 +62,15 @@ log = get_logger(__name__)
 
 PROVIDER_TABLE = "llm_provider"
 REVISION_KEY = "llm:config:revision"  # Redis: the active revision number (7.2 reload signal)
+CLEARANCE_KEY = "llm:config:clearance"  # Redis: changes when a provider's clearance does (10.1)
 _LOCK = "llm_config"
 _NAME = re.compile(r"^[a-z0-9][a-z0-9._-]{0,63}$")
 _CONTROL = re.compile(r"[\x00-\x1f\x7f]")
 LITELLM_PROVIDERS = frozenset({"openai"})  # OpenAI-compatible APIs (gap Q1 of 07)
 
-LOCAL_ONLY_PURPOSES = frozenset(p for p in LlmRoutePurpose if LLMPurpose(p.value) in ALWAYS_LOCAL)
+PRIVATE_ROUTE_PURPOSES = frozenset(
+    p for p in LlmRoutePurpose if LLMPurpose(p.value) in PRIVATE_PURPOSES
+)
 
 StructuredOutput = Literal["json_schema", "prompt"]
 
@@ -129,6 +140,22 @@ class ModelIn(BaseModel):
         return value
 
 
+class ClearanceIn(BaseModel):
+    """What members are shown about a provider that receives their private data (P3, P4)."""
+
+    region: str = Field(min_length=2, max_length=64)
+    retention: str = Field(min_length=2, max_length=64)
+    contract_ref: str = Field(min_length=2, max_length=200)
+
+    @field_validator("region", "retention", "contract_ref")
+    @classmethod
+    def _text(cls, value: str) -> str:
+        value = value.strip()
+        if len(value) < 2 or _CONTROL.search(value):
+            raise ValueError("invalid text")
+        return value
+
+
 class ModelPatch(BaseModel):
     temperature: float | None = Field(default=None, ge=0, le=2)
     max_tokens: int | None = Field(default=None, ge=1, le=131072)
@@ -167,6 +194,13 @@ def provider_api_key(
     return cipher.decrypt_field(dek, provider.api_key_ciphertext, aad, "api_key").decode()
 
 
+def provider_cleared(provider: LlmProvider, settings: LlmSettings) -> bool:
+    """Cleared by an admin, and still within the operator's ceiling (P1/P2)."""
+    return bool(provider.private_data_cleared) and may_receive_private_data(
+        provider.base_url, settings
+    )
+
+
 def _set_key(provider: LlmProvider, key: str | None, cipher: EnvelopeCipher) -> None:
     key = (key or "").strip() or None
     if key is None:
@@ -202,6 +236,13 @@ class LlmConfigService:
         self._now = now or (lambda: datetime.now(UTC))
 
     # --- helpers --------------------------------------------------------------------------------
+
+    @property
+    def settings(self) -> LlmSettings:
+        return self._settings
+
+    def cleared(self, provider: LlmProvider) -> bool:
+        return provider_cleared(provider, self._settings)
 
     def kind_of(self, base_url: str) -> LlmProviderKind:
         try:
@@ -247,6 +288,14 @@ class LlmConfigService:
         if active is None or active.snapshot is None:
             return None
         return ConfigSnapshot.model_validate(active.snapshot)
+
+    async def _publish_clearance(self) -> None:
+        if self._redis is None:
+            return
+        try:
+            await self._redis.incr(CLEARANCE_KEY)
+        except Exception as exc:
+            log.warning("llm.config_publish_failed", error=type(exc).__name__)
 
     async def _publish(self, number: int) -> None:
         """Tell every process to reload now (they also re-check on their own, 7.2)."""
@@ -366,10 +415,8 @@ class LlmConfigService:
             if "base_url" in fields and patch.base_url is not None:
                 base_url = self._url(patch.base_url)
                 kind = self.kind_of(base_url)
-                if kind == LlmProviderKind.CLOUD and await self._serves_local_only(
-                    session, provider.id
-                ):
-                    raise ConfigError("local_only_purpose", 409)
+                if provider.private_data_cleared and base_url != provider.base_url:
+                    raise ConfigError("provider_cleared", 409)  # un-clear first (P3)
                 provider.base_url, provider.kind = base_url, kind
                 changes |= {"base_url": base_url, "kind": kind.value}
             if "structured_output" in fields:
@@ -392,23 +439,68 @@ class LlmConfigService:
             )
         return provider
 
-    async def _serves_local_only(self, session: AsyncSession, provider_id: UUID) -> bool:
-        routed = await session.scalar(
-            select(func.count())
-            .select_from(LlmRouting)
-            .join(LlmModel, LlmModel.id == LlmRouting.model_id)
-            .where(
-                LlmModel.provider_id == provider_id,
-                LlmRouting.purpose.in_(LOCAL_ONLY_PURPOSES),
+    async def clear_provider(
+        self, actor: UUID | None, provider_id: UUID, data: ClearanceIn
+    ) -> LlmProvider:
+        """Allow private purposes to use the provider (P2/P3). The API checks step-up."""
+        async with self._factory() as session, session.begin():
+            await self._lock(session)
+            provider = await self._get(session, LlmProvider, provider_id, "provider")
+            if provider.disabled_at is not None:
+                raise ConfigError("provider_disabled", 409)
+            kind = self.kind_of(provider.base_url)
+            if not may_receive_private_data(provider.base_url, self._settings):
+                raise ConfigError("endpoint_not_clearable", 409)
+            if kind == LlmProviderKind.CLOUD and not self._settings.allow_cloud:
+                raise ConfigError("cloud_not_allowed", 409)
+            provider.private_data_cleared = True
+            provider.cleared_region = data.region
+            provider.cleared_retention = data.retention
+            provider.cleared_contract_ref = data.contract_ref
+            provider.cleared_by = actor
+            provider.cleared_at = self._now()
+            await AuditService(session).record(
+                EventType.LLM_PROVIDER_CLEARED,
+                actor,
+                AuditTarget(PROVIDER_TABLE, str(provider.id)),
+                {
+                    "name": provider.name,
+                    "kind": kind.value,
+                    "base_url": provider.base_url,
+                    "region": data.region,
+                    "retention": data.retention,
+                    "contract_ref": data.contract_ref,
+                },
             )
-        )
-        if routed:
-            return True
-        snapshot = await self._active_snapshot(session)
-        return snapshot is not None and any(
-            (d := snapshot.deployment_for(p)) is not None and d.provider_id == provider_id
-            for p in LOCAL_ONLY_PURPOSES
-        )
+        await self._publish_clearance()
+        return provider
+
+    async def unclear_provider(self, actor: UUID | None, provider_id: UUID) -> LlmProvider:
+        """Never blocked by routes: the purposes it served stop at once (no fallback, P5)."""
+        async with self._factory() as session, session.begin():
+            await self._lock(session)
+            provider = await self._get(session, LlmProvider, provider_id, "provider")
+            if not provider.private_data_cleared:
+                return provider
+            provider.private_data_cleared = False
+            provider.cleared_by = actor
+            provider.cleared_at = self._now()
+            snapshot = await self._active_snapshot(session)
+            affected = sorted(
+                p.value
+                for p in PRIVATE_ROUTE_PURPOSES
+                if snapshot is not None
+                and (d := snapshot.deployment_for(p)) is not None
+                and d.provider_id == provider.id
+            )
+            await AuditService(session).record(
+                EventType.LLM_PROVIDER_UNCLEARED,
+                actor,
+                AuditTarget(PROVIDER_TABLE, str(provider.id)),
+                {"name": provider.name, "purposes_stopped": affected},  # pyright: ignore[reportArgumentType]
+            )
+        await self._publish_clearance()
+        return provider
 
     async def set_provider_disabled(
         self, actor: UUID | None, provider_id: UUID, disabled: bool
@@ -630,10 +722,10 @@ class LlmConfigService:
         if model.disabled_at is not None or provider.disabled_at is not None:
             raise ConfigError("model_disabled", purpose=purpose.value)
         kind = self.kind_of(provider.base_url)  # S4: derived again, not read from the row
-        if kind == LlmProviderKind.LOCAL and provider.kind != kind:
-            provider.kind = kind  # the allowlist grew since; the trigger reads the stored kind
-        if kind == LlmProviderKind.CLOUD and purpose in LOCAL_ONLY_PURPOSES:
-            raise ConfigError("local_only_purpose", purpose=purpose.value)
+        if provider.kind != kind:
+            provider.kind = kind  # the allowlists changed since
+        if purpose in PRIVATE_ROUTE_PURPOSES and not self.cleared(provider):
+            raise ConfigError("provider_not_cleared", purpose=purpose.value)
         return kind
 
     async def delete_draft(self, actor: UUID | None, number: int) -> None:
@@ -689,6 +781,7 @@ class LlmConfigService:
                 base_url=provider.base_url,
                 litellm_provider=provider.litellm_provider,
                 kind=kind,
+                private_data=self.cleared(provider),
                 inherit_env_key=provider.inherit_env_key,
                 temperature=model.temperature,
                 max_tokens=model.max_tokens,
@@ -742,7 +835,7 @@ class LlmConfigService:
     @staticmethod
     def _summary(snapshot: ConfigSnapshot) -> dict[str, JsonValue]:
         return {
-            p.value: f"{d.display_name} ({d.kind.value})"
+            p.value: f"{d.display_name} ({d.kind.value}{', cleared' if d.private_data else ''})"
             for p in sorted(snapshot.routes)
             if (d := snapshot.deployment_for(p)) is not None
         }
@@ -842,6 +935,14 @@ class LlmConfigService:
                     timeout_seconds=s.timeout_seconds,
                     created_by=actor,
                 )
+                # The operator's own local server: cleared like migration 0019 clears existing
+                # LOCAL providers. A cloud endpoint from ``.env`` is never cleared here.
+                if kind == LlmProviderKind.LOCAL and may_receive_private_data(base_url, s):
+                    row.private_data_cleared = True
+                    row.cleared_region = "serwer spółdzielni"
+                    row.cleared_retention = "zgodnie z konfiguracją serwera"
+                    row.cleared_contract_ref = "konfiguracja serwera (.env)"
+                    row.cleared_at = self._now()
                 session.add(row)
                 await session.flush()
             return row
@@ -865,14 +966,17 @@ class LlmConfigService:
 
         local = await provider("local", s.local_base_url)
         if local is not None and local.kind == LlmProviderKind.LOCAL:
+            cleared = self.cleared(local)  # else: RAG only, private purposes stay off (P5)
             if s.chat_model:
                 chat = await model(local, s.chat_model, LlmCapability.CHAT)
                 for purpose in LlmRoutePurpose:
-                    if capability_for(purpose) == LlmCapability.CHAT:
+                    if capability_for(purpose) == LlmCapability.CHAT and (
+                        cleared or purpose not in PRIVATE_ROUTE_PURPOSES
+                    ):
                         routing[purpose] = chat
-            if s.vlm_model:
+            if s.vlm_model and cleared:
                 routing[LlmRoutePurpose.VLM] = await model(local, s.vlm_model, LlmCapability.VLM)
-            if s.embed_model:
+            if s.embed_model and cleared:
                 routing[LlmRoutePurpose.EMBED] = await model(
                     local, s.embed_model, LlmCapability.EMBED, self._vector_size
                 )

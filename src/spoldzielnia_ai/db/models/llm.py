@@ -7,6 +7,7 @@ from uuid import UUID
 from sqlalchemy import (
     BigInteger,
     Boolean,
+    CheckConstraint,
     Float,
     ForeignKey,
     Identity,
@@ -30,13 +31,25 @@ from spoldzielnia_ai.db.enums import (
 class LlmProvider(Entity):
     """An OpenAI-compatible endpoint managed by an admin (7.1). Global configuration, not user
     data (no RLS). ``kind`` is derived from the endpoint allowlists in settings and re-checked at
-    runtime. The API key is envelope-encrypted under the row's DEK (AAD ``llm_provider:<id>``);
-    ``inherit_env_key`` uses the Docker secret instead (providers imported from ``.env``)."""
+    runtime; it decides the network path only. The API key is envelope-encrypted under the row's
+    DEK (AAD ``llm_provider:<id>``); ``inherit_env_key`` uses the Docker secret instead
+    (providers imported from ``.env``).
+
+    ``private_data_cleared`` (10.1) is what lets private purposes use the provider: set by an
+    ADMIN with step-up, together with the region, retention and contract reference shown to
+    members. It counts only while the endpoint is on ``llm.private_data_endpoints``."""
 
     __tablename__ = "llm_provider"
     # Timestamps and identity values come back via RETURNING: the admin API returns the rows
     # after their session has closed.
     __mapper_args__ = {"eager_defaults": True}  # noqa: RUF012 - SQLAlchemy reads it
+    __table_args__ = (
+        CheckConstraint(
+            "NOT private_data_cleared OR (cleared_region IS NOT NULL AND cleared_retention IS NOT"
+            " NULL AND cleared_contract_ref IS NOT NULL AND cleared_at IS NOT NULL)",
+            name="clearance_complete",
+        ),
+    )
 
     name: Mapped[str] = mapped_column(String(64), unique=True)
     kind: Mapped[LlmProviderKind]
@@ -52,6 +65,14 @@ class LlmProvider(Entity):
     timeout_seconds: Mapped[float | None] = mapped_column(Float)
     disabled_at: Mapped[datetime | None]
     created_by: Mapped[UUID | None] = mapped_column(ForeignKey("app_user.id", ondelete="SET NULL"))
+    private_data_cleared: Mapped[bool] = mapped_column(
+        Boolean, server_default=text("false"), default=False
+    )
+    cleared_region: Mapped[str | None] = mapped_column(String(64))
+    cleared_retention: Mapped[str | None] = mapped_column(String(64))
+    cleared_contract_ref: Mapped[str | None] = mapped_column(String(200))
+    cleared_by: Mapped[UUID | None] = mapped_column(ForeignKey("app_user.id", ondelete="SET NULL"))
+    cleared_at: Mapped[datetime | None]
 
 
 class LlmModel(Entity):
@@ -111,8 +132,9 @@ class LlmConfigRevision(Entity):
 
 
 class LlmRouting(Base):
-    """Purpose → model in a DRAFT revision. A trigger rejects cloud models for local-only
-    purposes and capability mismatches, and any change once the revision left DRAFT."""
+    """Purpose → model in a DRAFT revision. A trigger rejects providers not cleared for private
+    data on private purposes (10.1), capability mismatches, and any change once the revision
+    left DRAFT."""
 
     __tablename__ = "llm_routing"
 

@@ -9,8 +9,9 @@
 
 
 * **Hybrydowy Router LLM (Centralny Gateway):**
-* Modele lokalne (hostowane na serwerze spółdzielni lub dedykowanym GPU w chmurze prywatnej) obsługują transkrypcję, OCR, anonimizację i zapytania z prywatnych notatników.
-* Modele zewnętrzne (API chmurowe) są wywoływane opcjonalnie, zgodnie z polityką bezpieczeństwa danej organizacji.
+* Każdy model jest dostępny przez API (standard OpenAI): lokalnie (np. LM Studio, Ollama, vLLM na sprzęcie spółdzielni) lub w chmurze. Administrator wybiera model dla każdego zastosowania w panelu `/admin/llm` (Etap 7, Etap 10).
+* Transkrypcja, OCR, anonimizacja, opisy zdjęć, embeddingi i zapytania z prywatnych notatników trafiają wyłącznie do dostawców **dopuszczonych do danych prywatnych**: adres musi być na liście operatora serwera, a dopuszczenie (region, przechowywanie, umowa) zatwierdza administrator z MFA. Może to być serwer spółdzielni albo dostawca chmurowy z umową powierzenia danych.
+* Pozostałe modele zewnętrzne (API chmurowe) są wywoływane opcjonalnie, tylko dla wiedzy kanonicznej, zgodnie z polityką bezpieczeństwa danej organizacji.
 
 
 

@@ -20,8 +20,8 @@ from spoldzielnia_ai.llm.gateway import (
     LLMError,
     LLMOutputInvalid,
     LLMPurpose,
-    LocalModelRejected,
-    LocalModelUnavailable,
+    ModelRejected,
+    ModelUnavailable,
 )
 from spoldzielnia_ai.llm.prompts import PROMOTION, escape_untrusted, wrap_untrusted
 
@@ -68,8 +68,8 @@ MESSAGES: list[Any] = [{"role": "user", "content": "x"}]
 
 
 def test_force_local_with_only_a_cloud_route_is_refused() -> None:
-    with pytest.raises(LocalModelUnavailable):
-        _gateway(**CLOUD).route(LLMPurpose.RAG, force_local_llm=True)
+    with pytest.raises(ModelUnavailable):
+        _gateway(**CLOUD).route(LLMPurpose.RAG, private_data=True)
 
 
 @pytest.mark.parametrize(
@@ -83,39 +83,39 @@ def test_force_local_with_only_a_cloud_route_is_refused() -> None:
     ],
 )
 def test_sensitive_purposes_stay_local_even_without_the_flag(purpose: LLMPurpose) -> None:
-    """Defence in depth: the caller forgot force_local_llm, the gateway still refuses the cloud."""
-    with pytest.raises(LocalModelUnavailable):
-        _gateway(**CLOUD).route(purpose, force_local_llm=False)
+    """Defence in depth: the caller forgot private_data, the gateway still refuses the cloud."""
+    with pytest.raises(ModelUnavailable):
+        _gateway(**CLOUD).route(purpose, private_data=False)
 
 
 def test_pii_scrub_is_routed_locally_when_available() -> None:
     gateway = _gateway(**LOCAL, **CLOUD)
-    assert gateway.route(LLMPurpose.PII_SCRUB, force_local_llm=False).name == LOCAL_CHAT
+    assert gateway.route(LLMPurpose.PII_SCRUB, private_data=False).name == LOCAL_CHAT
 
 
 def test_cloud_only_for_allowed_purposes() -> None:
-    assert _gateway(**CLOUD).route(LLMPurpose.RAG, force_local_llm=False).name == CLOUD_CHAT
+    assert _gateway(**CLOUD).route(LLMPurpose.RAG, private_data=False).name == CLOUD_CHAT
     no_cloud: dict[str, Any] = {**CLOUD, "allow_cloud": False}
     with pytest.raises(LLMError):
-        _gateway(**no_cloud).route(LLMPurpose.RAG, force_local_llm=False)
+        _gateway(**no_cloud).route(LLMPurpose.RAG, private_data=False)
 
 
 def test_vlm_needs_its_own_local_model() -> None:
-    with pytest.raises(LocalModelUnavailable):
-        _gateway(**LOCAL).route(LLMPurpose.VLM, force_local_llm=True)
+    with pytest.raises(ModelUnavailable):
+        _gateway(**LOCAL).route(LLMPurpose.VLM, private_data=True)
     assert _gateway(vlm_model="qwen-vl").route(LLMPurpose.VLM, True).name == "local-vlm"
 
 
 def test_empty_model_settings_mean_unconfigured() -> None:
-    with pytest.raises(LocalModelUnavailable):
-        _gateway(chat_model="  ").route(LLMPurpose.PROMOTION, force_local_llm=True)
+    with pytest.raises(ModelUnavailable):
+        _gateway(chat_model="  ").route(LLMPurpose.PROMOTION, private_data=True)
 
 
 async def test_local_failure_never_falls_back_to_cloud() -> None:
     transport = FakeTransport([ConnectionError("refused")])
     gateway = _gateway(transport=transport, **LOCAL, **CLOUD)
-    with pytest.raises(LocalModelUnavailable):
-        await gateway.complete(MESSAGES, purpose=LLMPurpose.PROMOTION, force_local_llm=True)
+    with pytest.raises(ModelUnavailable):
+        await gateway.complete(MESSAGES, purpose=LLMPurpose.PROMOTION, private_data=True)
     assert [model for model, _, _ in transport.calls] == [LOCAL_CHAT]
 
 
@@ -125,7 +125,7 @@ async def test_local_failure_never_falls_back_to_cloud() -> None:
 async def test_valid_json_is_parsed_and_schema_is_sent() -> None:
     transport = FakeTransport(['{"title": "Warroza", "blocks": ["a", "b"]}'])
     result = await _gateway(transport=transport, **LOCAL).complete(
-        MESSAGES, purpose=LLMPurpose.PROMOTION, force_local_llm=True, response_model=Draft
+        MESSAGES, purpose=LLMPurpose.PROMOTION, private_data=True, response_model=Draft
     )
     assert result.parsed == Draft(title="Warroza", blocks=["a", "b"])
     (_, _, kwargs) = transport.calls[0]
@@ -137,7 +137,7 @@ async def test_invalid_json_is_retried_once_then_fails() -> None:
     transport = FakeTransport(["not json", '{"title": 1}'])
     with pytest.raises(LLMOutputInvalid):
         await _gateway(transport=transport, **LOCAL).complete(
-            MESSAGES, purpose=LLMPurpose.PROMOTION, force_local_llm=True, response_model=Draft
+            MESSAGES, purpose=LLMPurpose.PROMOTION, private_data=True, response_model=Draft
         )
     assert len(transport.calls) == 2
     retry_prompt = transport.calls[1][1][-1]["content"]
@@ -148,7 +148,7 @@ async def test_invalid_json_is_retried_once_then_fails() -> None:
 async def test_retry_can_recover_and_fenced_json_is_accepted() -> None:
     transport = FakeTransport(["oops", '```json\n{"title": "T", "blocks": []}\n```'])
     result = await _gateway(transport=transport, **LOCAL).complete(
-        MESSAGES, purpose=LLMPurpose.PROMOTION, force_local_llm=True, response_model=Draft
+        MESSAGES, purpose=LLMPurpose.PROMOTION, private_data=True, response_model=Draft
     )
     assert result.attempts == 2
     assert result.parsed == Draft(title="T", blocks=[])
@@ -165,7 +165,7 @@ async def test_chatty_reply_around_json_is_accepted() -> None:
     for content in (reply, 'Proszę: {"title": "T", "blocks": ["a"]} — koniec.'):
         transport = FakeTransport([content])
         result = await _gateway(transport=transport, **LOCAL).complete(
-            MESSAGES, purpose=LLMPurpose.PROMOTION, force_local_llm=True, response_model=Draft
+            MESSAGES, purpose=LLMPurpose.PROMOTION, private_data=True, response_model=Draft
         )
         assert result.parsed == Draft(title="T", blocks=["a"])
 
@@ -174,7 +174,7 @@ async def test_prompt_mode_puts_the_schema_into_the_system_message() -> None:
     transport = FakeTransport(['{"title": "T", "blocks": []}'])
     messages: list[Any] = [{"role": "system", "content": "Zasady."}, *MESSAGES]
     await _gateway(transport=transport, structured_output="prompt", **LOCAL).complete(
-        messages, purpose=LLMPurpose.PROMOTION, force_local_llm=True, response_model=Draft
+        messages, purpose=LLMPurpose.PROMOTION, private_data=True, response_model=Draft
     )
     (_, sent, kwargs) = transport.calls[0]
     assert "response_format" not in kwargs
@@ -188,7 +188,7 @@ async def test_prompt_mode_shows_an_example_not_the_raw_schema() -> None:
     """A raw JSON Schema in the prompt gets echoed back by some local models (Bielik)."""
     transport = FakeTransport(['{"title": "T", "blocks": []}'])
     await _gateway(transport=transport, structured_output="prompt", **LOCAL).complete(
-        list(MESSAGES), purpose=LLMPurpose.PROMOTION, force_local_llm=True, response_model=Draft
+        list(MESSAGES), purpose=LLMPurpose.PROMOTION, private_data=True, response_model=Draft
     )
     system = transport.calls[0][1][0]["content"]
     assert '{"title": "…", "blocks": ["…"]}' in system
@@ -203,7 +203,7 @@ async def test_a_schema_echo_is_recovered_without_a_retry() -> None:
     )
     transport = FakeTransport([echo])
     result = await _gateway(transport=transport, structured_output="prompt", **LOCAL).complete(
-        list(MESSAGES), purpose=LLMPurpose.PROMOTION, force_local_llm=True, response_model=Draft
+        list(MESSAGES), purpose=LLMPurpose.PROMOTION, private_data=True, response_model=Draft
     )
     assert result.parsed == Draft(title="T", blocks=["a"])
     assert len(transport.calls) == 1
@@ -214,7 +214,7 @@ async def test_ordinary_invalid_json_is_not_mistaken_for_an_echo() -> None:
         ['{"properties": {"title": "T", "blocks": []}}', '{"title": "U", "blocks": []}']
     )
     result = await _gateway(transport=transport, structured_output="prompt", **LOCAL).complete(
-        list(MESSAGES), purpose=LLMPurpose.PROMOTION, force_local_llm=True, response_model=Draft
+        list(MESSAGES), purpose=LLMPurpose.PROMOTION, private_data=True, response_model=Draft
     )
     assert result.parsed == Draft(title="U", blocks=[])  # no schema keys: a normal retry
     assert len(transport.calls) == 2
@@ -223,10 +223,10 @@ async def test_ordinary_invalid_json_is_not_mistaken_for_an_echo() -> None:
 @pytest.mark.parametrize(
     ("code", "error"),
     [
-        (400, LocalModelRejected),
-        (401, LocalModelRejected),
-        (429, LocalModelUnavailable),
-        (503, LocalModelUnavailable),
+        (400, ModelRejected),
+        (401, ModelRejected),
+        (429, ModelUnavailable),
+        (503, ModelUnavailable),
     ],
 )
 async def test_client_errors_are_rejections_not_outages(code: int, error: type[Exception]) -> None:
@@ -234,7 +234,7 @@ async def test_client_errors_are_rejections_not_outages(code: int, error: type[E
     transport = FakeTransport([_HttpError(code)])
     with pytest.raises(error):
         await _gateway(transport=transport, **LOCAL, **CLOUD).complete(
-            MESSAGES, purpose=LLMPurpose.PROMOTION, force_local_llm=True, response_model=Draft
+            MESSAGES, purpose=LLMPurpose.PROMOTION, private_data=True, response_model=Draft
         )
     assert [model for model, _, _ in transport.calls] == [LOCAL_CHAT]
 
@@ -267,7 +267,7 @@ async def test_litellm_speaks_openai_to_the_local_endpoint() -> None:
             return_value=httpx.Response(200, json=body)
         )
         result = await LiteLLMGateway(settings).complete(
-            MESSAGES, purpose=LLMPurpose.PROMOTION, force_local_llm=True, response_model=Draft
+            MESSAGES, purpose=LLMPurpose.PROMOTION, private_data=True, response_model=Draft
         )
     request = route.calls.last.request
     sent = json.loads(request.content)

@@ -108,7 +108,7 @@ async def test_prepare_preview_and_send(world: World) -> None:
     ]
     assert (atlas["privacy_check"], atlas["privacy_flags"]) == ("ok", [])
     [vlm] = world.llm.calls
-    assert vlm.force_local_llm  # A8: the photo never goes to a cloud model
+    assert vlm.private_data  # A8: the photo never goes to a cloud model
 
     # The shared copy: a JPEG without metadata, even though the private original keeps GPS.
     image_id = atlas["id"]

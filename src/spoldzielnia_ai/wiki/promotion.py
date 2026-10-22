@@ -10,7 +10,7 @@ Worker side (``PromotionProcessor``, worker-core, queue ``promotion``):
 2. **PII scrub** all sources with one pseudonym table (Presidio + checksum IDs).
 3. **Injection screen** each scrubbed source, plus the parsing findings of derivatives (hidden
    text …). A source above the threshold that its owner did not confirm stops the promotion.
-4. Local LLM (``PROMOTION``, ``force_local_llm=True``) with the safe prompt → ``ArticleDraft``.
+4. Local LLM (``PROMOTION``, ``private_data=True``) with the safe prompt → ``ArticleDraft``.
 5. **Post-LLM PII re-scan** (the model may reconstruct identifiers) → scrub again, count.
 6. ``WikiArticle(DRAFT)`` + ``ArticleBlock``s with ``author_id`` = owner and
    ``consent_status=ACTIVE``, and ``NOTE_PROMOTED`` audit (prompt digest, model, counts).
@@ -55,8 +55,8 @@ from spoldzielnia_ai.llm.gateway import (
     LLMError,
     LLMOutputInvalid,
     LLMPurpose,
-    LocalModelRejected,
-    LocalModelUnavailable,
+    ModelRejected,
+    ModelUnavailable,
 )
 from spoldzielnia_ai.llm.injection_guard import document_flags
 from spoldzielnia_ai.llm.prompts import PROMOTION, restore_placeholders
@@ -246,16 +246,16 @@ class PromotionProcessor:
             result = await self._gateway.complete(
                 messages,
                 purpose=LLMPurpose.PROMOTION,
-                force_local_llm=True,
+                private_data=True,
                 response_model=ArticleDraft,
             )
-        except LocalModelUnavailable:
+        except ModelUnavailable:
             if final_attempt:
-                await self._fail(job, "local_model_unavailable", injection)
+                await self._fail(job, "model_unavailable", injection)
                 return False
             return True
-        except LocalModelRejected:  # e.g. the server can't do JSON-schema output for this model
-            await self._fail(job, "local_model_rejected", injection)
+        except ModelRejected:  # e.g. the server can't do JSON-schema output for this model
+            await self._fail(job, "model_rejected", injection)
             return False
         except LLMOutputInvalid:
             await self._fail(job, "llm_output_invalid", injection)

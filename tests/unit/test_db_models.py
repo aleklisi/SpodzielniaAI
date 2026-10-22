@@ -185,6 +185,7 @@ def test_migrations_form_a_single_linear_history() -> None:
         "0016_atlas",
         "0017_atlas_export",
         "0018_recognition",
+        "0019_provider_clearance",
     ]
 
 
