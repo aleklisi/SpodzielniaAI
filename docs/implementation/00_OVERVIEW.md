@@ -245,6 +245,16 @@ Each one is resolved (✅ = decision baked into the chunk plans) or needs your i
 - [x] 9.9 Recognition „Rozpoznaj” (Phase B)
 - [x] 9.10 E2E, security review & docs
 
+### Stage 10 — Every model over a configurable API (beyond the original plan, [US-04](../USER_STORIES_LOG.md#us-04))
+- [ ] 10.1 Clearance trust model (replaces locality for private data)
+- [ ] 10.2 "Not configured" instead of failure
+- [ ] 10.3 Versioned collections & safe re-embedding
+- [ ] 10.4 Speech-to-text over API
+- [ ] 10.5 Docling without models, OCR over API
+- [ ] 10.6 Image embeddings: API or built-in
+- [ ] 10.7 Compose: no model server by default, API-only profile
+- [ ] 10.8 Admin UI, transparency page, E2E, security review & docs
+
 ---
 
 ## 5. Dependency Graph

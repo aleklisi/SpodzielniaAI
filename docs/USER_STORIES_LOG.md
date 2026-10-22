@@ -18,6 +18,7 @@ committed, add the commit hash to the story's *Delivery* list.
 | [US-01](#us-01) | Administrator configures LLM models (local / cloud) in the UI and tests them | DONE | [07_LLM_MODEL_CONFIG.md](implementation/07_LLM_MODEL_CONFIG.md) · Etap 7 | 2026-10-20 |
 | [US-02](#us-02) | Administrator manages users: create accounts, reset passwords, block access, force password change, manage roles | DONE | [08_USER_MANAGEMENT.md](implementation/08_USER_MANAGEMENT.md) · Etap 8 | 2026-10-21 |
 | [US-03](#us-03) | Member adds photos with a description, marks and describes elements on them; experts verify; the atlas powers image recognition | DONE | [09_IMAGE_ATLAS.md](implementation/09_IMAGE_ATLAS.md) · Etap 9 | 2026-10-21 |
+| [US-04](#us-04) | Every model (LLM, embeddings, speech, OCR, image embeddings) is configured and provided over an API — local (LM Studio) or cloud; no built-in model required | PLANNED | [10_MODEL_PROVIDERS_API.md](implementation/10_MODEL_PROVIDERS_API.md) · Etap 10 | 2026-10-22 |
 
 ---
 
@@ -157,3 +158,32 @@ are recorded here so the difference between the plan and the delivered system st
 | 2026-10-19 | `7bd2b09` | 3.4 | `llm.structured_output = json_schema \| prompt`, tolerant JSON extraction, `LocalModelRejected` for non-retryable 4xx. | Live promotion with LM Studio + Bielik failed: its grammar sampler returns 400 for any `json_schema` response format. |
 | 2026-10-19 | `b7a7f8b` | 6.7 | Prompt mode sends an example object + field notes instead of the raw schema, schema-echo recovery, citation marker clean-up. | Local models echoed the JSON Schema back instead of filling it. |
 | 2026-10-19 | `b7a7f8b` | 6.7 | Second expert account (`expert2`) in the Keycloak realm export; smoke check that the embedding model separates unrelated texts. | Review quorum needs two experts in E2E; a broken embedding model silently ruined retrieval. |
+
+---
+
+## US-04
+
+**Story:** Spółdzielnia AI should not need a local LLM or embedding model. Everything should be
+configurable and provided over an API: a model run locally (e.g. in LM Studio) or in the cloud.
+
+- **Source:** product owner request, 2026-10-22 (refinement session, after a hosting question
+  about a GPU-less VPS and Mistral's API).
+- **Status:** PLANNED.
+- **Plan:** [docs/implementation/10_MODEL_PROVIDERS_API.md](implementation/10_MODEL_PROVIDERS_API.md)
+- **Refinement decisions:** private data goes only to providers an admin has cleared for it
+  (operator env list as the ceiling; replaces "local only" in AGENTS.md rule 4); image
+  embeddings via an API or the optional built-in SigLIP; speech-to-text and document OCR move to
+  APIs, the injection classifier stays built in; a missing model turns the feature off with a
+  clear message and work waits, with no fallback to another provider.
+- **Acceptance criteria:**
+  1. The default stack starts and is healthy with no model server and no downloaded models.
+  2. An admin configures every purpose (chat, vision, text and image embeddings, speech-to-text,
+     OCR) in `/admin/llm` with local (LM Studio, Ollama, vLLM…) or cloud providers.
+  3. Private data reaches only providers cleared for it, within the operator's env list,
+     enforced in the UI, the API, the database and the gateway.
+  4. Without a configured model the feature shows „Model nie jest skonfigurowany”; waiting work
+     completes once a model is configured; no other provider is ever used instead.
+  5. Changing the embedding model re-embeds into a new index and swaps without downtime or mixed
+     vector spaces.
+  6. Members can see which providers process their private data.
+- **Delivery:** —
