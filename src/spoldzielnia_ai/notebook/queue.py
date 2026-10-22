@@ -18,6 +18,7 @@ from spoldzielnia_ai.workers.jobs import (
     ArticleJob,
     AtlasIndexJob,
     DerivativeJob,
+    MaintenanceJob,
     PromotionJob,
     TaskName,
 )
@@ -103,6 +104,9 @@ class CeleryProcessingQueue:
         """An article became CANONICAL: (re)index it (4.2)."""
         job = ArticleJob(article_id=article_id)
         await asyncio.to_thread(send, self._celery, TaskName.INDEX_ARTICLE, job)
+
+    async def model_config_changed(self) -> None:
+        await asyncio.to_thread(send, self._celery, TaskName.RESUME_WAITING, MaintenanceJob())
 
     async def link_added(self, derivative_id: UUID, owner_id: UUID) -> None:
         job = DerivativeJob(derivative_id=derivative_id, owner_id=owner_id)

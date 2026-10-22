@@ -7,6 +7,7 @@ from pydantic import SecretStr
 
 from spoldzielnia_ai.core.settings import (
     DbSettings,
+    LlmSettings,
     OidcSettings,
     RedisSettings,
     SecuritySettings,
@@ -46,4 +47,7 @@ def settings(tmp_path: Path) -> Settings:
             session_secret=SecretStr("session-secret"),
             kek=SecretStr("MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="),
         ),
+        # Every purpose "configured" (10.2), so features are on; no test ever calls these
+        # models (FakeLLMGateway). Tests of the "not configured" state override this.
+        llm=LlmSettings(chat_model="test-chat", vlm_model="test-vlm", embed_model="test-embed"),
     )

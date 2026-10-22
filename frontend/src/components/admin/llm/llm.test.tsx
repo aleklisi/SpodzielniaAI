@@ -31,6 +31,7 @@ function status(overrides: Partial<LlmStatus> = {}): LlmStatus {
     local_endpoints: ["http://llm:11434", "http://vllm:8000"],
     cloud_hosts: ["api.example.com"],
     private_data_endpoints: ["http://llm:11434", "http://vllm:8000"],
+    missing_purposes: [],
     egress_proxy: true,
     vector_size: 1024,
     probe_max_age_hours: 24,
@@ -247,6 +248,21 @@ describe("providers", () => {
     const row = screen.getByRole("row", { name: /local/ });
     await userEvent.click(within(row).getByRole("button", { name: "Testuj połączenie" }));
     expect(await within(row).findByRole("status")).toHaveTextContent("Połączono (12 ms) · modele: bielik-11b, qwen3-32b");
+  });
+});
+
+describe("missing models", () => {
+  it("lists purposes without a model", async () => {
+    mount([revision(1, "ACTIVE", ROUTING)], status({ missing_purposes: ["VLM", "PROMOTION"] }));
+    const region = await screen.findByRole("region", { name: "Brakujące modele" });
+    expect(within(region).getByText("Opisy zdjęć")).toBeInTheDocument();
+    expect(within(region).getByText("Wnioski do Wiki")).toBeInTheDocument();
+  });
+
+  it("shows nothing when every purpose has a model", async () => {
+    mount([revision(1, "ACTIVE", ROUTING)]);
+    await screen.findByRole("heading", { name: "Modele AI" });
+    expect(screen.queryByRole("region", { name: "Brakujące modele" })).toBeNull();
   });
 });
 

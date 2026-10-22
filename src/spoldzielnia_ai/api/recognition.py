@@ -15,6 +15,7 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException, Request, status
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 
+from spoldzielnia_ai.api.capabilities import require_feature
 from spoldzielnia_ai.atlas.access import can_view
 from spoldzielnia_ai.atlas.coverage import atlas_coverage
 from spoldzielnia_ai.atlas.recognition import MAX_QUESTION, RecognitionError, RecognitionService
@@ -101,6 +102,7 @@ async def recognize(
     background: BackgroundTasks,
 ) -> RecognitionOut:
     """Ask what's on the photo, answered from verified atlas examples by a local model."""
+    await require_feature(request, "recognition")  # 503 model_not_configured, nothing created
     try:
         row = await RecognitionService(session, cipher).request(
             user.id,

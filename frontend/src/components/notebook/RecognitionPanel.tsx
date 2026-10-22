@@ -5,7 +5,9 @@ import { useState } from "react";
 
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
+import { ModelMissing } from "@/components/ui/ModelMissing";
 import { atlasImageUrl } from "@/lib/atlas-submissions";
+import { useFeature } from "@/lib/capabilities";
 import { isRunning, recognitionError, useRecognitions, useRecognize, type Suggestion } from "@/lib/recognition";
 
 const INPUT = "w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm";
@@ -31,6 +33,7 @@ export function RecognitionPanel({
 }) {
   const recognitions = useRecognitions(noteId, attachmentId);
   const recognize = useRecognize(noteId, attachmentId);
+  const available = useFeature("recognition");
   const [question, setQuestion] = useState("");
   const [allDomains, setAllDomains] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -54,9 +57,10 @@ export function RecognitionPanel({
         Rozpoznaj
       </h2>
       <p className="text-text-muted">
-        Porównuje zdjęcie ze zweryfikowanymi przez ekspertów zdjęciami atlasu. Działa na serwerze spółdzielni; zdjęcie nie trafia do
-        nikogo innego.
+        Porównuje zdjęcie ze zweryfikowanymi przez ekspertów zdjęciami atlasu. Zdjęcie trafia tylko do modeli dopuszczonych do
+        danych prywatnych.
       </p>
+      {!available && <ModelMissing what="Rozpoznawanie" />}
       <label className="flex flex-col gap-1">
         Pytanie (opcjonalnie)
         <input className={INPUT} maxLength={300} placeholder="np. Czy na ramce jest matka?" value={question} onChange={(e) => setQuestion(e.target.value)} />
@@ -65,7 +69,7 @@ export function RecognitionPanel({
         <input type="checkbox" checked={allDomains} onChange={(e) => setAllDomains(e.target.checked)} />
         Szukaj we wszystkich dziedzinach
       </label>
-      <Button onClick={() => void start()} busy={running} disabled={!domainId && !allDomains} className="self-start">
+      <Button onClick={() => void start()} busy={running} disabled={!available || (!domainId && !allDomains)} className="self-start">
         Rozpoznaj
       </Button>
       {running && (

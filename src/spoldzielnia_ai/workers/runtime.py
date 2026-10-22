@@ -375,6 +375,18 @@ class WorkerRuntime:
         self._loop().run(self._vector_sync().reconcile())
         return False  # the next beat tick is the retry
 
+    def resume_waiting(self, _job: MaintenanceJob, _attempt: int) -> bool:
+        from spoldzielnia_ai.workers.celery_adapter import send
+        from spoldzielnia_ai.workers.waiting import ModelWaitResumer
+
+        factory, _ = self._shared()
+
+        async def dispatch(name: TaskName, job: Any) -> None:
+            await asyncio.to_thread(send, self._celery, name, job)
+
+        self._loop().run(ModelWaitResumer(factory, self._gateway(), dispatch).run())
+        return False  # the next beat tick is the retry
+
     def consistency_audit(self, _job: MaintenanceJob, _attempt: int) -> bool:
         from spoldzielnia_ai.atlas.consistency import AtlasConsistency
 
@@ -416,6 +428,7 @@ class WorkerRuntime:
             TaskName.RECONCILE_OUTBOX: self.reconcile,
             TaskName.CONSISTENCY_AUDIT: self.consistency_audit,
             TaskName.REFRESH_CLUSTERS: self.refresh_clusters,
+            TaskName.RESUME_WAITING: self.resume_waiting,
         }
         return handlers.get(name, self.run)
 

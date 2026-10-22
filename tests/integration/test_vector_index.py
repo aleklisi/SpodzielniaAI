@@ -11,11 +11,12 @@ from uuid import UUID, uuid4
 
 import pytest
 from qdrant_client import models
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import create_async_engine
 
 from spoldzielnia_ai.core.crypto import row_aad
 from spoldzielnia_ai.db.enums import ArticleStatus, ConsentStatus, DerivativeStatus
-from spoldzielnia_ai.db.models import NoteDerivative
+from spoldzielnia_ai.db.models import ModelWait, NoteDerivative
 from spoldzielnia_ai.db.rls import rls_session
 from spoldzielnia_ai.db.session import SessionFactory, create_session_factory
 from spoldzielnia_ai.notebook.service import DERIVATIVE, NotebookService
@@ -235,6 +236,40 @@ async def test_private_indexing_retries_while_the_local_model_is_down(
 
     assert await indexer.index_private_derivative(job, final_attempt=False) is True
     assert await indexer.index_private_derivative(job, final_attempt=True) is False
+
+
+async def test_private_indexing_without_an_embedding_model_is_parked(
+    factory: SessionFactory, cipher: EnvelopeCipher, qdrant: AsyncQdrantClient
+) -> None:
+    """10.2: no retries, no failure: a ``model_wait`` row to send the job again later."""
+    alice = await make_user(factory)
+    async with rls_session(factory, alice) as session:
+        notebook = NotebookService(session, cipher)
+        note = await notebook.create(alice, "Przegląd", "")
+        link = await notebook.add_link(note.id, "https://example.org/")
+        assert link is not None
+        row = await session.get(NoteDerivative, link.id)
+        assert row is not None
+        aad = row_aad(DERIVATIVE, row.id, row.owner_id)
+        row.content_ciphertext = cipher.encrypt_field(
+            cipher.unwrap(row.dek_wrapped, aad), TEXT.encode(), aad, "content"
+        )
+        row.status = DerivativeStatus.DONE
+    indexer = Indexer(
+        factory, cipher, Embedder(FakeLLMGateway(configured=False), EMBED_DIM), qdrant
+    )
+    job = DerivativeJob(derivative_id=link.id, owner_id=alice)
+
+    assert await indexer.index_private_derivative(job, final_attempt=False) is False
+    assert await indexer.index_private_derivative(job, final_attempt=False) is False  # once
+    async with factory() as session:
+        (wait,) = list(await session.scalars(select(ModelWait)))
+    assert (wait.subject_id, wait.owner_id, wait.purpose, wait.task) == (
+        link.id,
+        alice,
+        "EMBED",
+        "index.private_derivative",
+    )
 
 
 async def test_active_vectors_skip_inactive_and_honeypot_points(qdrant: AsyncQdrantClient) -> None:

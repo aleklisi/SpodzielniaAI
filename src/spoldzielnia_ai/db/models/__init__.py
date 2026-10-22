@@ -14,6 +14,7 @@ from spoldzielnia_ai.db.models.atlas import (
 )
 from spoldzielnia_ai.db.models.audit import SecurityAuditLog
 from spoldzielnia_ai.db.models.llm import LlmConfigRevision, LlmModel, LlmProvider, LlmRouting
+from spoldzielnia_ai.db.models.model_wait import ModelWait
 from spoldzielnia_ai.db.models.outbox import VectorOutbox
 from spoldzielnia_ai.db.models.private_note import NoteAttachment, NoteDerivative, PrivateNote
 from spoldzielnia_ai.db.models.promotion import Promotion
@@ -35,6 +36,7 @@ __all__ = [
     "LlmModel",
     "LlmProvider",
     "LlmRouting",
+    "ModelWait",
     "NoteAttachment",
     "NoteDerivative",
     "PrivateNote",

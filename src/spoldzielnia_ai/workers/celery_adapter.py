@@ -79,10 +79,11 @@ def send(app: Any, name: TaskName, job: Job) -> None:
 
 
 RECONCILE_EVERY_SECONDS = 30.0
+RESUME_WAITING_EVERY_SECONDS = 60.0
 
 
 def beat_schedule() -> dict[str, dict[str, Any]]:
-    """Periodic tasks (4.4, 5.3). A reconcile message expires before the next one is due, so a
+    """Periodic tasks (4.4, 5.3, 10.2). A reconcile message expires before the next one is due, so a
     stopped worker doesn't come back to a pile of them."""
     from celery.schedules import crontab  # pyright: ignore[reportMissingTypeStubs]
 
@@ -101,6 +102,11 @@ def beat_schedule() -> dict[str, dict[str, Any]]:
         "semantic-clusters": {
             "task": TaskName.REFRESH_CLUSTERS.value,
             "schedule": clusters,
+        },
+        "resume-waiting-for-model": {
+            "task": TaskName.RESUME_WAITING.value,
+            "schedule": RESUME_WAITING_EVERY_SECONDS,
+            "options": {"expires": RESUME_WAITING_EVERY_SECONDS - 5},
         },
     }
 

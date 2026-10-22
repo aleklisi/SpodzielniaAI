@@ -6,7 +6,14 @@ import { Card } from "@/components/ui/Card";
 import { DERIVATIVE_KIND, DERIVATIVE_STATUS } from "@/lib/messages";
 import { flaggedSpans, segment, useConfirmQuarantine, type Derivative } from "@/lib/notebook";
 
-const TONE = { DONE: "ok", FAILED: "danger", QUARANTINED: "warn", PENDING: "neutral", PROCESSING: "neutral" } as const;
+const TONE = {
+  DONE: "ok",
+  FAILED: "danger",
+  QUARANTINED: "warn",
+  PENDING: "neutral",
+  PROCESSING: "neutral",
+  WAITING_FOR_MODEL: "warn",
+} as const;
 
 export function DerivativesPanel({ noteId, derivatives: all }: { noteId: string; derivatives: Derivative[] }) {
   // Recognition results live in the photo editor (9.9), not among the note's materials.
@@ -29,6 +36,11 @@ export function DerivativesPanel({ noteId, derivatives: all }: { noteId: string;
             {d.source && <p className="truncate text-xs text-text-muted">{d.source}</p>}
             {d.content && <p className="max-h-48 overflow-y-auto whitespace-pre-wrap text-sm">{d.content}</p>}
             {d.status === "FAILED" && <p className="text-sm text-danger">Nie udało się przetworzyć materiału.</p>}
+            {d.status === "WAITING_FOR_MODEL" && (
+              <p className="text-sm text-text-muted">
+                Model nie jest skonfigurowany. Materiał zostanie przetworzony automatycznie, gdy administrator wybierze model.
+              </p>
+            )}
           </Card>
         ),
       )}

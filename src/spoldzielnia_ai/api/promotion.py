@@ -11,6 +11,7 @@ from fastapi import APIRouter, HTTPException, Request, status
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, model_validator
 
+from spoldzielnia_ai.api.capabilities import require_feature
 from spoldzielnia_ai.auth.deps import CurrentUser  # noqa: TC001 - FastAPI resolves it
 from spoldzielnia_ai.db.enums import PromotionStatus  # noqa: TC001 - pydantic resolves it
 from spoldzielnia_ai.db.models import Promotion
@@ -83,6 +84,7 @@ async def promote_to_wiki(payload: PromoteIn, request: Request, user: CurrentUse
     state = request.app.state
     settings: Settings = state.settings
     # Before anything is created; attempts count, so probing for others' ids is limited too.
+    await require_feature(request, "promotion")  # 503 model_not_configured, nothing created
     if not await _within_daily_limit(state.redis, user.id, settings.promotion.daily_limit):
         return _error("rate_limited", status.HTTP_429_TOO_MANY_REQUESTS)
     note_ids = list(dict.fromkeys(payload.note_ids))

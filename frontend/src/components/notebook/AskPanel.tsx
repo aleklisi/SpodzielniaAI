@@ -6,12 +6,16 @@ import { useState, type FormEvent } from "react";
 import { SafeMarkdown } from "@/components/markdown/SafeMarkdown";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
+import { ModelMissing } from "@/components/ui/ModelMissing";
+import { isModelMissing, MODEL_MISSING, useFeature } from "@/lib/capabilities";
 import { useAskNotebook } from "@/lib/notebook";
 
-/** "Zapytaj mój notatnik": private RAG over the member's own notes (5.1), local model only. */
+/** "Zapytaj mój notatnik": private RAG over the member's own notes (5.1), models cleared for
+ * private data only (10.1); off without one (10.2). */
 export function AskPanel() {
   const [question, setQuestion] = useState("");
   const ask = useAskNotebook();
+  const available = useFeature("notebook_answers");
 
   function submit(event: FormEvent) {
     event.preventDefault();
@@ -21,6 +25,7 @@ export function AskPanel() {
   return (
     <Card className="flex flex-col gap-3">
       <h2 className="font-display text-lg font-semibold">Zapytaj swój notatnik</h2>
+      {!available && <ModelMissing what="Zadawanie pytań do notatnika" />}
       <form onSubmit={submit} className="flex flex-col gap-2">
         <label className="sr-only" htmlFor="ask-notebook">
           Pytanie do notatnika
@@ -34,11 +39,15 @@ export function AskPanel() {
           placeholder="Np. kiedy ostatnio leczyłem rodzinę nr 3?"
           className="rounded-lg border border-border bg-surface px-3 py-2 text-sm"
         />
-        <Button type="submit" busy={ask.isPending} disabled={question.trim().length < 3}>
+        <Button type="submit" busy={ask.isPending} disabled={!available || question.trim().length < 3}>
           Zapytaj
         </Button>
       </form>
-      {ask.isError && <p role="alert" className="text-sm text-danger">Nie udało się uzyskać odpowiedzi.</p>}
+      {ask.isError && (
+        <p role="alert" className="text-sm text-danger">
+          {isModelMissing(ask.error) ? `${MODEL_MISSING}.` : "Nie udało się uzyskać odpowiedzi."}
+        </p>
+      )}
       {ask.data && (
         <div className="flex flex-col gap-2 text-sm" aria-live="polite">
           {ask.data.no_answer ? (

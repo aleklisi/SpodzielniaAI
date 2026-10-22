@@ -32,6 +32,7 @@ from spoldzielnia_ai.db.enums import (
     LlmRoutePurpose,
     Role,
 )
+from spoldzielnia_ai.llm.capabilities import missing_purposes
 from spoldzielnia_ai.llm.config_service import (
     PRIVATE_ROUTE_PURPOSES,
     ClearanceIn,
@@ -60,6 +61,7 @@ if TYPE_CHECKING:
     from spoldzielnia_ai.core.settings import Settings
     from spoldzielnia_ai.db.models import LlmModel, LlmProvider
     from spoldzielnia_ai.llm.gateway import ChatTransport, Deployment, LiteLLMGateway
+    from spoldzielnia_ai.notebook.uploads import ProcessingQueue
 
 log = get_logger(__name__)
 
@@ -108,6 +110,15 @@ async def _rate_limit(request: Request, principal_id: UUID, what: str, per_hour:
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail={"error": "rate_limited"}
         )
+
+
+async def _config_changed(request: Request) -> None:
+    """Resume work parked for want of a model (10.2); the beat tick is the fallback."""
+    queue: ProcessingQueue = request.app.state.processing_queue
+    try:
+        await queue.model_config_changed()
+    except Exception as exc:  # the broker being down must not fail the admin's change
+        log.warning("llm.resume_signal_failed", error=type(exc).__name__)
 
 
 def _transport(request: Request) -> ChatTransport | None:
@@ -199,6 +210,8 @@ class StatusOut(BaseModel):
     active_revision: int | None
     process_revision: int  # what this API process routes by right now (0 = .env)
     purposes: list[PurposeOut]
+    # 10.2: purposes without a usable model in the running configuration (features off).
+    missing_purposes: list[LlmRoutePurpose]
 
 
 class DraftIn(BaseModel):
@@ -334,6 +347,7 @@ async def get_status(request: Request, service: Service) -> StatusOut:
     local, cloud = allowed_endpoints(llm)
     active = await service.active()
     store = getattr(request.app.state, "llm_config", None)
+    missing = await missing_purposes(request.app.state.llm)
     return StatusOut(
         config_source=llm.config_source,
         allow_cloud=llm.allow_cloud,
@@ -345,6 +359,7 @@ async def get_status(request: Request, service: Service) -> StatusOut:
         probe_max_age_hours=llm.probe_max_age_hours,
         active_revision=active.revision.number if active else None,
         process_revision=(await store.current()).revision if store is not None else 0,
+        missing_purposes=[LlmRoutePurpose(p.value) for p in missing],
         purposes=[
             PurposeOut(
                 purpose=p, capability=capability_for(p), private_data=p in PRIVATE_ROUTE_PURPOSES
@@ -418,6 +433,7 @@ async def clear_provider(
         provider = await service.clear_provider(principal.id, provider_id, payload)
     except ConfigError as exc:
         raise _http(exc) from None
+    await _config_changed(request)
     active, _ = await _active_providers(service)
     return _provider_out(provider, service, active)
 
@@ -586,22 +602,26 @@ async def delete_draft(number: int, service: Service, principal: CurrentUser) ->
 
 
 @router.post("/revisions/{number}/activate", response_model=RevisionOut)
-async def activate(number: int, service: Service, principal: CurrentUser) -> RevisionOut:
+async def activate(
+    number: int, request: Request, service: Service, principal: CurrentUser
+) -> RevisionOut:
     try:
         view = await service.activate(principal.id, number)
     except ConfigError as exc:
         raise _http(exc) from None
+    await _config_changed(request)
     return _revision_out(view)
 
 
 @router.post("/revisions/{number}/rollback", response_model=RevisionOut)
 async def rollback(
-    number: int, payload: RollbackIn, service: Service, principal: CurrentUser
+    number: int, payload: RollbackIn, request: Request, service: Service, principal: CurrentUser
 ) -> RevisionOut:
     try:
         view = await service.rollback(principal.id, number, payload.comment)
     except ConfigError as exc:
         raise _http(exc) from None
+    await _config_changed(request)
     return _revision_out(view)
 
 

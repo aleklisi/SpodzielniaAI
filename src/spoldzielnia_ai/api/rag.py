@@ -16,8 +16,9 @@ from typing import Annotated
 
 from fastapi import APIRouter, Header, HTTPException, Request, status
 
+from spoldzielnia_ai.api.capabilities import model_not_configured
 from spoldzielnia_ai.auth.deps import CurrentUser, step_up_url
-from spoldzielnia_ai.llm.gateway import LLMError
+from spoldzielnia_ai.llm.gateway import LLMError, ModelNotConfigured
 from spoldzielnia_ai.notebook.deps import NotebookDep  # noqa: TC001 - FastAPI resolves it
 from spoldzielnia_ai.rag.deps import NotebookQADep  # noqa: TC001 - FastAPI resolves it
 from spoldzielnia_ai.rag.schemas import AskIn, NoteAnswer, RagAnswer
@@ -59,6 +60,8 @@ async def ask_notes(
     question = check_question(request, payload)
     try:
         return await qa.ask(notebook, user.id, question)
+    except ModelNotConfigured:
+        raise model_not_configured() from None
     except LLMError:
         raise model_unavailable() from None
 
@@ -81,5 +84,7 @@ async def ask_cooperative(
     )
     try:
         return await guard.ask(asker, question, pow_solution)
+    except ModelNotConfigured:
+        raise model_not_configured() from None
     except LLMError:
         raise model_unavailable() from None

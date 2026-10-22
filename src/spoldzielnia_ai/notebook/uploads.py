@@ -90,6 +90,11 @@ class ProcessingQueue(Protocol):
 
     async def article_canonical(self, article_id: UUID) -> None: ...
 
+    async def model_config_changed(self) -> None:
+        """An admin activated a configuration or (un)cleared a provider: resume parked work
+        whose purpose now has a model (10.2)."""
+        ...
+
 
 class NoProcessing:
     async def attachment_stored(
@@ -119,6 +124,9 @@ class NoProcessing:
         return None
 
     async def article_canonical(self, article_id: UUID) -> None:
+        return None
+
+    async def model_config_changed(self) -> None:
         return None
 
 

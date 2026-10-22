@@ -19,9 +19,11 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine
 
 from spoldzielnia_ai.auth.deps import DbAuditSink
+from spoldzielnia_ai.core.settings import LlmSettings
 from spoldzielnia_ai.db.enums import DerivativeKind
 from spoldzielnia_ai.db.session import SessionFactory, create_session_factory
 from spoldzielnia_ai.files.antivirus import ScanResult
+from spoldzielnia_ai.llm.gateway import LiteLLMGateway
 from spoldzielnia_ai.net.safe_fetch import SafeFetcher
 from spoldzielnia_ai.notebook.queue import CeleryProcessingQueue
 from spoldzielnia_ai.notebook.uploads import UploadPipeline
@@ -31,6 +33,7 @@ from spoldzielnia_ai.workers.engines.text import TextEngine
 from spoldzielnia_ai.workers.engines.vision import UnavailableVisionEngine
 from spoldzielnia_ai.workers.jobs import DerivativeJob, TaskName
 from spoldzielnia_ai.workers.processing import DerivativeProcessor
+from spoldzielnia_ai.workers.waiting import ModelWaitResumer
 from tests.fixtures import files
 from tests.fixtures.app import Harness, LoggedIn, harness
 
@@ -206,19 +209,45 @@ async def test_pdf_and_text_are_parsed(h: Harness, engines: Engines) -> None:
     assert engines.docling.seen[0][0] == ".pdf"
 
 
-async def test_image_description_is_explicitly_unavailable(
+async def test_an_image_waits_for_a_vision_model_then_resumes(
     h: Harness, factory: SessionFactory
 ) -> None:
+    """10.2: no vision model → WAITING_FOR_MODEL (not a failure); resumed once there is one."""
     alice = await h.login()
     note_id = await _note(alice)
     await _upload(alice, note_id, files.png(), "ul.png", "image/png")
     (derivative,) = await _derivatives(alice, note_id)
-    assert (derivative["status"], derivative["error"]) == ("FAILED", "vision_unavailable")
+    assert (derivative["status"], derivative["error"]) == (
+        "WAITING_FOR_MODEL",
+        "model_not_configured:VLM",
+    )
     async with factory() as session:
-        events = await session.scalar(
+        failed = await session.scalar(
             text("SELECT count(*) FROM security_audit_log WHERE event_type = 'PROCESSING_FAILED'")
         )
-    assert events >= 1
+        waiting = (await session.execute(text("SELECT purpose, task FROM model_wait"))).all()
+    assert failed == 0
+    assert [tuple(r) for r in waiting] == [("VLM", "media.describe_image")]
+
+    sent: list[tuple[TaskName, Any]] = []
+
+    async def record(name: TaskName, job: Any) -> None:
+        sent.append((name, job))
+
+    still_none = ModelWaitResumer(factory, LiteLLMGateway(LlmSettings()), record)
+    assert await still_none.run() == 0
+    assert sent == []
+
+    configured = LiteLLMGateway(LlmSettings(vlm_model="qwen-vl"))
+    assert await ModelWaitResumer(factory, configured, record).run() == 1
+    ((name, job),) = sent
+    assert name == TaskName.DESCRIBE_IMAGE
+    assert str(job.derivative_id) == derivative["id"]
+    (derivative,) = await _derivatives(alice, note_id)
+    assert (derivative["status"], derivative["error"]) == ("PENDING", None)
+    async with factory() as session:
+        assert await session.scalar(text("SELECT count(*) FROM model_wait")) == 0
+    assert await ModelWaitResumer(factory, configured, record).run() == 0
 
 
 async def test_permanent_engine_error_fails_without_retry(h: Harness, engines: Engines) -> None:

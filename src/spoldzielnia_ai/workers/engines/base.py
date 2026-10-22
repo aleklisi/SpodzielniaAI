@@ -17,6 +17,15 @@ class PermanentError(Exception):
         self.code = code
 
 
+class WaitingForModel(Exception):
+    """No model is configured for ``purpose`` (10.2): the derivative waits as
+    WAITING_FOR_MODEL and resumes once an admin configures one. Not a failure, no retries."""
+
+    def __init__(self, purpose: str) -> None:
+        super().__init__(purpose)
+        self.purpose = purpose
+
+
 class TransientError(Exception):
     """Worth retrying with backoff (storage or database hiccup, IdP-like outages)."""
 

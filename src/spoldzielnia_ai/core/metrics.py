@@ -27,7 +27,17 @@ LLM_ERRORS = Counter(
 )
 LLM_ROUTE_REFUSED = Counter(
     "llm_route_refused_total",
-    "Local-only calls whose configured route was not local (refused; should stay 0)",
+    "Private-data calls whose configured route was not cleared for private data (refused)",
+    ["purpose"],
+)
+LLM_PURPOSE_CONFIGURED = Gauge(
+    "llm_purpose_configured",
+    "1 if the purpose has a usable model (10.2), 0 if its features are off",
+    ["purpose"],
+)
+MODEL_WAIT_BACKLOG = Gauge(
+    "model_wait_backlog",
+    "Work parked until a model is configured for its purpose (10.2)",
     ["purpose"],
 )
 LLM_CONFIG_REVISION = Gauge(

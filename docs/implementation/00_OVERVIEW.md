@@ -247,7 +247,7 @@ Each one is resolved (✅ = decision baked into the chunk plans) or needs your i
 
 ### Stage 10 — Every model over a configurable API (beyond the original plan, [US-04](../USER_STORIES_LOG.md#us-04))
 - [x] 10.1 Clearance trust model (replaces locality for private data)
-- [ ] 10.2 "Not configured" instead of failure
+- [x] 10.2 "Not configured" instead of failure
 - [ ] 10.3 Versioned collections & safe re-embedding
 - [ ] 10.4 Speech-to-text over API
 - [ ] 10.5 Docling without models, OCR over API

@@ -50,6 +50,7 @@ const ERRORS: Record<string, string> = {
   recognition_in_progress: "Rozpoznawanie już trwa.",
   domain_not_found: "Nie znaleziono dziedziny.",
   rate_limited: "Dzienny limit rozpoznawania został wyczerpany.",
+  model_not_configured: "Model nie jest skonfigurowany: rozpoznawanie jest wyłączone.",
 };
 
 export function recognitionError(error: unknown): string {

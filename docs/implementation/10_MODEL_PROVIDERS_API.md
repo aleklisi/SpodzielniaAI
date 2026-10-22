@@ -348,3 +348,40 @@ reference local one.
   warning about stopped features; routing offers private purposes only cleared providers'
   models; playground private presets likewise. E2E scenario 9 clears its new provider.
 - **Docs:** AGENTS.md rule 4 rewritten as approved; ARCHITECTURE §1, README, `.env.example`.
+
+### 10.2 — "Not configured" instead of failure
+- **Gateway:** `ModelNotConfigured(ModelUnavailable)` (with `.purpose`) whenever a purpose has
+  no usable deployment: not routed, not cleared for private data, or above the cloud ceiling. It
+  replaces the plain `LLMError` for public purposes, so existing handlers keep working.
+  `gateway.configured(purpose)` answers the same question without a call or metrics.
+- **Capabilities:** `llm/capabilities.py` maps features to purposes (`wiki_answers`,
+  `notebook_answers`, `notebook_search`, `promotion`, `image_descriptions`, `recognition`).
+  `GET /capabilities` (any signed-in member) returns booleans only. `/admin/llm/status` adds
+  `missing_purposes`; gauge `llm_purpose_configured{purpose}`.
+- **Interactive features:** promotion and „Rozpoznaj” check up front (`require_feature`) and
+  answer 503 `model_not_configured` without creating anything; `/notes/ask` and `/rag/ask` map
+  `ModelNotConfigured` to the same answer (no `Retry-After`: retrying won't help). A promotion
+  whose model disappears after it was queued fails at once as `model_not_configured`.
+- **Waiting work:** migration `0020_model_wait` adds `derivative_status.WAITING_FOR_MODEL` and the
+  `model_wait` table (subject id, owner id, purpose, task: ids only, no RLS, like the vector
+  outbox). No database role bypasses RLS, so this table is how the resume task finds work across
+  members. Image descriptions without a vision model (also `.env` mode's
+  `UnavailableVisionEngine`) and index jobs without an embedding model are parked there instead
+  of failing or retrying.
+- **Resume:** `workers/waiting.ModelWaitResumer` (task `index.resume_waiting`, worker-core) runs
+  every 60 s from beat and right after an admin activates or rolls back a revision or clears a
+  provider (`ProcessingQueue.model_config_changed`). For each purpose that now has a model it
+  flips waiting derivatives back to PENDING in the owner's RLS session, sends the task again and
+  deletes the row (send first: a lost delete only means a harmless second send). Gauge
+  `model_wait_backlog{purpose}`.
+- **Frontend:** `useCapabilities`/`useFeature`, a shared `ModelMissing` notice; the chat, the
+  notebook question form, the promotion dialog and „Rozpoznaj” are disabled with it when their
+  feature is off; materials show „Czeka na model AI” (no polling while waiting); `/admin/llm`
+  shows „Brakujące modele”. Texts that promised "local only" now say "models cleared for
+  private data".
+- **Deferred to 10.3:** starting without `LLM_EMBED_DIM` and creating collections lazily belong to
+  the versioned collections, which record each version's dimension.
+- **Tests:** unit (gateway, capabilities, vision waits), integration (an image waits and resumes
+  only once a vision model is configured; index job parked; `/capabilities`; 503s; admin
+  `missing_purposes`); Vitest (chat off, waiting material, admin card, error mapping). The default
+  test settings now name three placeholder models so features are on; no test calls them.

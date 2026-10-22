@@ -1110,6 +1110,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/capabilities": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Capabilities */
+        get: operations["get_capabilities_capabilities_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/healthz": {
         parameters: {
             query?: never;
@@ -1971,6 +1988,13 @@ export interface components {
             /** Signature */
             signature: string;
         };
+        /** CapabilitiesOut */
+        CapabilitiesOut: {
+            /** Features */
+            features: {
+                [key: string]: boolean;
+            };
+        };
         /** ChainBreakOut */
         ChainBreakOut: {
             /** Id */
@@ -2231,7 +2255,7 @@ export interface components {
          * DerivativeStatus
          * @enum {string}
          */
-        DerivativeStatus: "PENDING" | "PROCESSING" | "DONE" | "FAILED" | "QUARANTINED";
+        DerivativeStatus: "PENDING" | "PROCESSING" | "DONE" | "FAILED" | "QUARANTINED" | "WAITING_FOR_MODEL";
         /** DisableIn */
         DisableIn: {
             /** Disabled */
@@ -3576,6 +3600,8 @@ export interface components {
             egress_proxy: boolean;
             /** Local Endpoints */
             local_endpoints: string[];
+            /** Missing Purposes */
+            missing_purposes: components["schemas"]["LlmRoutePurpose"][];
             /** Private Data Endpoints */
             private_data_endpoints: string[];
             /** Probe Max Age Hours */
@@ -6072,6 +6098,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_capabilities_capabilities_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CapabilitiesOut"];
                 };
             };
         };

@@ -2,7 +2,8 @@
 
 Records every call and enforces the private-data rule like the real gateway, **plus** that
 callers pass ``private_data=True`` explicitly for sensitive purposes (AGENTS.md §3 rule 4).
-``local_available=False`` plays "no cleared model reachable".
+``local_available=False`` plays "no cleared model reachable"; ``configured=False`` plays "no
+model configured for the purpose at all" (10.2).
 """
 
 from __future__ import annotations
@@ -17,6 +18,7 @@ from spoldzielnia_ai.llm.gateway import (
     PRIVATE_PURPOSES,
     LLMPurpose,
     LLMResult,
+    ModelNotConfigured,
     ModelRejected,
     ModelUnavailable,
 )
@@ -82,6 +84,7 @@ def hash_embedding(text: str, dim: int = EMBED_DIM) -> list[float]:
 class FakeLLMGateway:
     reply: Callable[[Call], str] = echo_article
     local_available: bool = True
+    configured: bool = True
     rejects: bool = False  # the server answers 4xx (ModelRejected)
     calls: list[Call] = field(default_factory=list[Call])
     embed_dim: int = EMBED_DIM
@@ -100,6 +103,8 @@ class FakeLLMGateway:
             assert private_data, f"{purpose} must be called with private_data=True"
         call = Call(list(messages), purpose, private_data, response_model)
         self.calls.append(call)
+        if not self.configured:
+            raise ModelNotConfigured(purpose)
         if not self.local_available:
             raise ModelUnavailable("fake: no cleared model")
         if self.rejects:
@@ -115,6 +120,8 @@ class FakeLLMGateway:
             "embeddings must be called with private_data=True"
         )
         self.embedded.extend(texts)
+        if not self.configured:
+            raise ModelNotConfigured(purpose)
         if not self.local_available:
             raise ModelUnavailable("fake: no cleared model")
         if self.embedding is not None:

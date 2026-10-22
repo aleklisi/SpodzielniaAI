@@ -62,6 +62,7 @@ class DerivativeStatus(StrEnum):
     DONE = "DONE"
     FAILED = "FAILED"
     QUARANTINED = "QUARANTINED"  # 3.3: injection score above threshold
+    WAITING_FOR_MODEL = "WAITING_FOR_MODEL"  # 10.2: resumes once a model is configured
 
 
 class PromotionStatus(StrEnum):

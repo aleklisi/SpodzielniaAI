@@ -8,7 +8,9 @@ import { SafeMarkdown } from "@/components/markdown/SafeMarkdown";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { cn } from "@/components/ui/cn";
+import { ModelMissing } from "@/components/ui/ModelMissing";
 import { loginUrl, NotAuthenticated } from "@/lib/api";
+import { isModelMissing, MODEL_MISSING, useFeature } from "@/lib/capabilities";
 import { askCooperative, type Ask, type Citation, type RagAnswer } from "@/lib/chat";
 import { solveInBackground } from "@/lib/pow";
 
@@ -34,6 +36,7 @@ export function ChatView({ ask = askCooperative, solve = solveInBackground }: { 
   const [turns, setTurns] = useState<Turn[]>([]);
   const [question, setQuestion] = useState("");
   const [locked, setLocked] = useState(false);
+  const available = useFeature("wiki_answers");
   const nextId = useRef(0);
   const busy = turns.some((t) => t.state === "asking" || t.state === "solving");
 
@@ -77,7 +80,10 @@ export function ChatView({ ask = askCooperative, solve = solveInBackground }: { 
         window.location.assign(loginUrl("/chat"));
         return;
       }
-      update(id, { id, question: text, state: "error", message: "Nie udało się uzyskać odpowiedzi. Spróbuj ponownie za chwilę." });
+      const message = isModelMissing(error)
+        ? `${MODEL_MISSING}: odpowiedzi spółdzielni są wyłączone.`
+        : "Nie udało się uzyskać odpowiedzi. Spróbuj ponownie za chwilę.";
+      update(id, { id, question: text, state: "error", message });
     }
   }
 
@@ -100,6 +106,7 @@ export function ChatView({ ask = askCooperative, solve = solveInBackground }: { 
           Odpowiedzi powstają wyłącznie na podstawie artykułów zatwierdzonych przez Radę Ekspertów, zawsze ze źródłami.
         </p>
       </div>
+      {!available && <ModelMissing what="Zadawanie pytań spółdzielni" />}
       <ol className="flex flex-col gap-6" aria-label="Rozmowa">
         {turns.map((turn) => (
           <li key={turn.id} className="flex flex-col gap-3">
@@ -131,7 +138,7 @@ export function ChatView({ ask = askCooperative, solve = solveInBackground }: { 
           <span>
             {question.length}/{MAX_CHARS}
           </span>
-          <Button type="submit" busy={busy} disabled={question.trim().length < 3}>
+          <Button type="submit" busy={busy} disabled={!available || question.trim().length < 3}>
             Zapytaj
           </Button>
         </div>

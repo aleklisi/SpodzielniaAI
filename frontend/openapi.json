@@ -610,6 +610,22 @@
         "title": "CanaryOut",
         "type": "object"
       },
+      "CapabilitiesOut": {
+        "properties": {
+          "features": {
+            "additionalProperties": {
+              "type": "boolean"
+            },
+            "title": "Features",
+            "type": "object"
+          }
+        },
+        "required": [
+          "features"
+        ],
+        "title": "CapabilitiesOut",
+        "type": "object"
+      },
       "ChainBreakOut": {
         "properties": {
           "id": {
@@ -1349,7 +1365,8 @@
           "PROCESSING",
           "DONE",
           "FAILED",
-          "QUARANTINED"
+          "QUARANTINED",
+          "WAITING_FOR_MODEL"
         ],
         "title": "DerivativeStatus",
         "type": "string"
@@ -5211,6 +5228,13 @@
             "title": "Local Endpoints",
             "type": "array"
           },
+          "missing_purposes": {
+            "items": {
+              "$ref": "#/components/schemas/LlmRoutePurpose"
+            },
+            "title": "Missing Purposes",
+            "type": "array"
+          },
           "private_data_endpoints": {
             "items": {
               "type": "string"
@@ -5249,7 +5273,8 @@
           "probe_max_age_hours",
           "active_revision",
           "process_revision",
-          "purposes"
+          "purposes",
+          "missing_purposes"
         ],
         "title": "StatusOut",
         "type": "object"
@@ -9513,6 +9538,27 @@
         "summary": "Logout",
         "tags": [
           "auth"
+        ]
+      }
+    },
+    "/capabilities": {
+      "get": {
+        "operationId": "get_capabilities_capabilities_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CapabilitiesOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Capabilities",
+        "tags": [
+          "capabilities"
         ]
       }
     },

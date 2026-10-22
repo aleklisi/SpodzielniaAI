@@ -69,6 +69,7 @@ def test_tables_registered() -> None:
         "atlas_region",
         "atlas_review",
         "atlas_export",
+        "model_wait",
     }
 
 
@@ -186,6 +187,7 @@ def test_migrations_form_a_single_linear_history() -> None:
         "0017_atlas_export",
         "0018_recognition",
         "0019_provider_clearance",
+        "0020_model_wait",
     ]
 
 
@@ -206,6 +208,7 @@ def test_migration_enum_types_match_python_enums() -> None:
         for e in cast("tuple[SAEnum, ...]", _revision_module(revision).ENUMS)
     }
     migrated["derivative_status"].append("QUARANTINED")  # added by 0005_quarantine
+    migrated["derivative_status"].append("WAITING_FOR_MODEL")  # added by 0020_model_wait
     migrated["derivative_kind"].append("ANNOTATIONS")  # added by 0015_image_annotation
     migrated["derivative_kind"].append("RECOGNITION")  # added by 0018_recognition
     assert migrated == {name: [m.value for m in enum] for enum, name in PG_ENUM_NAMES.items()}

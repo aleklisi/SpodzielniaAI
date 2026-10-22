@@ -44,6 +44,7 @@ export const DERIVATIVE_STATUS: Record<string, string> = {
   DONE: "Gotowe",
   FAILED: "Błąd przetwarzania",
   QUARANTINED: "Kwarantanna",
+  WAITING_FOR_MODEL: "Czeka na model AI",
 };
 
 export function uploadError(code: string | undefined, status: number): string {

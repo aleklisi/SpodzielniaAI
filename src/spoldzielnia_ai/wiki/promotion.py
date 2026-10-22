@@ -55,6 +55,7 @@ from spoldzielnia_ai.llm.gateway import (
     LLMError,
     LLMOutputInvalid,
     LLMPurpose,
+    ModelNotConfigured,
     ModelRejected,
     ModelUnavailable,
 )
@@ -249,6 +250,9 @@ class PromotionProcessor:
                 private_data=True,
                 response_model=ArticleDraft,
             )
+        except ModelNotConfigured:  # 10.2: retrying won't help, nothing else is tried (P5)
+            await self._fail(job, "model_not_configured", injection)
+            return False
         except ModelUnavailable:
             if final_attempt:
                 await self._fail(job, "model_unavailable", injection)

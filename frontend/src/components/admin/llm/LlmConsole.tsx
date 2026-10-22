@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Card } from "@/components/ui/Card";
 import { cn } from "@/components/ui/cn";
 import { StepUpRequired } from "@/lib/api";
-import { useLlmStatus, useModels, useProviders, useRevisions } from "@/lib/llm-admin";
+import { PURPOSES, useLlmStatus, useModels, useProviders, useRevisions, type LlmStatus } from "@/lib/llm-admin";
 
 const TABS = [
   { key: "routing", label: "Przypisania" },
@@ -69,6 +69,8 @@ export function LlmConsole() {
         </div>
       </div>
 
+      <MissingModels status={s} />
+
       <div role="tablist" aria-label="Sekcje" className="flex flex-wrap gap-1 border-b border-border">
         {TABS.map((t) => (
           <button
@@ -99,5 +101,26 @@ export function LlmConsole() {
         {tab === "history" && <HistoryPanel revisions={revisions.data} />}
       </section>
     </div>
+  );
+}
+
+/** Purposes without a usable model: their features are off for everyone (10.2). */
+export function MissingModels({ status }: { status: LlmStatus }) {
+  if (status.missing_purposes.length === 0) return null;
+  return (
+    <Card role="region" aria-label="Brakujące modele" className="flex flex-col gap-2 border-warn text-sm">
+      <h2 className="font-medium">Brakujące modele</h2>
+      <p className="text-text-muted">
+        Te zastosowania nie mają modelu, więc ich funkcje są wyłączone dla wszystkich. Materiały członków czekają i zostaną
+        przetworzone automatycznie po aktywacji konfiguracji z odpowiednim modelem.
+      </p>
+      <ul className="list-disc pl-5">
+        {status.missing_purposes.map((p) => (
+          <li key={p}>
+            {PURPOSES[p].label} <span className="text-text-muted">— {PURPOSES[p].hint}</span>
+          </li>
+        ))}
+      </ul>
+    </Card>
   );
 }

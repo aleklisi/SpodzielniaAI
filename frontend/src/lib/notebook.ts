@@ -22,7 +22,8 @@ export const keys = {
   promotion: (id: string) => ["promotions", id] as const,
 };
 
-const TERMINAL = new Set(["DONE", "FAILED", "QUARANTINED"]);
+// WAITING_FOR_MODEL resumes only after an admin configures a model (10.2): no polling meanwhile.
+const TERMINAL = new Set(["DONE", "FAILED", "QUARANTINED", "WAITING_FOR_MODEL"]);
 
 export function isProcessing(derivatives: Derivative[]): boolean {
   return derivatives.some((d) => !TERMINAL.has(d.status));

@@ -13,6 +13,9 @@ upsert happens inside one that holds ``FOR SHARE`` locks on the article and its 
 payload comes from those locked rows. Consent and review changes take ``FOR UPDATE`` on the
 same rows and apply their Qdrant operation only after they commit, so they always land after
 this upsert, never before it.
+
+Without an embedding model (``ModelNotConfigured``, 10.2) a job is parked in ``model_wait``
+and sent again once one is configured, instead of retrying or failing.
 """
 
 from __future__ import annotations
@@ -26,7 +29,7 @@ from spoldzielnia_ai.core.logging import get_logger
 from spoldzielnia_ai.db.enums import ArticleStatus, ConsentStatus, DerivativeStatus
 from spoldzielnia_ai.db.models import ArticleBlock, NoteDerivative, WikiArticle
 from spoldzielnia_ai.db.rls import rls_session
-from spoldzielnia_ai.llm.gateway import LLMError, ModelUnavailable
+from spoldzielnia_ai.llm.gateway import LLMError, LLMPurpose, ModelNotConfigured, ModelUnavailable
 from spoldzielnia_ai.notebook.service import DERIVATIVE
 from spoldzielnia_ai.vector.chunking import chunk_text
 from spoldzielnia_ai.vector.repositories import (
@@ -36,6 +39,8 @@ from spoldzielnia_ai.vector.repositories import (
     PrivateChunk,
     PrivateVectorRepo,
 )
+from spoldzielnia_ai.workers.jobs import TaskName
+from spoldzielnia_ai.workers.waiting import park
 
 if TYPE_CHECKING:
     from qdrant_client import AsyncQdrantClient
@@ -93,6 +98,15 @@ class Indexer:
         chunks = chunk_text(text)
         try:
             vectors = await self._embedder.embed(chunks)
+        except ModelNotConfigured:
+            await park(
+                self._factory,
+                job.derivative_id,
+                job.owner_id,
+                LLMPurpose.EMBED.value,
+                TaskName.INDEX_DERIVATIVE,
+            )
+            return False
         except ModelUnavailable:
             return not final_attempt
         except LLMError as exc:
@@ -129,6 +143,11 @@ class Indexer:
         ids = list(snapshot)
         try:
             embedded = await self._embedder.embed([snapshot[i] for i in ids])
+        except ModelNotConfigured:
+            await park(
+                self._factory, job.article_id, None, LLMPurpose.EMBED.value, TaskName.INDEX_ARTICLE
+            )
+            return False
         except ModelUnavailable:
             return not final_attempt
         except LLMError as exc:

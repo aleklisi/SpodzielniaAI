@@ -117,6 +117,7 @@ async def test_first_visit_shows_the_env_configuration_as_revision_one(h: Harnes
     assert status["allow_cloud"] is False
     assert status["local_endpoints"] == ["http://llm:11434", "http://vllm:8000"]
     assert status["private_data_endpoints"] == ["http://llm:11434", "http://vllm:8000"]
+    assert status["missing_purposes"] == ["VLM"]  # .env has no vision model (10.2)
     private = {p["purpose"]: p["private_data"] for p in status["purposes"]}
     assert private == {
         "PII_SCRUB": True,

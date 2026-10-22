@@ -15,11 +15,12 @@ from typing import TYPE_CHECKING
 from spoldzielnia_ai.llm.gateway import (
     LLMError,
     LLMPurpose,
+    ModelNotConfigured,
     ModelRejected,
     ModelUnavailable,
 )
 from spoldzielnia_ai.llm.prompts import IMAGE_DESCRIPTION
-from spoldzielnia_ai.workers.engines.base import PermanentError, TransientError
+from spoldzielnia_ai.workers.engines.base import PermanentError, TransientError, WaitingForModel
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -31,8 +32,10 @@ MAX_SIDE = 1280
 
 
 class UnavailableVisionEngine:
+    """``.env`` mode without a vision model: wait for one (10.2) instead of failing."""
+
     def extract(self, path: Path, mime_type: str) -> str:
-        raise PermanentError("vision_unavailable")
+        raise WaitingForModel(LLMPurpose.VLM.value)
 
 
 def image_data_url(path: Path) -> str:
@@ -68,6 +71,8 @@ class GatewayVisionEngine:
                     [messages[0], user], purpose=LLMPurpose.VLM, private_data=True
                 )
             )
+        except ModelNotConfigured as exc:
+            raise WaitingForModel(LLMPurpose.VLM.value) from exc
         except ModelUnavailable as exc:
             raise PermanentError("vision_unavailable") from exc
         except ModelRejected as exc:

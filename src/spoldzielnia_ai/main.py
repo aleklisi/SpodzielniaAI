@@ -24,6 +24,7 @@ from spoldzielnia_ai.api.atlas_labels import router as atlas_labels_router
 from spoldzielnia_ai.api.atlas_review import router as atlas_review_router
 from spoldzielnia_ai.api.attachments import router as attachments_router
 from spoldzielnia_ai.api.auth import router as auth_router
+from spoldzielnia_ai.api.capabilities import router as capabilities_router
 from spoldzielnia_ai.api.contributions import router as contributions_router
 from spoldzielnia_ai.api.links import router as links_router
 from spoldzielnia_ai.api.me import router as me_router
@@ -144,6 +145,7 @@ def create_app(
     app.state.notifier = make_notifier(settings.shield)
     app.include_router(auth_router)
     app.include_router(me_router)
+    app.include_router(capabilities_router)
     app.include_router(atlas_contributions_router)  # /me/contributions/atlas…
     app.include_router(contributions_router)
     app.include_router(promote_router)  # before /notes/{note_id}

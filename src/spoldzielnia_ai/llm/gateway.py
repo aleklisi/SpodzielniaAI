@@ -99,6 +99,17 @@ class ModelUnavailable(LLMError):
     failed. Worth retrying later."""
 
 
+class ModelNotConfigured(ModelUnavailable):
+    """No usable model for ``purpose`` at all (none routed, none cleared for private data, or
+    the cloud ceiling forbids it), as opposed to a configured model that is down (10.2).
+    Callers turn the feature off or park the work until an admin configures one (P5);
+    retrying soon won't help."""
+
+    def __init__(self, purpose: LLMPurpose) -> None:
+        super().__init__(f"no model configured for {purpose.value}")
+        self.purpose = purpose
+
+
 class ModelRejected(LLMError):
     """The model server refused the request (4xx): retrying the same request won't help."""
 
@@ -485,6 +496,16 @@ class LiteLLMGateway:
             self._transport_config = self._config
         return self._transport
 
+    def configured(self, purpose: LLMPurpose, private_data: bool = False) -> bool:
+        """Whether ``purpose`` has a usable deployment in the current configuration (no call,
+        no metrics). ``refresh()`` first for an up-to-date answer."""
+        private = private_data or purpose in PRIVATE_PURPOSES
+        name = self._config.routes.get(purpose)
+        deployment = self._config.deployments.get(name) if name is not None else None
+        if deployment is None or (not deployment.local and not self._settings.allow_cloud):
+            return False
+        return deployment.cleared or not private
+
     def route(self, purpose: LLMPurpose, private_data: bool) -> Deployment:
         private = private_data or purpose in PRIVATE_PURPOSES
         name = self._config.routes.get(purpose)
@@ -504,9 +525,7 @@ class LiteLLMGateway:
             )
             deployment = None
         if deployment is None:
-            if private:
-                raise ModelUnavailable(f"no cleared deployment for {purpose.value}")
-            raise LLMError(f"no deployment for {purpose.value}")
+            raise ModelNotConfigured(purpose)
         return deployment
 
     @overload

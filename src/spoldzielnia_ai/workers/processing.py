@@ -8,7 +8,8 @@
 
 Failures: ``PermanentError`` → FAILED with a code (shown to the user) + ``PROCESSING_FAILED``
 audit. ``TransientError`` → retried with backoff by the caller. After the last attempt it
-becomes FAILED ``retries_exhausted``.
+becomes FAILED ``retries_exhausted``. ``WaitingForModel`` (10.2) → WAITING_FOR_MODEL plus a
+``model_wait`` row; ``workers.waiting`` sends the job again once the purpose has a model.
 """
 
 from __future__ import annotations
@@ -36,7 +37,8 @@ from spoldzielnia_ai.net.safe_fetch import FetchFailed, SsrfBlocked
 from spoldzielnia_ai.net.to_markdown import to_markdown
 from spoldzielnia_ai.notebook.service import ATTACHMENT, DERIVATIVE
 from spoldzielnia_ai.notebook.uploads import UploadRejected
-from spoldzielnia_ai.workers.engines.base import PermanentError, TransientError
+from spoldzielnia_ai.workers.engines.base import PermanentError, TransientError, WaitingForModel
+from spoldzielnia_ai.workers.waiting import park_derivative
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
@@ -116,6 +118,9 @@ class DerivativeProcessor:
             content, attachment_id, document = await self._produce(source)
         except PermanentError as exc:
             await self._fail(source, exc.code)
+            return False
+        except WaitingForModel as exc:
+            await park_derivative(self._factory, source.derivative_id, source.owner_id, exc.purpose)
             return False
         except TransientError as exc:
             if final_attempt:

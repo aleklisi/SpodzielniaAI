@@ -168,7 +168,7 @@ configurable and provided over an API: a model run locally (e.g. in LM Studio) o
 
 - **Source:** product owner request, 2026-10-22 (refinement session, after a hosting question
   about a GPU-less VPS and Mistral's API).
-- **Status:** IN PROGRESS (10.1 done 2026-10-22).
+- **Status:** IN PROGRESS (10.1–10.2 done 2026-10-22).
 - **Plan:** [docs/implementation/10_MODEL_PROVIDERS_API.md](implementation/10_MODEL_PROVIDERS_API.md)
 - **Refinement decisions:** private data goes only to providers an admin has cleared for it
   (operator env list as the ceiling; replaces "local only" in AGENTS.md rule 4); image
