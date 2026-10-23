@@ -127,12 +127,15 @@ CMD ["api"]
 | File | Purpose |
 |---|---|
 | `compose.yaml` | Base stack, prod-like defaults, no published ports except proxy |
-| `compose.dev.yaml` | Mac dev: `build:` contexts, `develop.watch` hot reload, debug ports on `127.0.0.1`, Keycloak `start-dev`, test realm users, Mailpit, `llm` = proxy to host Ollama |
+| `compose.dev.yaml` | Mac dev: `build:` contexts, `develop.watch` hot reload, debug ports on `127.0.0.1`, Keycloak `start-dev`, test realm users, Mailpit, `llm-relay` always on (to the Mac's LM Studio/Ollama), built-in engines on |
 | `compose.prod.yaml` | Linux server: `image:` tags from registry (no build), ACME TLS, `restart: unless-stopped`, resource limits, log rotation, `llm` = Ollama container |
 | `compose.gpu.yaml` | NVIDIA GPU reservations for `llm` and `worker-media` (Linux only) |
 | `docker-bake.hcl` | Build all targets; multi-arch `linux/amd64,linux/arm64` |
 
-Profiles: `tools` (`models-init`, `mailpit`), `ops` (`backup`), `observability` (optional later).
+Profiles: `tools` (`models-init`, `mailpit`), `ops` (`backup`), `observability` (optional later),
+and since Stage 10 (10.7) the optional model servers: `ollama` (`llm`, an Ollama container) and
+`relay` (`llm-relay`, a TCP relay to `LLM_RELAY_TARGET`). **Without either, the stack runs no model
+at all**; every model is a provider configured in `/admin/llm` (see §6.1).
 
 Usage (wrapped in `Makefile`):
 ```bash
@@ -149,9 +152,9 @@ make deploy VERSION=v1.0.0   # prod: pull, migrate, up (run on server)
 | `frontend` | spoldzielnia/frontend | edge | — | — |
 | `api` | spoldzielnia/api | edge, backend | migrate ✔, redis, qdrant, minio, clamav | — |
 | `migrate` | spoldzielnia/api `migrate` | backend | postgres | — (one-shot) |
-| `bootstrap` | spoldzielnia/api `bootstrap` | backend | migrate ✔, qdrant, minio | — (one-shot: buckets, Qdrant collections) |
-| `worker-core` | spoldzielnia/worker-core | backend | redis, postgres, llm | `models:ro` |
-| `worker-media` | spoldzielnia/worker-media | backend | redis, postgres, minio, llm | `models:ro` |
+| `bootstrap` | spoldzielnia/api `bootstrap` | backend | migrate ✔, minio | — (one-shot: buckets; Qdrant collections are created per index generation by worker-core) |
+| `worker-core` | spoldzielnia/worker-core | backend, llm-cloud | redis, postgres, qdrant | `models:ro` |
+| `worker-media` | spoldzielnia/worker-media | backend, llm-cloud | redis, postgres, minio | `models:ro` |
 | `worker-egress` | spoldzielnia/api `worker -Q egress.fetch` | backend, egress | redis | — |
 | `beat` | spoldzielnia/api `beat` | backend | redis | — |
 | `postgres` | postgres:16 | backend | — | `pgdata` |
@@ -160,8 +163,10 @@ make deploy VERSION=v1.0.0   # prod: pull, migrate, up (run on server)
 | `minio` | minio/minio | backend | — | `miniodata` |
 | `clamav` | clamav/clamav | backend (+ egress for `freshclam` updates) | — | `clamavdb` |
 | `keycloak` | keycloak | public, backend | postgres | — (state in Postgres DB `keycloak`) |
-| `llm` | dev: `alpine/socat` → host Ollama · prod: `ollama/ollama` | backend (+ `host-llm` bridge in dev only) | — | `ollama` (prod) |
-| `models-init` | spoldzielnia/worker-media `models download` | egress | — | `models` (rw) |
+| `llm` (profile `ollama`) | `ollama/ollama` | backend | — | `ollama` |
+| `llm-relay` (profile `relay`; always in dev) | `alpine/socat` → `LLM_RELAY_TARGET` (dev: the Mac's LM Studio) | backend (alias `llm`), `llm-relay` (dev: `llmhost`) | — | — |
+| `llm-egress` | spoldzielnia/api `llm-egress` | llm-cloud, egress | — | — |
+| `models-init` (profile `tools`) | spoldzielnia/worker-media `models download` | egress | — | `models` (rw) |
 
 ✔ = `condition: service_completed_successfully`. All others use `condition: service_healthy`.
 
@@ -227,21 +232,74 @@ make deploy VERSION=v1.0.0   # prod: pull, migrate, up (run on server)
 
 ---
 
-## 6. Models & Local LLM (Mac vs Linux)
+## 6. Models (Stage 10: every model over a configurable API)
 
-| Concern | Mac dev | Linux prod |
+No model is required to start the stack. Admins add providers and route purposes in
+`/admin/llm`: an OpenAI-compatible server (LM Studio, Ollama, vLLM, llama.cpp, a whisper server,
+an embedding server) or a cloud API on `LLM_CLOUD_HOSTS`. Private purposes go only to providers
+cleared for private data within `LLM_PRIVATE_DATA_ENDPOINTS` (AGENTS.md rule 4). Cloud calls of
+the api and the workers leave only through `llm-egress`.
+
+| Where the models run | How |
+|---|---|
+| Mac dev | LM Studio/Ollama on the Mac (Metal GPU); `llm-relay` makes it `http://llm:11434` inside the stack |
+| A GPU machine elsewhere (e.g. over WireGuard/Tailscale) | `--profile relay`, `LLM_RELAY_TARGET=10.8.0.2:1234` |
+| The same Linux server | `--profile ollama` (GPU via `compose.gpu.yaml`) |
+| Cloud | providers in `/admin/llm` (e.g. Mistral in the EU), cleared for private data only with a DPA |
+
+**Built-in engines (optional):** the prompt-injection classifier and spaCy `pl_core_news_lg` are
+always built in (CPU). faster-whisper, Docling's layout/OCR models and SigLIP are opt-in:
+`make models WHISPER=1 DOCLING_OCR=1 SIGLIP=1` downloads them (pinned revisions + SHA-256), then
+`LLM_BUILTIN_TRANSCRIPTION`, `LLM_BUILTIN_OCR`, `LLM_BUILTIN_IMAGE_EMBED=true` turn them on (dev
+defaults to on). A routed API model always takes precedence; a built-in engine is never a
+fallback after an API failure. Workers run with `HF_HUB_OFFLINE=1` and read `/models` read-only.
+
+**Docker Desktop resources (Mac, dev with built-in engines):** allocate ≥ 8 GB RAM (12 GB
+recommended) and ≥ 60 GB disk; the models themselves run in LM Studio on the host.
+
+### 6.1 API-only profile (small VPS, no GPU)
+
+The default compose stack with no model server and no built-in engines: every model is an API.
+Memory limits drop to `WORKER_MEDIA_MEM_LIMIT=1g` and `WORKER_CORE_MEM_LIMIT=2560m` (the
+defaults).
+
+**Measured (2026-10-23, Docker Desktop on Apple silicon, built-in engines off):** idle right after
+start, and the peak of each container (`docker stats`, sampled continuously) during the full
+Playwright suite (uploads, notebook questions, promotion, review, atlas, admin). Models ran in
+LM Studio outside the stack, as an API would.
+
+| Container | Idle | Peak |
 |---|---|---|
-| Chat/VLM/embeddings | **Native Ollama on macOS** (Metal GPU). The `llm` service is a socat proxy to `host.docker.internal:11434`, so containers always call `http://llm:11434` | `ollama/ollama` container on `backend`, GPU via `compose.gpu.yaml` |
-| Model sizes | small (e.g. Bielik 4.5B / Qwen2.5-3B, `bge-m3`), whisper `small` int8 | Bielik 11B (or similar), whisper `large-v3` |
-| Whisper / Docling / LLM-Guard weights | `models` volume filled by `make models` (`models-init`, profile `tools`) | same, pinned revisions + SHA-256 |
-| spaCy `pl_core_news_lg` | wheel locked in `uv.lock`, baked into `worker-core` image | same |
+| worker-core (injection classifier, spaCy, indexing, promotion) | 193 MiB | 1810 MiB |
+| api | 150 MiB | 591 MiB |
+| keycloak | 492 MiB | 537 MiB |
+| worker-media (decoding, splitting, parsing) | 160 MiB | 424 MiB |
+| qdrant | 356 MiB | 384 MiB |
+| clamav | 221 MiB | 254 MiB |
+| worker-egress | 169 MiB | 169 MiB |
+| frontend | 91 MiB | 129 MiB |
+| minio | 110 MiB | 120 MiB |
+| postgres | 40 MiB | 94 MiB |
+| proxy, llm-egress, beat, redis, relay, caddy-ca | 165 MiB | 213 MiB |
+| **Sum** | **≈ 2.2 GB** | **≈ 4.7 GB** (per-container peaks added, an upper bound) |
 
-Docker Desktop on macOS **has no GPU passthrough**. That's why dev uses host Ollama. The proxy
-design means the app config is identical in both environments. Workers run with
-`HF_HUB_OFFLINE=1`, `TRANSFORMERS_OFFLINE=1` and read models from `/models` (read-only).
+ClamAV briefly needs about twice its signature memory while `freshclam` reloads the database;
+the measurement includes no reload. The 6 GB target of §3.8 holds with that margin.
 
-**Docker Desktop resources (Mac):** allocate **≥ 12 GB RAM** (16 GB recommended) and ≥ 60 GB disk.
-Rough usage: ClamAV 1.5–3 GB, worker-core 2–3 GB, worker-media 2–4 GB, Keycloak ~0.8 GB, rest ~1.5 GB.
+**Target hosts:** an 8 GB VPS without GPU (e.g. Mikrus 4.1 PRO) fits this profile with headroom
+for the OS and Docker. Caveats for such hosts:
+- **LXC-based VPS:** Docker inside an LXC container needs nesting (and often `keyctl`) enabled
+  by the provider; overlayfs may be unavailable (fall back to `fuse-overlayfs` or `vfs`, slower
+  and larger). `read_only` containers, `cap_drop: ALL` and tmpfs mounts work as usual. Check
+  that `docker run --rm hello-world` works before installing.
+- **Shared IPv4:** hosts that share one IPv4 address between customers forward only a few high
+  ports to each machine, so 80/443 are not reachable over IPv4. Serve over IPv6 (AAAA records)
+  or put a proxy/tunnel in front (the provider's HTTP proxy, Cloudflare Tunnel) that terminates
+  on the machine's forwarded port; set `SITE_DOMAIN` and the Keycloak hostname to the public
+  names. ACME HTTP-01 needs port 80 on the public name: use DNS-01 or the proxy's certificate
+  otherwise.
+- **Cloud providers:** add their hosts to `LLM_CLOUD_HOSTS`, `LLM_ALLOW_CLOUD=true`, and (with a
+  DPA) to `LLM_PRIVATE_DATA_ENDPOINTS` before an admin clears them for private data.
 
 ---
 
@@ -267,8 +325,9 @@ x-hardening: &hardening
 
 ## 8. Development Workflow on macOS
 
-1. `brew install --cask docker` (or OrbStack), `brew install uv ollama mkcert`, then `ollama pull <dev models>`.
-2. `make secrets && make up && make trust-cert && make models`.
+1. `brew install --cask docker` (or OrbStack), `brew install uv mkcert`, and LM Studio (or Ollama)
+   with the dev models loaded.
+2. `make secrets && make up && make trust-cert && make models WHISPER=1 DOCLING_OCR=1 SIGLIP=1`.
 3. Open `https://spoldzielnia.localhost`. Log in with Keycloak test users (`member1`, `expert1` …).
 4. `make watch`: `docker compose watch` syncs `src/` (uvicorn `--reload`) and `frontend/` (`next dev`).
    This is faster on macOS than bind mounts.

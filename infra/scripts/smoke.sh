@@ -14,6 +14,7 @@ pass=0 fail=0
 ok()   { echo "  ✔ $*"; pass=$((pass + 1)); }
 bad()  { echo "  ✘ $*"; fail=$((fail + 1)); }
 check() { local desc="$1"; shift; if "$@" >/dev/null 2>&1; then ok "$desc"; else bad "$desc"; fi; }
+skip() { echo "  - $* (skipped)"; }
 check_not() { local desc="$1"; shift; if "$@" >/dev/null 2>&1; then bad "$desc"; else ok "$desc"; fi; }
 
 # Caddy's local root CA (dev). In prod, public certificates are used and CA_ARGS stays empty.
@@ -177,8 +178,16 @@ try:
 except urllib.error.HTTPError:
     pass  # 401 from LM Studio without a token still proves the relay reaches the server
 '
-check "worker-core reaches the local LLM endpoint (llm:11434)" \
-  "${COMPOSE[@]}" exec -T worker-core python -c "$LLM_PY"
+# 10.7: no model server unless a profile (ollama, relay) or the dev file starts one.
+DEFAULT_SERVICES="$(docker compose -f compose.yaml config --services)"
+if ! grep -qx -e llm -e llm-relay <<< "$DEFAULT_SERVICES"; then
+  ok "the default stack runs no model server (profiles: ollama, relay)"
+else bad "the default stack runs no model server (profiles: ollama, relay)"; fi
+RUNNING="$("${COMPOSE[@]}" ps --services --status running)"
+if grep -qx -e llm -e llm-relay <<< "$RUNNING"; then
+  check "worker-core reaches the local model endpoint (llm:11434)" \
+    "${COMPOSE[@]}" exec -T worker-core python -c "$LLM_PY"
+else skip "no local model server running"; fi
 check_not "worker-core has no internet access" "${COMPOSE[@]}" exec -T worker-core python -c "$OUT"
 EGRESS_PY='import socket,sys
 s = socket.create_connection(("llm-egress", 3128), 5)
@@ -188,10 +197,13 @@ check "llm-egress refuses hosts off the cloud allowlist (403)" \
   "${COMPOSE[@]}" exec -T api python -c "$EGRESS_PY" example.org:443 403
 check "llm-egress refuses the backend network (403)" \
   "${COMPOSE[@]}" exec -T api python -c "$EGRESS_PY" postgres:5432 403
-check_not "worker-core cannot reach llm-egress" "${COMPOSE[@]}" exec -T worker-core python -c \
+check "worker-core reaches cloud model APIs only via llm-egress (10.7)" \
+  "${COMPOSE[@]}" exec -T worker-core python -c \
   'import socket; socket.create_connection(("llm-egress", 3128), 3).close()'
-check "api reaches the local LLM endpoint (RAG, Stage 5)" \
-  "${COMPOSE[@]}" exec -T api python -c "$LLM_PY"
+if grep -qx -e llm -e llm-relay <<< "$RUNNING"; then
+  check "api reaches the local model endpoint (RAG, Stage 5)" \
+    "${COMPOSE[@]}" exec -T api python -c "$LLM_PY"
+fi
 SHIELD_PY='
 from spoldzielnia_ai.core.settings import Settings
 from spoldzielnia_ai.shield.honeypot import signing_key
@@ -287,7 +299,8 @@ async def main():
     cipher = EnvelopeCipher(StaticKeyProvider(s.security.kek.get_secret_value()))
     store = ImageGenerationStore(create_session_factory(engine), cipher, s.llm, lambda: siglip)
     generation = await store.serving()
-    assert generation is not None and generation.embedder is not None, "no serving atlas model"
+    if generation is None or generation.embedder is None:
+        raise SystemExit(3)  # no image model configured or installed
     a, b, c = await asyncio.to_thread(
         generation.embedder.embed, [pic("red", True), pic("darkred", True), pic("blue", False)])
     dot = lambda u, v: sum(x * y for x, y in zip(u, v))
@@ -299,8 +312,13 @@ async def main():
     await engine.dispose()
 asyncio.run(main())
 '
-check "worker-core: serving atlas generation, its image model separates images, dimension agrees" \
-  "${COMPOSE[@]}" exec -T worker-core python -c "$ATLAS_PY"
+atlas=0
+"${COMPOSE[@]}" exec -T worker-core python -c "$ATLAS_PY" >/dev/null 2>&1 || atlas=$?
+case $atlas in
+  0) ok "worker-core: serving atlas generation, its image model separates images, dimension agrees" ;;
+  3) skip "worker-core: no image model for the atlas" ;;
+  *) bad "worker-core: serving atlas generation, its image model separates images, dimension agrees" ;;
+esac
 # 10.4: speech-to-text through the TRANSCRIBE model configured in /admin/llm (or .env), if any.
 STT_PY='
 import asyncio, sys
@@ -321,7 +339,7 @@ stt=0
 "${COMPOSE[@]}" exec -T worker-media python -c "$STT_PY" >/dev/null 2>&1 || stt=$?
 case $stt in
   0) ok "worker-media: the TRANSCRIBE model reads back a Polish clip" ;;
-  3) echo "  - worker-media: no TRANSCRIBE model configured (speech-to-text API check skipped)" ;;
+  3) skip "worker-media: no TRANSCRIBE model configured (speech-to-text API check)" ;;
   *) bad "worker-media: the TRANSCRIBE model reads back a Polish clip" ;;
 esac
 check "beat: scheduler running" bash -c \

@@ -21,6 +21,13 @@ secrets:
   dev_user_password: { file: ./secrets/dev_user_password }
   dev_totp_seed: { file: ./secrets/dev_totp_seed }
 
+
+# Dev: the built-in engines are on (`make models` installed them); prod defaults to API-only
+# (compose.yaml, 10.7). Turn one off with LLM_BUILTIN_*=false in .env.
+x-dev-builtins: &dev-builtins
+  SPOLDZIELNIA_LLM__BUILTIN_TRANSCRIPTION: ${LLM_BUILTIN_TRANSCRIPTION:-true}
+  SPOLDZIELNIA_LLM__BUILTIN_OCR: ${LLM_BUILTIN_OCR:-true}
+  SPOLDZIELNIA_LLM__BUILTIN_IMAGE_EMBED: ${LLM_BUILTIN_IMAGE_EMBED:-true}
 services:
   postgres:
     networks: [backend, devhost]
@@ -88,6 +95,7 @@ services:
       # The OIDC client reaches the issuer through Caddy, whose dev certificate comes from its
       # local CA. Loaded on first use: the file appears once the proxy is up (caddy-ca).
       SPOLDZIELNIA_OIDC__CA_BUNDLE: /run/caddy-ca/root.crt
+      <<: *dev-builtins
     volumes:
       - caddy_ca:/run/caddy-ca:ro
     develop:
@@ -98,13 +106,14 @@ services:
         - { action: rebuild, path: ./uv.lock }
 
   # Relay to the host's OpenAI-compatible server (LM Studio :1234 or Ollama :11434), so workers
-  # on the internal `backend` network use the Mac's GPU without leaving their network.
-  llm:
-    image: alpine/socat:1.8.0.3@sha256:beb4a68d9e4fe6b0f21ea774a0fde6c31f580dde6368939ed70100c5385b015e
+  # on the internal `backend` network use the Mac's GPU without leaving their network. Always on
+  # in dev (the `relay` profile of compose.yaml, 10.7).
+  llm-relay:
+    profiles: !reset []
     command: ["TCP-LISTEN:11434,fork,reuseaddr", "TCP:host.docker.internal:${LLM_HOST_PORT:-1234}"]
-    networks: !override [backend, llmhost]
-    volumes: !reset []
-    environment: !reset {}
+    networks: !override
+      backend: { aliases: [llm] }
+      llmhost: {}
     extra_hosts: ["host.docker.internal:host-gateway"]
 
   worker-media:
@@ -112,8 +121,11 @@ services:
       context: .
       dockerfile: docker/backend.Dockerfile
       target: worker-media
+    # Built-in Whisper and Docling OCR need the room (prod API-only: 1 GB).
+    mem_limit: ${WORKER_MEDIA_MEM_LIMIT:-4g}
     environment:
       SPOLDZIELNIA_ENVIRONMENT: dev
+      <<: *dev-builtins
     develop:
       watch:
         - { action: rebuild, path: ./src }
@@ -138,8 +150,10 @@ services:
       context: .
       dockerfile: docker/backend.Dockerfile
       target: worker-core
+    mem_limit: ${WORKER_CORE_MEM_LIMIT:-3g}  # the built-in SigLIP
     environment:
       SPOLDZIELNIA_ENVIRONMENT: dev
+      <<: *dev-builtins
     develop:
       watch:
         - { action: rebuild, path: ./src }

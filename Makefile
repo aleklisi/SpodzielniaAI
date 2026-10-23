@@ -31,11 +31,22 @@ revision: ## New migration: make revision REV=0002_rls MSG="row level security"
 	  uv run alembic revision --autogenerate --rev-id "$(REV)" -m "$(MSG)"
 	uv run ruff format src/spoldzielnia_ai/db/migrations/versions
 
-models: ## Download the offline ML models into the `models` volume (internet, one-shot)
+# Optional built-in models (10.7): `make models WHISPER=1 DOCLING_OCR=1 SIGLIP=1`. The prompt-
+# injection classifier is always downloaded. WHISPER=1 takes WHISPER_MODEL (default: small).
+WHISPER ?=
+DOCLING_OCR ?=
+SIGLIP ?=
+WHISPER_MODEL ?= small
+
+models: ## Download offline ML models into the `models` volume (internet; see WHISPER/DOCLING_OCR/SIGLIP)
+	MODELS_WHISPER="$(if $(filter 1 true yes,$(WHISPER)),$(WHISPER_MODEL),)" \
+	MODELS_DOCLING="$(if $(filter 1 true yes,$(DOCLING_OCR)),true,false)" \
+	MODELS_IMAGE_EMBED="$(if $(filter 1 true yes,$(SIGLIP)),true,false)" \
 	$(COMPOSE) --profile tools run --rm --build models-init
+	@echo "Turn on what you installed in .env: LLM_BUILTIN_TRANSCRIPTION / _OCR / _IMAGE_EMBED=true"
 
 models-host: ## Models for host-side `ml` tests (.models: whisper tiny + Docling)
-	uv run spoldzielnia models download --root .models --whisper tiny
+	uv run spoldzielnia models download --root .models --whisper tiny --docling true
 
 reindex: ## Re-embed the text index into a new generation from Postgres, then swap (10.3)
 	$(COMPOSE) run --rm worker-core reindex --yes

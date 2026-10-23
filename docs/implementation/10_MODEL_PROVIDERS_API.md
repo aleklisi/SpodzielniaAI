@@ -576,3 +576,23 @@ reference local one.
   appears, the first generation is built and the parked job resumes); existing atlas tests on
   the new constructors.
 
+### 10.7 — Compose: no model server by default, API-only profile
+- **Model servers are profiles:** `llm` (Ollama) only with `--profile ollama`; new `llm-relay`
+  (socat, `--profile relay`, `LLM_RELAY_TARGET=host:port`, network alias `llm` on `backend`, its
+  own `llm-relay` bridge to reach the target) for LM Studio or Ollama on another machine. Dev
+  always starts the relay to the Mac (`compose.dev.yaml`). The default stack runs no model.
+- **Built-ins opt-in:** `make models` downloads only the prompt-injection classifier;
+  `WHISPER=1` (size `WHISPER_MODEL`), `DOCLING_OCR=1` and `SIGLIP=1` add the optional built-ins
+  (CLI: `--whisper SIZES`, `--docling true|false`, `--image-embed true|false`). The compose
+  defaults of `LLM_BUILTIN_TRANSCRIPTION/_OCR/_IMAGE_EMBED` are now `false` (the api cannot see
+  the workers' volume, so the operator turns on what was installed); dev defaults them to `true`.
+- **Networks:** worker-core joins `llm-cloud` with `SPOLDZIELNIA_LLM__EGRESS_PROXY_URL` (worker-media
+  did in 10.4), so cleared cloud providers serve every purpose; the workers still have no other
+  route out. Smoke: the default compose file defines no model server; both workers reach
+  `llm-egress` and have no internet; checks that need a model are skipped when none is configured.
+- **Memory:** `WORKER_MEDIA_MEM_LIMIT` (default 1g, dev 4g) and `WORKER_CORE_MEM_LIMIT` (default
+  2560m, dev 3g). Measured for the API-only profile during the full Playwright suite: ≈ 2.2 GB
+  idle, ≈ 4.7 GB as the sum of per-container peaks (worker-core 1.8 GB); table in
+  `DEPLOYMENT_DOCKER.md` §6.1 with the LXC and shared-IPv4 caveats. In that run (SigLIP off) the
+  atlas recognition scenario failed as expected: no image model, recognition off.
+

@@ -168,7 +168,7 @@ configurable and provided over an API: a model run locally (e.g. in LM Studio) o
 
 - **Source:** product owner request, 2026-10-22 (refinement session, after a hosting question
   about a GPU-less VPS and Mistral's API).
-- **Status:** IN PROGRESS (10.1–10.3 done 2026-10-22, 10.4–10.6 done 2026-10-23).
+- **Status:** IN PROGRESS (10.1–10.3 done 2026-10-22, 10.4–10.7 done 2026-10-23).
 - **Plan:** [docs/implementation/10_MODEL_PROVIDERS_API.md](implementation/10_MODEL_PROVIDERS_API.md)
 - **Refinement decisions:** private data goes only to providers an admin has cleared for it
   (operator env list as the ceiling; replaces "local only" in AGENTS.md rule 4); image
@@ -188,5 +188,6 @@ configurable and provided over an API: a model run locally (e.g. in LM Studio) o
   6. Members can see which providers process their private data.
 - **Delivery:** `88da0fc` plan · `bf71612` 10.1 clearance trust model · `faa6c3b` 10.2 "not
   configured" and waiting work · `e901b35` 10.3 versioned text index · 10.4 speech-to-text over
-  an API (`879a9ae`) · `3585128` 10.5 documents without models, OCR over an API · 10.6 image embeddings over an
-  API or the built-in SigLIP, the atlas on index generations (this commit).
+  an API (`879a9ae`) · `3585128` 10.5 documents without models, OCR over an API · `05e3eba` 10.6 image embeddings
+  over an API or the built-in SigLIP, the atlas on index generations · 10.7 no model server by
+  default, API-only profile (this commit).

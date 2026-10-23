@@ -167,6 +167,16 @@ def _cmd_llm_egress(_args: argparse.Namespace) -> int:
     return 0
 
 
+def _flag(value: str) -> bool:
+    """``true``/``false`` (also 1/0, yes/no): compose passes the Makefile's choices as text."""
+    lowered = value.strip().lower()
+    if lowered in ("1", "true", "yes"):
+        return True
+    if lowered in ("", "0", "false", "no"):
+        return False
+    raise argparse.ArgumentTypeError(f"expected true or false, got {value!r}")
+
+
 def _cmd_models(args: argparse.Namespace) -> int:
     from pathlib import Path
 
@@ -179,9 +189,9 @@ def _cmd_models(args: argparse.Namespace) -> int:
         models.download_all(
             root,
             sizes,
-            docling=not args.no_docling,
+            docling=args.docling,
             injection=not args.no_injection,
-            image_embed=not args.no_image_embed,
+            image_embed=args.image_embed,
         )
     broken = models.verify(root)
     for path in broken:
@@ -362,13 +372,18 @@ def build_parser() -> argparse.ArgumentParser:
     models_cmd = sub.add_parser("models", help="download or verify offline ML models")
     models_cmd.add_argument("action", choices=["download", "verify"])
     models_cmd.add_argument("--root", default="/models", help="models directory (volume)")
-    models_cmd.add_argument("--whisper", default="small", help="comma-separated sizes")
-    models_cmd.add_argument("--no-docling", action="store_true", help="skip Docling models")
+    # 10.7: only the prompt-injection classifier is needed; the rest are optional built-ins.
     models_cmd.add_argument(
-        "--no-injection", action="store_true", help="skip the prompt-injection classifier"
+        "--whisper", default="", help="built-in speech-to-text: comma-separated sizes (none)"
     )
     models_cmd.add_argument(
-        "--no-image-embed", action="store_true", help="skip the atlas image-embedding model"
+        "--docling", default="false", type=_flag, help="built-in Docling layout/OCR models"
+    )
+    models_cmd.add_argument(
+        "--image-embed", default="false", type=_flag, help="built-in SigLIP for the atlas"
+    )
+    models_cmd.add_argument(
+        "--no-injection", action="store_true", help="skip the prompt-injection classifier"
     )
     models_cmd.set_defaults(handler=_cmd_models)
 

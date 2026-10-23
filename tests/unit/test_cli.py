@@ -34,3 +34,21 @@ def test_honeypot_command_arguments() -> None:
     assert (args.action, args.file, args.count) == ("scan", "leak.txt", 5)
     with pytest.raises(SystemExit):
         build_parser().parse_args(["honeypot", "delete"])
+
+
+def test_models_download_only_the_required_classifier_by_default() -> None:
+    """10.7: the built-in Whisper, Docling and SigLIP models are opt-in."""
+    args = build_parser().parse_args(["models", "download"])
+    assert (args.whisper, args.docling, args.image_embed, args.no_injection) == (
+        "",
+        False,
+        False,
+        False,
+    )
+    # What compose passes through from `make models WHISPER=1 DOCLING_OCR=1 SIGLIP=1`.
+    args = build_parser().parse_args(
+        ["models", "download", "--whisper", "small", "--docling", "true", "--image-embed", "1"]
+    )
+    assert (args.whisper, args.docling, args.image_embed) == ("small", True, True)
+    with pytest.raises(SystemExit):
+        build_parser().parse_args(["models", "download", "--docling", "maybe"])

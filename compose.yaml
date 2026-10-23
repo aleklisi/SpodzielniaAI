@@ -39,17 +39,18 @@ x-llm-env: &llm-env
   SPOLDZIELNIA_LLM__CHAT_MODEL: ${LLM_CHAT_MODEL:-}
   SPOLDZIELNIA_LLM__VLM_MODEL: ${LLM_VLM_MODEL:-}
   SPOLDZIELNIA_LLM__EMBED_MODEL: ${LLM_EMBED_MODEL:-}
-  # 10.4: speech-to-text model on the local endpoint (e.g. a whisper server); the built-in
-  # faster-whisper of worker-media transcribes only while no TRANSCRIBE model is routed.
+  # 10.4: speech-to-text model on the local endpoint (e.g. a whisper server). The built-in
+  # engines (faster-whisper, Docling OCR, SigLIP) are off by default (API-only, 10.7): turn one
+  # on after `make models WHISPER=1 DOCLING_OCR=1 SIGLIP=1` installed its model.
   SPOLDZIELNIA_LLM__TRANSCRIBE_MODEL: ${LLM_TRANSCRIBE_MODEL:-}
-  SPOLDZIELNIA_LLM__BUILTIN_TRANSCRIPTION: ${LLM_BUILTIN_TRANSCRIPTION:-true}
+  SPOLDZIELNIA_LLM__BUILTIN_TRANSCRIPTION: ${LLM_BUILTIN_TRANSCRIPTION:-false}
   # 10.5: scanned PDF pages go to the OCR purpose (a vision model); Docling's own OCR reads them
   # only while no OCR model is routed (and only if `make models` installed it).
-  SPOLDZIELNIA_LLM__BUILTIN_OCR: ${LLM_BUILTIN_OCR:-true}
+  SPOLDZIELNIA_LLM__BUILTIN_OCR: ${LLM_BUILTIN_OCR:-false}
   # 10.6: the visual atlas's image model (an embedding server on the local endpoint); else
   # worker-core's built-in SigLIP, if installed and allowed.
   SPOLDZIELNIA_LLM__IMAGE_EMBED_MODEL: ${LLM_IMAGE_EMBED_MODEL:-}
-  SPOLDZIELNIA_LLM__BUILTIN_IMAGE_EMBED: ${LLM_BUILTIN_IMAGE_EMBED:-true}
+  SPOLDZIELNIA_LLM__BUILTIN_IMAGE_EMBED: ${LLM_BUILTIN_IMAGE_EMBED:-false}
   SPOLDZIELNIA_LLM__STRUCTURED_OUTPUT: ${LLM_STRUCTURED_OUTPUT:-json_schema}
   # Stage 7: the ceiling for the admin's model configuration (same in every process).
   SPOLDZIELNIA_LLM__ALLOW_CLOUD: ${LLM_ALLOW_CLOUD:-false}
@@ -83,11 +84,15 @@ networks:
     driver: bridge
     internal: true
     ipam: { config: [{ subnet: 172.30.2.0/24 }] }
-  # api and worker-media <-> llm-egress only (7.3, 10.4). No internet.
+  # api and the workers <-> llm-egress only (7.3, 10.7). No internet.
   llm-cloud:
     driver: bridge
     internal: true
     ipam: { config: [{ subnet: 172.30.4.0/24 }] }
+  # The model relay's way to its target (10.7): only `llm-relay` is on it.
+  llm-relay:
+    driver: bridge
+    ipam: { config: [{ subnet: 172.30.5.0/24 }] }
   # Controlled egress: ClamAV signature updates, worker-egress (Stage 2), llm-egress (7.3).
   egress:
     driver: bridge
@@ -363,9 +368,11 @@ services:
     restart: unless-stopped
     # llm-cloud: cloud model APIs (speech-to-text, vision) through llm-egress only (10.4, P6).
     networks: [backend, llm-cloud]
-    # Decrypted inputs + Docling/Whisper scratch space.
+    # Decrypted inputs, audio segments and page renders.
     tmpfs: ["/tmp:size=2g"]
-    mem_limit: 4g
+    # API-only (10.7): decoding, splitting and parsing without models. With the built-in
+    # Whisper or Docling OCR on, raise it (WORKER_MEDIA_MEM_LIMIT=4g).
+    mem_limit: ${WORKER_MEDIA_MEM_LIMIT:-1g}
     cpus: 4
     depends_on:
       migrate: { condition: service_completed_successfully }
@@ -424,16 +431,32 @@ services:
       timeout: 3s
       retries: 6
 
-  # Local LLM behind the standard OpenAI API on :11434/v1 (chunk 3.4). Prod: Ollama on `backend`
-  # (GPU via compose.gpu.yaml). Dev: a relay to LM Studio/Ollama on the host (compose.dev.yaml).
+  # A model server is optional (10.7): by default the stack runs no model at all, and admins
+  # configure API providers in /admin/llm. Two ways to offer `http://llm:11434` on `backend`
+  # (use at most one):
+  # - `--profile ollama`: Ollama in a container (GPU via compose.gpu.yaml);
+  # - `--profile relay`: a TCP relay to an OpenAI-compatible server elsewhere (LM Studio on
+  #   another machine over a VPN: LLM_RELAY_TARGET=host:port), so the workers' networks stay
+  #   closed. Dev starts the relay to the Mac's LM Studio (compose.dev.yaml).
   llm:
     <<: *infra
+    profiles: [ollama]
     image: ollama/ollama:0.12.6@sha256:a61a8fd395dbb931cc8cb1b5da7a2510746575c87113fdc45b647ee59ef7f808
     networks: [backend]
     volumes: [ollama:/root/.ollama]
     environment:
       OLLAMA_HOST: 0.0.0.0:11434
       OLLAMA_NOPRUNE: "1"
+
+  llm-relay:
+    <<: *infra
+    profiles: [relay]
+    image: alpine/socat:1.8.0.3@sha256:beb4a68d9e4fe6b0f21ea774a0fde6c31f580dde6368939ed70100c5385b015e
+    command: ["TCP-LISTEN:11434,fork,reuseaddr", "TCP:${LLM_RELAY_TARGET:-host.docker.internal:1234}"]
+    networks:
+      backend: { aliases: [llm] }
+      llm-relay: {}
+    mem_limit: 64m
 
   # PII scrubbing, prompt-injection screening, promotion (Stage 3), indexing (Stage 4),
   # atlas preparation (9.4: reads the private photo, writes the shared copies): `backend` only.
@@ -442,9 +465,12 @@ services:
     image: ${REGISTRY:-spoldzielnia}/worker-core:${VERSION:-dev}
     command: ["worker", "--queues", "core.scan,promotion,index"]
     restart: unless-stopped
-    networks: [backend]
+    # llm-cloud: cloud model APIs of cleared providers through llm-egress only (P6, 10.7).
+    networks: [backend, llm-cloud]
     tmpfs: ["/tmp:size=512m"]
-    mem_limit: 3g
+    # API-only (10.7): the prompt-injection classifier and spaCy stay built in. With the
+    # built-in SigLIP on, raise it (WORKER_CORE_MEM_LIMIT=3g).
+    mem_limit: ${WORKER_CORE_MEM_LIMIT:-2560m}
     cpus: 2
     depends_on:
       migrate: { condition: service_completed_successfully }
@@ -454,6 +480,7 @@ services:
       minio: { condition: service_healthy }
     environment:
       <<: [*app-env, *llm-env, *qdrant-env]
+      SPOLDZIELNIA_LLM__EGRESS_PROXY_URL: http://llm-egress:3128
     volumes:
       - models:/models:ro
     secrets:
@@ -487,7 +514,19 @@ services:
     <<: *hardening
     image: ${REGISTRY:-spoldzielnia}/worker-media:${VERSION:-dev}
     profiles: [tools]
-    command: ["models", "download", "--root", "/models", "--whisper", "${WHISPER_MODEL:-small}"]
+    # 10.7: the injection classifier always; Whisper, Docling and SigLIP only when asked
+    # (`make models WHISPER=1 DOCLING_OCR=1 SIGLIP=1`).
+    command:
+      - models
+      - download
+      - --root
+      - /models
+      - --whisper
+      - ${MODELS_WHISPER:-}
+      - --docling
+      - ${MODELS_DOCLING:-false}
+      - --image-embed
+      - ${MODELS_IMAGE_EMBED:-false}
     restart: "no"
     networks: [egress]
     tmpfs: ["/tmp:size=2g"]

@@ -156,17 +156,24 @@ vision model routed for „Odczyt skanów (OCR)”, else by Docling's built-in O
 (`LLM_BUILTIN_OCR`); otherwise the scan waits for a model while text documents complete.
 
 ```bash
-make models        # once: Whisper small + Docling into the `models` volume (needs internet)
+make models WHISPER=1 DOCLING_OCR=1 SIGLIP=1  # optional built-ins into the `models` volume
 make up            # starts worker-media (no internet) and worker-egress too
 make models-host   # Whisper tiny + Docling into ./.models for the `ml` tests
 ```
 
 Host-side file-type tests need libmagic (`brew install libmagic`).
 
-### Local LLM (OpenAI-compatible: LM Studio or Ollama)
+### Models: none required (Stage 10)
 
-Workers reach the model through the `llm` service. In dev it relays to the server running on
-your Mac. Configure in `.env`:
+The stack starts and runs with **no model server and no downloaded models**: every model is a
+provider configured in `/admin/llm` (below), local or in the cloud. A model server inside the
+stack is optional: `--profile ollama` (an Ollama container) or `--profile relay` with
+`LLM_RELAY_TARGET=host:port` (LM Studio or Ollama on another machine, e.g. over a VPN). In dev the
+relay to the server on your Mac is always on, as `http://llm:11434`. Built-in engines (Whisper,
+Docling OCR, SigLIP) are opt-in (`make models WHISPER=1 …` + `LLM_BUILTIN_*=true`; dev: on). The
+API-only profile and its measured memory are in
+[DEPLOYMENT_DOCKER.md §6.1](docs/implementation/DEPLOYMENT_DOCKER.md). `.env` can also name the
+dev models:
 
 ```bash
 LLM_HOST_PORT=1234                                # LM Studio (Ollama: 11434)
