@@ -69,3 +69,27 @@ jobs:
       - run: cd frontend && npm ci
       - run: docker buildx bake --load
       - run: infra/scripts/audit.sh
+
+  # 6.8: back up a running stack, restore it into a bare copy of the checkout (its own compose
+  # project and volumes), verify (row counts, objects, audit chain, rebuilt indexes) and smoke
+  # test it (infra/scripts/dr-rehearsal.sh). The runner has no model server: a placeholder HTTP
+  # server answers on the relay's port, and the optional built-in engines stay off.
+  dr-rehearsal:
+    needs: lint-type-unit
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      LLM_BUILTIN_TRANSCRIPTION: "false"
+      LLM_BUILTIN_OCR: "false"
+      LLM_BUILTIN_IMAGE_EMBED: "false"
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y age jq
+      - run: cp .env.example .env && make secrets
+      - name: Placeholder for the dev relay's model server (host port 1234)
+        run: nohup python3 -m http.server 1234 --bind 0.0.0.0 >/dev/null 2>&1 &
+      - run: docker buildx bake --load
+      - run: docker compose -f compose.yaml -f compose.dev.yaml --profile tools run --rm models-init
+      - run: docker compose -f compose.yaml -f compose.dev.yaml up -d --wait --wait-timeout 900
+      - run: make smoke
+      - run: DR_MODELS=download make dr-rehearsal

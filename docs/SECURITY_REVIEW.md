@@ -16,6 +16,7 @@ Test locations: `tests/unit/…` and `tests/integration/…` (pytest), `frontend
 | Scanners | `make audit` (pip-audit, bandit, npm audit, gitleaks, trivy) | `audit: clean` |
 | Stack | `make build && make up && make smoke` | all checks OK |
 | E2E | `make e2e` (MFA on: `make mfa-on`) | 12 spec files, 24 tests green |
+| Disaster recovery | `make dr-rehearsal` (6.8) | `dr-rehearsal: … passed every check` |
 | Audit chain | `spoldzielnia audit-verify` or `GET /admin/audit-log/verify` | `ok: true` |
 
 ## OWASP API Security Top 10 (2023)
@@ -131,6 +132,29 @@ P1–P9 of `docs/implementation/10_MODEL_PROVIDERS_API.md` and their proof:
   the workers' model volume; a switch on without the model installed shows a feature as on while
   its work waits. Multimodal embedding APIs are not standardised: one request shape is supported
   and an incompatible server fails the model probe before it can be activated.
+
+## Chunk 6.8 additions (production deployment, backup and restore)
+
+| Control | Proof |
+|---|---|
+| Production cannot start with dev settings (API8): `compose.prod.yaml` requires `REGISTRY`, `VERSION`, `SITE_DOMAIN`, `ACME_EMAIL`; `deploy.sh` refuses `MFA_REQUIRED=false`, a `localhost` domain and a non-prod environment; only the proxy publishes ports; every service has memory/CPU limits | `unit/test_deploy_config.py::test_prod_compose_refuses_to_start_without_its_settings`, `test_prod_compose_runs_registry_images_with_acme_and_limits`; `require_prod_env` in `infra/scripts/lib-ops.sh` |
+| No test accounts on a server (API2): the production realm import has only the service account and no password/TOTP placeholders, `sslRequired=all`, self-registration off; it keeps the dev export's flows, OTP and brute-force settings | `unit/test_deploy_config.py` (realm tests, drift check against the dev export) |
+| First admin without a shared password: a one-time password printed once, UPDATE_PASSWORD and CONFIGURE_TOTP required at first login; the password reaches Keycloak over stdin, not argv | `infra/scripts/create-admin.sh` (run against the dev realm, 2026-10-23) |
+| Supply chain of releases (LLM03): tag builds are trivy-scanned before the push; images carry an SBOM and `mode=max` provenance; tags `vX.Y.Z` and `sha-<commit>` | `.github/workflows/publish.yml`; `docker-bake.hcl` `release` |
+| Backups are confidential and verifiable: `age` public-key encryption on the server (the identities never live there); the KEK travels in a separate bundle with its own recipients; plaintext exists only in a 0700 staging directory removed on exit; a manifest with SHA-256 per file, row counts and the last audit entry | `make dr-rehearsal` (checksums, `STRICT=1` row counts, objects, audit chain through the backup's head, smoke) |
+| A restore cannot silently overwrite: it stops on a non-empty database (`FORCE=1`) and on a secret that differs from the bundle (`FORCE_SECRETS=1`, old copies kept) | `infra/scripts/restore.sh` |
+| No database or storage password on the host's command lines: `pg_dump`/`pg_restore` run inside the postgres container over peer authentication; `mc` builds its credentials inside the `backup` container | `infra/scripts/backup.sh`, `compose.yaml` `backup` |
+
+- **Accepted:** Redis is not backed up. After a restore:
+  - members log in again;
+  - Celery messages queued at backup time are lost. Work parked as WAITING_FOR_MODEL is in
+    Postgres and resumes; a file that was mid-processing may need uploading again;
+  - the shield's 24 h/7 d/30 d coverage windows restart empty, once.
+
+  Locks and risk scores are in Postgres and survive.
+- **Accepted:** Postgres is dumped before the objects are mirrored, without stopping the API. An
+  object deleted in between (a revoke purge) is missing from that backup, and its row points at
+  nothing. Run backups at a quiet hour; the next night's backup is consistent again.
 
 ## Accepted risks
 

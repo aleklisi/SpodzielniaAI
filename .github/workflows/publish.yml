@@ -1,0 +1,67 @@
+name: publish
+
+# Release images (6.8): on a version tag, build all four images for linux/amd64 and
+# linux/arm64 with SBOM and provenance (docker-bake.hcl `release`), scan them, and push
+# them to GHCR as `vX.Y.Z` and `sha-<commit>`. Servers then run `make deploy VERSION=vX.Y.Z`.
+# A private registry instead: set the repository variables REGISTRY (image prefix, e.g.
+# registry.example.org/coop/spoldzielnia) and REGISTRY_HOST, and the secrets REGISTRY_USER and
+# REGISTRY_TOKEN.
+
+on:
+  push:
+    tags: ["v*.*.*"]
+
+permissions:
+  contents: read
+  packages: write # push to ghcr.io/<owner>
+
+concurrency:
+  group: publish-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  REGISTRY: ${{ vars.REGISTRY || format('ghcr.io/{0}/spoldzielnia', github.repository_owner) }}
+  VERSION: ${{ github.ref_name }}
+  REVISION: ${{ github.sha }}
+  SOURCE: ${{ github.server_url }}/${{ github.repository }}
+
+jobs:
+  images:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Image prefix in lower case (registries refuse upper case)
+        run: echo "REGISTRY=${REGISTRY,,}" >> "$GITHUB_ENV"
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - name: Registry login
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ vars.REGISTRY_HOST || 'ghcr.io' }}
+          username: ${{ secrets.REGISTRY_USER || github.actor }}
+          password: ${{ secrets.REGISTRY_TOKEN || secrets.GITHUB_TOKEN }}
+      # Scan the host-architecture build before anything is pushed: a HIGH/CRITICAL finding
+      # that is not an accepted risk stops the release (same gate as `make audit`).
+      - name: Build for scanning
+        run: docker buildx bake --load
+      - name: Scan images
+        run: |
+          for image in api worker-core worker-media frontend; do
+            docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+              -v "$PWD/.trivyignore:/.trivyignore:ro" \
+              aquasec/trivy:0.67.2@sha256:e2b22eac59c02003d8749f5b8d9bd073b62e30fefaef5b7c8371204e0a4b0c08 \
+              image --quiet --exit-code 1 --ignorefile /.trivyignore --severity HIGH,CRITICAL \
+              --ignore-unfixed --scanners vuln "$REGISTRY/$image:$VERSION"
+          done
+      - name: Build and push (multi-arch, SBOM, provenance)
+        run: docker buildx bake release --push
+      - name: Release summary
+        run: |
+          {
+            echo "### Images"
+            for image in api worker-core worker-media frontend; do
+              echo "- \`$REGISTRY/$image:$VERSION\` (\`sha-${REVISION:0:12}\`)"
+            done
+            echo
+            echo "Deploy on the server: \`make deploy VERSION=$VERSION\`"
+          } >> "$GITHUB_STEP_SUMMARY"

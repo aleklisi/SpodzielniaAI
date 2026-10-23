@@ -196,7 +196,7 @@ Pełna specyfikacja techniczna i architektura wdrożenia w kontenerach Docker zn
 - [x] 6.5 Interfejs czatu spółdzielczego RAG ze sprawdzonym renderowaniem Markdown
 - [x] 6.6 Panel bezpieczeństwa i monitoringu dla Administratora Spółdzielni
 - [x] 6.7 Automatyczne skanowanie podatności (`pip-audit`, `bandit`, `trivy`) i testy E2E Playwright
-- [ ] 6.8 Wdrożenie produkcyjne na serwerze Linux (`docker-bake`, rejestr, `deploy.sh`, `backup.sh`, disaster recovery)
+- [x] 6.8 Wdrożenie produkcyjne na serwerze Linux (`docker-bake`, rejestr, `deploy.sh`, `backup.sh`, disaster recovery)
 
 
 ---

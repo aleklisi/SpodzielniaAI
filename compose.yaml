@@ -253,7 +253,7 @@ services:
       KC_DB: postgres
       KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
       KC_DB_USERNAME: keycloak
-      KC_HOSTNAME: https://auth.spoldzielnia.localhost
+      KC_HOSTNAME: https://auth.${SITE_DOMAIN:-spoldzielnia.localhost}
       KC_HTTP_ENABLED: "true"
       KC_PROXY_HEADERS: xforwarded
       KC_HEALTH_ENABLED: "true"
@@ -535,6 +535,39 @@ services:
       TRANSFORMERS_OFFLINE: "0"
     volumes:
       - models:/models
+
+  # Object storage for `make backup` / `make restore` (6.8): mirrors the bucket over the S3 API
+  # to or from /backup, a host directory the scripts mount (`MODE=dump|load`). Postgres is
+  # dumped by the scripts themselves (pg_dump in the postgres container). Not part of `up`.
+  backup:
+    <<: *infra
+    image: cgr.dev/chainguard/minio:latest@sha256:2136d593beacf4461187035eca949fe49abd589d5079735025c711ca58fee0c8
+    profiles: [ops]
+    restart: "no"
+    networks: [backend]
+    read_only: true
+    tmpfs: ["/tmp:size=16m"]
+    cap_drop: [ALL]
+    depends_on:
+      minio: { condition: service_healthy }
+    environment:
+      MODE: dump
+      BUCKET: spoldzielnia-private
+      MC_CONFIG_DIR: /tmp/mc
+    secrets: [minio_root_password]
+    entrypoint: ["sh", "-c"]
+    # The credentials stay inside the container (MC_HOST_*), never in argv on the host.
+    command:
+      - |
+        set -eu
+        export MC_HOST_local="http://spoldzielnia:$$(cat /run/secrets/minio_root_password)@minio:9000"
+        case "$$MODE" in
+          dump) mkdir -p "/backup/minio/$$BUCKET"
+                exec mc mirror --quiet --overwrite --remove "local/$$BUCKET" "/backup/minio/$$BUCKET" ;;
+          load) exec mc mirror --quiet --overwrite --remove "/backup/minio/$$BUCKET" "local/$$BUCKET" ;;
+          list) exec mc ls --recursive --json "local/$$BUCKET" ;;
+          *) echo "MODE must be dump, load or list" >&2; exit 2 ;;
+        esac
 
   # Next.js UI (6.1): `edge` only, behind Caddy on the same origin as /api.
   frontend:

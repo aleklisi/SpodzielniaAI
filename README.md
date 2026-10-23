@@ -50,6 +50,24 @@ Dev users `member1`, `member2`, `expert1`, `admin1` share the password in
 encoding). Debug ports (`127.0.0.1` only): Postgres 5432, Redis 6379, Qdrant 6333 (TLS),
 MinIO 9000/9001, ClamAV 3310, Mailpit 8025 (`--profile tools`).
 
+## Production server (6.8)
+
+One Linux server, with images from a registry. The runbook covers installing, upgrading,
+rolling back, nightly encrypted backups and restoring after a loss:
+[docs/ops/DISASTER_RECOVERY.md](docs/ops/DISASTER_RECOVERY.md).
+
+```bash
+cp .env.prod.example .env && $EDITOR .env   # SITE_DOMAIN, ACME_EMAIL, REGISTRY, BACKUP_*
+make secrets && make deploy VERSION=v1.2.3   # pull, models, backup, migrate, up --wait, smoke
+make create-admin EMAIL=admin@example.org NAME="Imię Nazwisko"
+make backup                                  # age-encrypted data + secrets bundles (nightly timer)
+make restore DATA=… SECRETS=… BACKUP_IDENTITY=…
+make dr-rehearsal                            # dev: restore a backup of the stack into a bare copy, verify
+```
+
+Images are published by `.github/workflows/publish.yml` on a `v*.*.*` tag: multi-arch, with an
+SBOM and provenance (`docker buildx bake release`).
+
 ## Configuration
 
 `spoldzielnia_ai.core.settings.Settings` reads:

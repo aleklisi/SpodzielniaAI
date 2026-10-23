@@ -85,6 +85,32 @@ logs: ## Follow logs (S=<service> to filter)
 ps: ## Service status
 	$(COMPOSE) ps
 
+# --- Production server (6.8; docs/ops/DISASTER_RECOVERY.md) ------------------
+# These run on the server with compose.yaml + compose.prod.yaml (+ compose.gpu.yaml: GPU=1);
+# COMPOSE="..." points backup/restore at another stack.
+.PHONY: deploy rollback backup restore dr-rehearsal create-admin prod-realm
+deploy: ## Deploy/upgrade the server: make deploy VERSION=v1.2.3 (pull, backup, migrate, up, smoke)
+	@VERSION="$(VERSION)" infra/scripts/deploy.sh
+
+rollback: ## Back to the previous version (same schema head only; else restore a backup)
+	@test -s .deploy/previous || { echo "no previous version in .deploy/previous"; exit 2; }
+	@ROLLBACK=1 VERSION="$$(cat .deploy/previous)" infra/scripts/deploy.sh
+
+backup: ## Encrypted backup (age): Postgres, objects, manifest; secrets in a separate bundle
+	@infra/scripts/backup.sh
+
+restore: ## Restore: make restore DATA=<..data.tar.age> SECRETS=<..secrets.tar.age> BACKUP_IDENTITY=<key>
+	@DATA="$(DATA)" SECRETS="$(SECRETS)" infra/scripts/restore.sh
+
+dr-rehearsal: ## Back up the running dev stack, restore it into a bare copy, verify, clean up
+	@SOURCE_COMPOSE="$(COMPOSE)" infra/scripts/dr-rehearsal.sh
+
+create-admin: ## First administrator of a new server: make create-admin EMAIL=... NAME="First Last"
+	@EMAIL="$(EMAIL)" NAME="$(NAME)" infra/scripts/create-admin.sh
+
+prod-realm: ## Regenerate infra/keycloak/realm-spoldzielnia.prod.json from the dev realm export
+	@python3 infra/scripts/gen-prod-realm.py
+
 # --- Quality gates (host, via uv) --------------------------------------------
 .PHONY: check test test-int
 check: ## ruff + pyright + unit tests

@@ -1,0 +1,19 @@
+# NVIDIA GPU for the optional model servers (6.8, Linux only; needs the NVIDIA driver and the
+# NVIDIA Container Toolkit). Add after compose.prod.yaml: GPU=1 make deploy VERSION=...
+#   llm            Ollama (COMPOSE_PROFILES=ollama)
+#   worker-media   the built-in Whisper, if LLM_BUILTIN_TRANSCRIPTION=true
+
+x-gpu: &gpu
+  deploy:
+    resources:
+      reservations:
+        devices:
+          - driver: nvidia
+            count: all
+            capabilities: [gpu]
+
+services:
+  llm:
+    <<: *gpu
+  worker-media:
+    <<: *gpu

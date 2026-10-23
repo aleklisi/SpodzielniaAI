@@ -214,7 +214,7 @@ Each one is resolved (✅ = decision baked into the chunk plans) or needs your i
 - [x] 6.5 Cooperative chat (RAG) UI with safe Markdown
 - [x] 6.6 Admin security dashboard (+ backend endpoints)
 - [x] 6.7 Security scanning & Playwright E2E suite
-- [ ] 6.8 Production deployment on Linux server (registry, deploy, backup/restore)
+- [x] 6.8 Production deployment on Linux server (registry, deploy, backup/restore)
 
 ### Stage 7 — Admin-configurable LLM models (beyond the original plan, [US-01](../USER_STORIES_LOG.md#us-01))
 - [x] 7.1 LLM config data model, encrypted keys, locality triggers, seed from env

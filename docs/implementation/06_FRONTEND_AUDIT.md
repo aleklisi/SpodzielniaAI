@@ -277,3 +277,41 @@ each OWASP API Top 10 and OWASP LLM Top 10 (2025) item to the implementing chunk
   - Playwright 24/24 tests (12 spec files, none skipped);
   - Vitest 156/156;
   - the audit chain verified in the DR rehearsal.
+
+## Chunk 6.8 — Implementation notes (as built)
+
+- Runbook: [docs/ops/DISASTER_RECOVERY.md](../ops/DISASTER_RECOVERY.md). Design: DEPLOYMENT_DOCKER §9.
+- **Files:**
+  - `compose.prod.yaml`, `compose.gpu.yaml`, `.env.prod.example`;
+  - the `release` group in `docker-bake.hcl`;
+  - `.github/workflows/publish.yml`;
+  - `infra/scripts/{deploy,backup,restore,dr-rehearsal,create-admin}.sh` with `lib-ops.sh`;
+  - `gen-prod-realm.py` and `infra/keycloak/realm-spoldzielnia.prod.json`;
+  - `infra/systemd/spoldzielnia-backup.{service,timer}`;
+  - the `backup` service (profile `ops`) in `compose.yaml`;
+  - CI job `dr-rehearsal`.
+- **Beyond the spec, because a bare-metal restore needs them:**
+  - The production realm. Before this, prod had no realm import, and the dev export carries
+    test users.
+  - `create-admin` for the first account.
+  - Keycloak's hostname now follows `SITE_DOMAIN` in the base file (it was fixed to `localhost`).
+- **The `backup` service** runs the pinned MinIO image, which ships `mc`. It mirrors the bucket
+  over the S3 API, with the credentials built inside the container (`MC_HOST_local`). Postgres
+  is dumped with `pg_dump` inside its container over the local socket (peer authentication), so
+  no database password reaches the host.
+- **Two bundles, two keys.** The secrets bundle holds the KEK, so it is encrypted to
+  `BACKUP_SECRETS_RECIPIENTS`. Anyone holding the data key alone can't read the notebooks.
+- **Restore** recreates the databases with `pg_restore --create --clean`, so database-level
+  grants come back as saved. The roles come from the init script and the restored secrets.
+- **Rollback** is a same-schema-head redeploy only. `migrations_check` keeps an older API
+  "not ready" on a newer schema, and several downgrades are no-ops. So after a migrating
+  release, the way back is the pre-deploy backup.
+- **Rehearsal, 2026-10-23, against the dev stack** (the real data of the E2E runs):
+  - 108 files verified; 102 objects; every table's row count equal to the manifest;
+  - 52 index items rebuilt (0 failed);
+  - the audit chain verified through the backup's last entry #2740;
+  - smoke 44/44 on the restored copy; the source stack was untouched and started again.
+- **Not exercised here:** a real server (ACME, DNS, GHCR push and `deploy.sh` end to end). This
+  repository has no remote, so `publish.yml` and the CI jobs are untested in Actions. The prod
+  compose set is checked by unit tests (`tests/unit/test_deploy_config.py`), and every script
+  except `deploy.sh` and `create-admin.sh` ran against the dev stack.

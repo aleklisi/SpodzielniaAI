@@ -1,0 +1,11 @@
+# Runs spoldzielnia-backup.service every night at a quiet hour (6.8).
+[Unit]
+Description=Nightly Spółdzielnia AI backup
+
+[Timer]
+OnCalendar=*-*-* 03:15:00
+RandomizedDelaySec=15m
+Persistent=true
+
+[Install]
+WantedBy=timers.target

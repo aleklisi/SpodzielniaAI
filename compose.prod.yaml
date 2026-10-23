@@ -1,0 +1,90 @@
+# Linux server overrides (6.8). Used by `make deploy` (infra/scripts/deploy.sh):
+#   docker compose -f compose.yaml -f compose.prod.yaml [-f compose.gpu.yaml] ...
+# Design: docs/implementation/DEPLOYMENT_DOCKER.md §9, runbook: docs/ops/DISASTER_RECOVERY.md
+#
+# - Images come from the registry (REGISTRY, VERSION; deploy.sh sets VERSION), never built here.
+# - Caddy gets Let's Encrypt certificates for SITE_DOMAIN and auth.SITE_DOMAIN (ACME_EMAIL).
+# - Keycloak imports the production realm (no test users) on its first start only.
+# - Every service restarts unless stopped, has memory/CPU limits and rotated logs (base file).
+# - A model server is optional, as in the base file: COMPOSE_PROFILES=ollama in .env runs
+#   Ollama (with compose.gpu.yaml on an NVIDIA host); without it every model is an API.
+
+x-prod-image: &prod-image
+  image: ${REGISTRY:?set REGISTRY in .env}/api:${VERSION:?set VERSION (deploy.sh does)}
+  pull_policy: missing
+
+services:
+  # --- Application images from the registry -----------------------------------
+  migrate:
+    <<: *prod-image
+  bootstrap:
+    <<: *prod-image
+  api:
+    <<: *prod-image
+    mem_limit: 1g
+    cpus: 2
+  worker-egress:
+    <<: *prod-image
+  llm-egress:
+    <<: *prod-image
+  beat:
+    <<: *prod-image
+  worker-core:
+    image: ${REGISTRY:?set REGISTRY in .env}/worker-core:${VERSION:?set VERSION (deploy.sh does)}
+    pull_policy: missing
+  worker-media:
+    image: ${REGISTRY:?set REGISTRY in .env}/worker-media:${VERSION:?set VERSION (deploy.sh does)}
+    pull_policy: missing
+  models-init:
+    image: ${REGISTRY:?set REGISTRY in .env}/worker-media:${VERSION:?set VERSION (deploy.sh does)}
+    pull_policy: missing
+  frontend:
+    image: ${REGISTRY:?set REGISTRY in .env}/frontend:${VERSION:?set VERSION (deploy.sh does)}
+    pull_policy: missing
+    cpus: 1
+
+  # --- Edge ---------------------------------------------------------------------
+  proxy:
+    environment:
+      SITE_DOMAIN: ${SITE_DOMAIN:?set SITE_DOMAIN in .env}
+      # An e-mail address switches Caddy from its internal CA to Let's Encrypt (ACME).
+      CADDY_TLS: ${ACME_EMAIL:?set ACME_EMAIL in .env (Let's Encrypt account)}
+      KC_ADMIN_ALLOW: ${KC_ADMIN_ALLOW:-127.0.0.1/8}
+    mem_limit: 256m
+    cpus: 1
+
+  keycloak:
+    environment:
+      KC_HOSTNAME: https://auth.${SITE_DOMAIN:?set SITE_DOMAIN in .env}
+      # Imports realm-spoldzielnia.prod.json only if the realm does not exist yet.
+      KC_COMMAND: start --import-realm
+      # Resolved by Keycloak inside the realm import (`make prod-realm`).
+      SITE_DOMAIN: ${SITE_DOMAIN:?set SITE_DOMAIN in .env}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_FROM: ${SMTP_FROM:-noreply@${SITE_DOMAIN}}
+    volumes:
+      - ./infra/keycloak/realm-spoldzielnia.prod.json:/opt/keycloak/data/import/realm-spoldzielnia.json:ro
+    mem_limit: 1g
+    cpus: 2
+
+  # --- Data services (limits from the measured API-only profile, DEPLOYMENT_DOCKER §6.1) ----
+  postgres:
+    mem_limit: 1g
+    cpus: 2
+  redis:
+    mem_limit: 256m
+    cpus: 1
+  qdrant:
+    mem_limit: 1g
+    cpus: 2
+  minio:
+    mem_limit: 512m
+    cpus: 1
+  clamav:
+    # The signature database needs about twice its size while freshclam reloads it.
+    mem_limit: 1536m
+    cpus: 1
+
+  llm:
+    mem_limit: ${OLLAMA_MEM_LIMIT:-16g}

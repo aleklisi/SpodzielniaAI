@@ -1,0 +1,15 @@
+# Nightly encrypted backup (6.8). Install: docs/ops/DISASTER_RECOVERY.md § Nightly backups.
+# Assumes the checkout in /opt/spoldzielnia; adjust WorkingDirectory if it lives elsewhere.
+[Unit]
+Description=Spółdzielnia AI encrypted backup
+Wants=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/spoldzielnia
+ExecStart=/opt/spoldzielnia/infra/scripts/backup.sh
+# Off-site copy afterwards, e.g. (rclone remote configured by the operator):
+# ExecStartPost=/usr/bin/rclone copy --max-age 25h /var/backups/spoldzielnia offsite:spoldzielnia
+Nice=10
+IOSchedulingClass=idle
