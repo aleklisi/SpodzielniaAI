@@ -3,6 +3,7 @@ import { Inter, Outfit } from "next/font/google";
 import { headers } from "next/headers";
 
 import { MainNav } from "@/components/nav/MainNav";
+import { ProcessorsBanner } from "@/components/privacy/ProcessorsBanner";
 import { ToastProvider } from "@/components/ui/Toast";
 import { NonceProvider } from "@/lib/nonce";
 import { QueryProvider } from "@/lib/query";
@@ -30,6 +31,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
               <header className="border-b border-border bg-surface">
                 <MainNav />
               </header>
+              <ProcessorsBanner />
               <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">{children}</main>
             </ToastProvider>
           </QueryProvider>

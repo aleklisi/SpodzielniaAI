@@ -61,6 +61,8 @@ class User(Entity):
         ForeignKey("app_user.id", name="fk_app_user_created_by_app_user", ondelete="SET NULL")
     )
     last_login_at: Mapped[datetime | None]
+    # 10.8 (P4): when the member last acknowledged where private data is processed.
+    processors_seen_at: Mapped[datetime | None]
     required_actions: Mapped[list[str]] = mapped_column(
         ARRAY(Text), server_default=text("'{}'"), default=list
     )

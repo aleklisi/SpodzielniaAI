@@ -250,4 +250,4 @@ Rejestr historyjek dodanych poza Etapami 1–6: [docs/USER_STORIES_LOG.md](docs/
 - [x] 10.5 Dokumenty: Docling bez modeli ML, OCR przez API (VLM lub dedykowany OCR)
 - [x] 10.6 Embeddingi obrazów przez API lub wbudowany SigLIP (opcjonalny), rozpoznawanie wyłączone bez modelu
 - [x] 10.7 Compose bez serwera modeli domyślnie (profil `ollama`, relay do LM Studio, profil „tylko API”)
-- [ ] 10.8 Panel `/admin/llm`, strona „Gdzie przetwarzane są Twoje dane”, E2E, przegląd bezpieczeństwa i dokumentacja
+- [x] 10.8 Panel `/admin/llm`, strona „Gdzie przetwarzane są Twoje dane”, E2E, przegląd bezpieczeństwa i dokumentacja

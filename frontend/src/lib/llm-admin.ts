@@ -27,6 +27,8 @@ export type Preset = components["schemas"]["PresetOut"];
 export type PlaygroundResult = components["schemas"]["PlaygroundResultOut"];
 export type Purpose = LlmStatus["purposes"][number]["purpose"];
 export type Capability = LlmModel["capability"];
+export type IndexState = components["schemas"]["IndexOut"];
+export type IndexGeneration = components["schemas"]["GenerationOut"];
 
 const KEY = ["admin", "llm"] as const;
 
@@ -44,6 +46,36 @@ export function useModels() {
 
 export function useRevisions() {
   return useQuery({ queryKey: [...KEY, "revisions"], queryFn: async () => unwrap(await api.GET("/admin/llm/revisions")) });
+}
+
+/** Index generations (10.3/10.6); polled while one is being built. */
+export function useIndex() {
+  return useQuery({
+    queryKey: [...KEY, "index"],
+    queryFn: async () => unwrap(await api.GET("/admin/llm/index")),
+    refetchInterval: (query) => {
+      const data = query.state.data;
+      const building = data && [...data.generations, ...data.atlas_generations].some((g) => g.status === "BUILDING");
+      return building ? 5_000 : false;
+    },
+  });
+}
+
+export function useRebuildIndex() {
+  return useLlmMutation(async () => unwrap(await api.POST("/admin/llm/index/rebuild")));
+}
+
+export function useCancelGeneration() {
+  return useLlmMutation(async (number: number) =>
+    unwrap(await api.POST("/admin/llm/index/{number}/cancel", { params: { path: { number } } })),
+  );
+}
+
+/** Seconds left for a build, from its pace so far (``null`` before it has a pace). */
+export function eta(g: IndexGeneration, now: number = Date.now()): number | null {
+  const elapsed = (now - new Date(g.created_at).getTime()) / 1000;
+  if (g.done <= 0 || elapsed <= 0 || g.total <= g.done) return g.total <= g.done && g.done > 0 ? 0 : null;
+  return Math.round(((g.total - g.done) * elapsed) / g.done);
 }
 
 export function usePresets() {
@@ -169,7 +201,7 @@ export const PURPOSES: Record<Purpose, { label: string; hint: string }> = {
   PRIVATE_NOTE: { label: "Prywatny notatnik", hint: "Pytania do własnych notatek." },
   PII_SCRUB: { label: "Anonimizacja", hint: "Usuwanie danych osobowych." },
   VLM: { label: "Opisy zdjęć", hint: "Model wizyjny dla załączników." },
-  EMBED: { label: "Embeddingi", hint: "Wektory indeksu wiedzy (zmiana wymaga reindeksacji)." },
+  EMBED: { label: "Embeddingi", hint: "Wektory indeksu wiedzy (zmiana przebudowuje indeks w tle)." },
   TRANSCRIBE: { label: "Transkrypcja nagrań", hint: "Zamiana mowy na tekst w nagraniach z notatek." },
   IMAGE_EMBED: { label: "Atlas: wektory zdjęć", hint: "Embeddingi zdjęć atlasu i fragmentów do „Rozpoznaj” (zmiana przebudowuje indeks atlasu w tle)." },
   OCR: { label: "Odczyt skanów (OCR)", hint: "Model wizyjny odczytuje strony dokumentów bez warstwy tekstowej." },

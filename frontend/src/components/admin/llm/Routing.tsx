@@ -167,7 +167,7 @@ export function RoutingPanel({
                           id={`route-${p.purpose}`}
                           className={`${INPUT} ${changed ? "border-primary" : ""}`}
                           value={selectedId}
-                          disabled={p.purpose === "EMBED" || setRouting.isPending}
+                          disabled={setRouting.isPending}
                           onChange={(e) =>
                             void run(() =>
                               setRouting.mutateAsync({ number: draft.number, routes: { [p.purpose]: e.target.value || null } }),
@@ -183,8 +183,10 @@ export function RoutingPanel({
                             </option>
                           ))}
                         </select>
-                        {p.purpose === "EMBED" && (
-                          <p className="mt-1 text-xs text-text-muted">Zmiana wymaga przebudowy indeksu (poza panelem).</p>
+                        {(p.purpose === "EMBED" || p.purpose === "IMAGE_EMBED") && (
+                          <p className="mt-1 text-xs text-text-muted">
+                            Po aktywacji indeks przebuduje się w tle (zakładka „Indeksy”); do końca działa stara wersja.
+                          </p>
                         )}
                       </td>
                     )}

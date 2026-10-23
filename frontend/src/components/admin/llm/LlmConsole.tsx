@@ -4,6 +4,7 @@ import { useState } from "react";
 
 import { StepUpNotice } from "@/components/auth/RequireRole";
 import { HistoryPanel } from "@/components/admin/llm/History";
+import { IndexPanel } from "@/components/admin/llm/IndexPanel";
 import { PlaygroundPanel } from "@/components/admin/llm/Playground";
 import { ModelsPanel, ProvidersPanel } from "@/components/admin/llm/Catalog";
 import { RoutingPanel } from "@/components/admin/llm/Routing";
@@ -17,6 +18,7 @@ const TABS = [
   { key: "routing", label: "Przypisania" },
   { key: "providers", label: "Dostawcy" },
   { key: "models", label: "Modele" },
+  { key: "index", label: "Indeksy" },
   { key: "playground", label: "Playground" },
   { key: "history", label: "Historia" },
 ] as const;
@@ -97,6 +99,7 @@ export function LlmConsole() {
         )}
         {tab === "providers" && <ProvidersPanel status={s} providers={providers.data} />}
         {tab === "models" && <ModelsPanel status={s} providers={providers.data} models={models.data} />}
+        {tab === "index" && <IndexPanel />}
         {tab === "playground" && <PlaygroundPanel status={s} providers={providers.data} models={models.data} />}
         {tab === "history" && <HistoryPanel revisions={revisions.data} />}
       </section>

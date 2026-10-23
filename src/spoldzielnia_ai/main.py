@@ -30,6 +30,7 @@ from spoldzielnia_ai.api.links import router as links_router
 from spoldzielnia_ai.api.me import router as me_router
 from spoldzielnia_ai.api.notes import router as notes_router
 from spoldzielnia_ai.api.photos import router as photos_router
+from spoldzielnia_ai.api.processors import router as processors_router
 from spoldzielnia_ai.api.promotion import notes_router as promote_router
 from spoldzielnia_ai.api.promotion import router as promotions_router
 from spoldzielnia_ai.api.rag import router as rag_router
@@ -157,6 +158,7 @@ def create_app(
     app.include_router(auth_router)
     app.include_router(me_router)
     app.include_router(capabilities_router)
+    app.include_router(processors_router)
     app.include_router(atlas_contributions_router)  # /me/contributions/atlas…
     app.include_router(contributions_router)
     app.include_router(promote_router)  # before /notes/{note_id}

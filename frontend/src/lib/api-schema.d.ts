@@ -1660,6 +1660,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/privacy/processors": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Processors */
+        get: operations["get_processors_privacy_processors_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/privacy/processors/seen": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Processors Seen */
+        post: operations["processors_seen_privacy_processors_seen_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/promotions/{promotion_id}": {
         parameters: {
             query?: never;
@@ -3108,6 +3142,34 @@ export interface components {
             report: {
                 [key: string]: unknown;
             };
+        };
+        /** ProcessorOut */
+        ProcessorOut: {
+            /** Cleared Since */
+            cleared_since: string | null;
+            /** Contract Ref */
+            contract_ref: string | null;
+            /** Host */
+            host: string;
+            /** Name */
+            name: string;
+            /** On Server */
+            on_server: boolean;
+            /** Purposes */
+            purposes: components["schemas"]["LlmRoutePurpose"][];
+            /** Region */
+            region: string | null;
+            /** Retention */
+            retention: string | null;
+        };
+        /** ProcessorsOut */
+        ProcessorsOut: {
+            /** Banner */
+            banner: boolean;
+            /** Built In */
+            built_in: components["schemas"]["LlmRoutePurpose"][];
+            /** Processors */
+            processors: components["schemas"]["ProcessorOut"][];
         };
         /** PromoteIn */
         PromoteIn: {
@@ -7149,6 +7211,44 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
+            };
+        };
+    };
+    get_processors_privacy_processors_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProcessorsOut"];
+                };
+            };
+        };
+    };
+    processors_seen_privacy_processors_seen_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

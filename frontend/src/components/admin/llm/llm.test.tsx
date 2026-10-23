@@ -201,7 +201,9 @@ describe("routing", () => {
     const rag = screen.getByLabelText("Model dla: Czat spółdzielni (RAG)");
     expect(within(rag).getAllByRole("option").map((o) => o.textContent)).toContain("cloud/gpt-x (chmura)");
     expect(screen.getAllByText("🔒 dane prywatne")).toHaveLength(5);
-    expect(screen.getByLabelText("Model dla: Embeddingi")).toBeDisabled();
+    // 10.3: switching the embedding model is routine (a new index version is built in the background).
+    expect(screen.getByLabelText("Model dla: Embeddingi")).toBeEnabled();
+    expect(screen.getByText(/indeks przebuduje się w tle/)).toBeInTheDocument();
 
     await userEvent.selectOptions(promotion, QWEN);
     await waitFor(() => expect(routed).toEqual({ routes: { PROMOTION: QWEN } }));

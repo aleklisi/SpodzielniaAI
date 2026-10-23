@@ -171,7 +171,9 @@ stack is optional: `--profile ollama` (an Ollama container) or `--profile relay`
 `LLM_RELAY_TARGET=host:port` (LM Studio or Ollama on another machine, e.g. over a VPN). In dev the
 relay to the server on your Mac is always on, as `http://llm:11434`. Built-in engines (Whisper,
 Docling OCR, SigLIP) are opt-in (`make models WHISPER=1 …` + `LLM_BUILTIN_*=true`; dev: on). The
-API-only profile and its measured memory are in
+Members see which providers process their private data on „Twoje dane” (`/privacy`), and a
+newly cleared cloud provider shows them a one-time banner. The API-only profile and its
+measured memory are in
 [DEPLOYMENT_DOCKER.md §6.1](docs/implementation/DEPLOYMENT_DOCKER.md). `.env` can also name the
 dev models:
 

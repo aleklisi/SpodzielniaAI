@@ -596,3 +596,41 @@ reference local one.
   `DEPLOYMENT_DOCKER.md` §6.1 with the LXC and shared-IPv4 caveats. In that run (SigLIP off) the
   atlas recognition scenario failed as expected: no image model, recognition off.
 
+### 10.8 — Admin UI, transparency page, E2E, security review, docs
+- **Already delivered earlier:** the clearance dialog and private-only model lists (10.1), the
+  „Brakujące modele” checklist and capability-driven disabled states (10.2), the new purposes
+  and model types (10.4–10.6).
+- **Transparency (P4):** `GET /privacy/processors` for every member: the providers cleared for
+  private data within the operator's list (name, host only, on the server or in the cloud,
+  region, retention, contract reference, since when, the private purposes the active
+  configuration sends them) and the purposes served by built-in engines; no keys, no URL paths.
+  „Gdzie przetwarzane są Twoje dane” at `/privacy` (nav: „Twoje dane”). The banner shows when a
+  cloud provider was cleared after the member last acknowledged (`app_user.processors_seen_at`,
+  migration `0025_processors_seen`, `POST /privacy/processors/seen`): once per member, on any
+  device, again for the next new cloud provider.
+- **Index panel:** `/admin/llm` → „Indeksy”: text and atlas index versions with status, model,
+  dimension, progress (done / total, failures, ETA from the pace so far, polled every 5 s while
+  building), „Przebuduj indeks” (text) and „Anuluj budowę”. Routing no longer locks EMBED: an
+  embedding (or image) model change is routine and says the index rebuilds in the background.
+  There is no atlas rebuild button: the api cannot tell whether the built-in SigLIP is installed;
+  `spoldzielnia reindex` rebuilds both.
+- **E2E scenario 12** (`frontend/e2e/12-model-providers.spec.ts`, against the dev stack with
+  LM Studio): the vision purpose is unrouted → „Brakujące modele”, `image_descriptions` off, a
+  member's photo waits („Czeka na model AI”) → the admin adds the local server as a new
+  provider, clears it, probes its vision model and routes it → the photo completes on its own →
+  the member's transparency page shows the provider → the admin rebuilds the text index and the
+  new version is swapped in → the starting revision is restored. Deviation from §4: "start with
+  nothing configured" is done for one purpose (vision), so the dev stack's other data and
+  models stay usable; "switch the embedding model" is a rebuild with the same model (the dev
+  machine has one embedding model), which exercises the same build-and-swap path.
+- **SECURITY_REVIEW:** "Stage 10 additions" maps P1–P9 to their tests, with the accepted risks.
+- **Tests:** integration (`test_processors_api.py`: listing, no keys or paths, banner once per
+  member and again for a new cloud provider, uncleared providers hidden, 401 anonymous); Vitest
+  (transparency page, banner acknowledgement, index panel progress/ETA/cancel, routing no longer
+  locks EMBED); E2E scenario 12.
+
+**Stage 10 exit criteria:** the default stack runs no model server (smoke); every purpose works
+through an API provider configured in the UI (chat, vision, text and image embeddings,
+speech-to-text, OCR); P1–P9 covered by tests (SECURITY_REVIEW); scenario 12 passes against the
+compose stack.
+

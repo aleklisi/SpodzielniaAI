@@ -15,6 +15,7 @@ const LINKS: Array<{ href: string; label: string; role?: Role }> = [
   { href: "/chat", label: "Zapytaj spółdzielnię" },
   { href: "/me/drafts", label: "Moje szkice" },
   { href: "/me/contributions", label: "Moje kontrybucje" },
+  { href: "/privacy", label: "Twoje dane" },
   { href: "/review", label: "Recenzje", role: "EXPERT" },
   { href: "/admin/security", label: "Bezpieczeństwo", role: "ADMIN" },
   { href: "/admin/llm", label: "Modele AI", role: "ADMIN" },

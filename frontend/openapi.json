@@ -3709,6 +3709,115 @@
         "title": "ProbeOut",
         "type": "object"
       },
+      "ProcessorOut": {
+        "properties": {
+          "cleared_since": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cleared Since"
+          },
+          "contract_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contract Ref"
+          },
+          "host": {
+            "title": "Host",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "on_server": {
+            "title": "On Server",
+            "type": "boolean"
+          },
+          "purposes": {
+            "items": {
+              "$ref": "#/components/schemas/LlmRoutePurpose"
+            },
+            "title": "Purposes",
+            "type": "array"
+          },
+          "region": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Region"
+          },
+          "retention": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Retention"
+          }
+        },
+        "required": [
+          "name",
+          "host",
+          "on_server",
+          "region",
+          "retention",
+          "contract_ref",
+          "cleared_since",
+          "purposes"
+        ],
+        "title": "ProcessorOut",
+        "type": "object"
+      },
+      "ProcessorsOut": {
+        "properties": {
+          "banner": {
+            "title": "Banner",
+            "type": "boolean"
+          },
+          "built_in": {
+            "items": {
+              "$ref": "#/components/schemas/LlmRoutePurpose"
+            },
+            "title": "Built In",
+            "type": "array"
+          },
+          "processors": {
+            "items": {
+              "$ref": "#/components/schemas/ProcessorOut"
+            },
+            "title": "Processors",
+            "type": "array"
+          }
+        },
+        "required": [
+          "processors",
+          "built_in",
+          "banner"
+        ],
+        "title": "ProcessorsOut",
+        "type": "object"
+      },
       "PromoteIn": {
         "properties": {
           "attachment_derivative_ids": {
@@ -11035,6 +11144,41 @@
         "summary": "Add Link",
         "tags": [
           "links"
+        ]
+      }
+    },
+    "/privacy/processors": {
+      "get": {
+        "operationId": "get_processors_privacy_processors_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProcessorsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Processors",
+        "tags": [
+          "privacy"
+        ]
+      }
+    },
+    "/privacy/processors/seen": {
+      "post": {
+        "operationId": "processors_seen_privacy_processors_seen_post",
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Processors Seen",
+        "tags": [
+          "privacy"
         ]
       }
     },
