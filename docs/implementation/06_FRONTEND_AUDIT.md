@@ -243,3 +243,37 @@ each OWASP API Top 10 and OWASP LLM Top 10 (2025) item to the implementing chunk
 - **Scenario 6** shows the step-up → lock path (401 challenges ignored, then 403, and then `/me` 423)
   and the admin unlock through the UI. The coverage-ratio cut-off needs a larger corpus than the dev
   stack's (the floor from G14 dominates), so `test_distillation_attack.py` covers it.
+
+### 6.7 closed (2026-10-23)
+
+- **The embedding check passes.** It failed because of the dev stack's model, not the code.
+  LM Studio's GGUF build of Qwen3-Embedding-4B maps every text to nearly the same vector:
+  cosine 0.944 between the two unrelated smoke sentences, 0.975 for a related pair.
+  EmbeddingGemma (`text-embedding-embeddinggemma-2`, 768 dimensions, multilingual) separates
+  them (0.56 against 0.86; the app's own probe gives 0.687). It was routed to EMBED the normal
+  way: model added, probed, draft, activation (revision 25). Worker-core built index generation 5
+  with it and swapped it in (10.3). `.env` follows (`LLM_EMBED_MODEL`, `LLM_EMBED_DIM=768`).
+  `make smoke` now passes 44/44.
+- **Scenario 4 runs instead of skipping, and passes.** Two things kept it from passing on reruns:
+  - Earlier runs had left canonical articles on the same topic, under the same heading, which
+    competed with the new one for the citation. The new seed action `retire_topic` supersedes
+    them first, through the governance transition and the vector outbox.
+  - The chat question now names the article's title.
+- **Shield state from earlier runs.** Global setup now resets member1's and member2's shield
+  state before every run. Before, a day of reruns raised their risk until `/rag/ask` demanded
+  proof of work (scenario 5 got 401).
+- **Atlas recognition timeout.** The local 12B vision model sometimes needs a retry to produce
+  valid JSON, which took 194 s once. The wait is now 7 minutes.
+- **Scanners:** Pillow 12.3.0 had 35 advisories (fixed in 13.0.0; it decodes untrusted uploads).
+  Pillow is now 13.0.0, along with certifi 2026.10.23 and docling 2.142 (the version that
+  allows Pillow 13). Bandit's B608 on the trigger DDL in migrations 0012 and 0019 (module
+  constants only) is annotated and listed under accepted risks.
+- **Also from the scans:** gitleaks flagged a made-up password in a Vitest fixture, now accepted
+  in `.gitleaksignore`. Trivy found a stale `libexpat1` (deb12u4, CVE-2025-59375) in
+  worker-media; it came from a cached apt layer of a local build, and a fresh build has deb12u5.
+- **Release gate, 2026-10-23, MFA on, on images rebuilt with Pillow 13:**
+  - `make audit` clean;
+  - `make smoke` 44/44;
+  - Playwright 24/24 tests (12 spec files, none skipped);
+  - Vitest 156/156;
+  - the audit chain verified in the DR rehearsal.

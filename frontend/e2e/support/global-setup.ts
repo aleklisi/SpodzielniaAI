@@ -4,14 +4,14 @@
  * embedding model tells unrelated texts apart (E2E_EMBEDDINGS=ok|degenerate): scenarios that
  * depend on retrieval quality skip, with that reason, when it doesn't. The realm file defines it, but Keycloak
  * imports a realm only once, so an existing stack gets it through the admin API (allowed
- * from localhost only, KC_ADMIN_ALLOW).
+ * from localhost only, KC_ADMIN_ALLOW). Resets the members' shield state (see below).
  */
 
 import { execFileSync } from "node:child_process";
 
 import { request } from "@playwright/test";
 
-import { COMPOSE, REPO, secret, SITE } from "./stack";
+import { COMPOSE, email, REPO, secret, seed, SITE } from "./stack";
 
 const EMBED_CHECK = `
 import asyncio, math
@@ -43,6 +43,9 @@ export default async function globalSetup(): Promise<void> {
   if (!health?.ok()) throw new Error(`${SITE} is not up: run \`make up\` first`);
   // Inherited by the test workers.
   process.env.E2E_EMBEDDINGS = embeddingsSeparate() ? "ok" : "degenerate";
+  // Chat questions from earlier runs raise the members' shield risk until /rag/ask demands
+  // proof of work (401): every run starts from a clean slate, like the lockout scenario.
+  for (const user of ["member1", "member2"]) seed({ action: "reset_shield", email: email(user) });
 
   const token = await http.post(`${AUTH}/realms/master/protocol/openid-connect/token`, {
     form: { grant_type: "password", client_id: "admin-cli", username: "admin", password: secret("keycloak_admin_password") },

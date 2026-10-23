@@ -15,7 +15,7 @@ Test locations: `tests/unit/…` and `tests/integration/…` (pytest), `frontend
 | Frontend | `cd frontend && npm run lint && npm run typecheck && npm test` | green |
 | Scanners | `make audit` (pip-audit, bandit, npm audit, gitleaks, trivy) | `audit: clean` |
 | Stack | `make build && make up && make smoke` | all checks OK |
-| E2E | `make e2e` | 11 scenarios green |
+| E2E | `make e2e` (MFA on: `make mfa-on`) | 12 spec files, 24 tests green |
 | Audit chain | `spoldzielnia audit-verify` or `GET /admin/audit-log/verify` | `ok: true` |
 
 ## OWASP API Security Top 10 (2023)
@@ -143,7 +143,9 @@ Every entry is the reason a scanner is told to stay quiet. Re-check each entry w
 | Bandit B104 (bind to `0.0.0.0`) | `core/settings.py` `api_host` | Binds inside the container; only Caddy on the internal network reaches it | the API runs outside a container |
 | Bandit B108 (`/tmp` path) | `core/settings.py` `schedule_file` | Celery beat's schedule file sits on the container's tmpfs, owned by the non-root user | the beat service changes |
 | Bandit B608 (SQL string building) | `audit/verify.py` | The interpolated piece is a module constant (`CANONICAL_ROW_SQL`); no input reaches it | that query is edited |
+| Bandit B608 (SQL string building) | migrations `0012_llm_config.py`, `0019_provider_clearance.py` (trigger functions) | The DDL interpolates module constants (the private purposes' enum arrays); migrations take no input | a migration builds SQL from anything but constants |
 | Bandit B615 (Hugging Face download without a revision) | `llm/injection_model.py` | Loads from a local directory with `local_files_only=True`, so it never downloads | model loading changes |
+| gitleaks `generic-api-key` | `.gitleaksignore`; `frontend/src/components/admin/users/users.test.tsx:133` (commit `4149fe7`) | A made-up temporary password in a Vitest fixture that the mocked API returns; it never existed in any realm | the fixture changes |
 | `pl-core-news-lg` not audited | `pip-audit` | A spaCy model wheel from GitHub releases, not on PyPI, so there is no advisory feed. It is data (weights), pinned by URL and hash in `uv.lock` | spaCy model upgrade |
 | Coverage-ratio cut-off isn't shown end to end in E2E | E2E `6-lockout` | The dev corpus is tiny, so the absolute floor (gap G14) dominates the ratio. The ratio cut-off before 15% is proven on a 200-block corpus in `test_distillation_attack.py`; E2E proves the step-up → lock path and the admin view | — |
 | Client-side deterrents (lazy render, no bulk export, wiki watermark) | 6.3 | Deterrence only; the server-side shield is the control | — |
@@ -155,6 +157,7 @@ Every entry is the reason a scanner is told to stay quiet. Re-check each entry w
 - **Embedding quality.** The smoke check "embedding model separates unrelated texts" and E2E `4-happy-path`
   depend on the configured embedding model. A degenerate model (unrelated texts with cosine ≥ 0.8)
   fails the smoke check, and global setup skips scenario 4 with a clear reason instead of letting it
-  fail at random. `rag.score_threshold` is calibrated per model. Switching the embedding model re-embeds into a new index generation (10.3); recalibrate after the swap.
+  fail at random. LM Studio's GGUF Qwen3-Embedding-4B is degenerate (0.944); EmbeddingGemma
+  separates (0.56), and the dev stack uses it since 2026-10-23. `rag.score_threshold` is calibrated per model. Switching the embedding model re-embeds into a new index generation (10.3); recalibrate after the swap.
 - **Promotion quota.** The promotion daily quota (20 per member) is real, so repeated test runs against the
   same dev stack can hit it until UTC midnight.

@@ -1,0 +1,3 @@
+# gitleaks findings accepted after review (6.7); reasons in docs/SECURITY_REVIEW.md § Accepted risks.
+# A made-up temporary password in a Vitest fixture for the user console (8.5).
+4149fe7bb1a2bb0ceebd51657f0f274baef350b0:frontend/src/components/admin/users/users.test.tsx:generic-api-key:133

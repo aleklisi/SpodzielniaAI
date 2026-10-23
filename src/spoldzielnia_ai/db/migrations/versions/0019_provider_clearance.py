@@ -79,7 +79,7 @@ BEGIN
   RETURN NEW;
 END
 $$
-"""  # noqa: S608 - constant text, no input
+"""  # noqa: S608 # nosec B608 - constant text, no input
 
 REVISION_FUNCTION = f"""
 CREATE OR REPLACE FUNCTION llm_revision_guard() RETURNS trigger
@@ -129,7 +129,7 @@ BEGIN
   RETURN NEW;
 END
 $$
-"""  # noqa: S608 - constant text, no input
+"""  # noqa: S608 # nosec B608 - constant text, no input
 
 PROVIDER_FUNCTION = """
 CREATE OR REPLACE FUNCTION llm_provider_guard() RETURNS trigger

@@ -158,6 +158,7 @@ are recorded here so the difference between the plan and the delivered system st
 | 2026-10-19 | `7bd2b09` | 3.4 | `llm.structured_output = json_schema \| prompt`, tolerant JSON extraction, `LocalModelRejected` for non-retryable 4xx. | Live promotion with LM Studio + Bielik failed: its grammar sampler returns 400 for any `json_schema` response format. |
 | 2026-10-19 | `b7a7f8b` | 6.7 | Prompt mode sends an example object + field notes instead of the raw schema, schema-echo recovery, citation marker clean-up. | Local models echoed the JSON Schema back instead of filling it. |
 | 2026-10-19 | `b7a7f8b` | 6.7 | Second expert account (`expert2`) in the Keycloak realm export; smoke check that the embedding model separates unrelated texts. | Review quorum needs two experts in E2E; a broken embedding model silently ruined retrieval. |
+| 2026-10-23 | `feat(stage-6.7)` | 6.7 | Dev embedding model switched to EmbeddingGemma through the console path (probe, activation, new index generation); E2E seed `retire_topic`, shield reset in global setup; Pillow 13. | Qwen3-Embedding GGUF in LM Studio is degenerate (cosine 0.944 for unrelated texts); reruns competed with their own earlier articles and raised members' shield risk; Pillow 12.3 had 35 advisories. |
 
 ---
 

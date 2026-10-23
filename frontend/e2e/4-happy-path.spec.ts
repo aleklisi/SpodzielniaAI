@@ -10,7 +10,7 @@
 
 import { expect, test } from "@playwright/test";
 
-import { EMBEDDINGS_DEGENERATE, embeddingsOk, session } from "./support/stack";
+import { email, EMBEDDINGS_DEGENERATE, embeddingsOk, seed, session } from "./support/stack";
 
 const TOPIC = `Zimowla ${Date.now().toString(36)}`;
 const NOTE =
@@ -22,6 +22,8 @@ const NOTE =
 test("note → wiki draft → expert approval → cited chat answer", async ({ browser }) => {
   test.skip(!embeddingsOk(), EMBEDDINGS_DEGENERATE);
   test.setTimeout(900_000);
+  // Earlier runs' articles on the same topic would compete with this one for the citation.
+  seed({ action: "retire_topic", email: email("member1"), title: "%zimow%" });
   const member = await session(browser, "member1", "/notebook");
 
   await member.getByRole("button", { name: "Nowa notatka" }).click();
@@ -60,8 +62,9 @@ test("note → wiki draft → expert approval → cited chat answer", async ({ b
   // A question about the approved article's first section (not a quote: the verbatim guard
   // would rightly refuse an answer that repeats the source).
   const heading = (await member.locator("article section h2, article section h3").first().textContent())?.trim() || TOPIC;
+  const title = (await member.getByRole("heading", { level: 1 }).first().textContent())?.trim() || TOPIC;
   await member.goto("/chat");
-  await member.getByLabel("Twoje pytanie").fill(`Jakie są zalecenia spółdzielni w temacie: ${heading.toLowerCase()}?`);
+  await member.getByLabel("Twoje pytanie").fill(`${title}: jakie są zalecenia spółdzielni w temacie: ${heading.toLowerCase()}?`);
   await member.getByRole("button", { name: "Zapytaj" }).click();
   const sources = member.getByRole("list", { name: "Źródła" });
   await expect(sources).toBeVisible({ timeout: 300_000 });

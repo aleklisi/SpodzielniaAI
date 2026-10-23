@@ -110,7 +110,8 @@ test("another member finds the photo under its label, without the author's name"
 });
 
 test("a member's own photo is recognised from the verified atlas, with a citation", async ({ browser }) => {
-  test.setTimeout(240_000);
+  // A local 12B vision model may need a retry for valid JSON: over 3 minutes on a laptop.
+  test.setTimeout(480_000);
   const member = await session(browser, "member2", "/notebook");
   await member.getByRole("button", { name: "Nowa notatka" }).click();
   await member.waitForURL(/\/notebook\/[0-9a-f-]{36}$/);
@@ -123,7 +124,7 @@ test("a member's own photo is recognised from the verified atlas, with a citatio
   await member.getByLabel("Pytanie (opcjonalnie)").fill("Czy na ramce jest matka?");
   await member.getByRole("button", { name: "Rozpoznaj" }).click();
   const result = member.getByRole("region", { name: "Wynik rozpoznawania" });
-  await expect(result).toBeVisible({ timeout: 180_000 });
+  await expect(result).toBeVisible({ timeout: 420_000 });
   // This run's photo is among the cited ones (earlier runs' synthetic photos may be too).
   await expect(result.locator(`a[href="/atlas/${imageId}"]`)).toContainText("Członek spółdzielni");
   await expect(result.locator("p").first()).not.toBeEmpty();

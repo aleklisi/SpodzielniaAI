@@ -9,6 +9,9 @@
 - gps: decrypt a stored attachment as its owner and report whether GPS EXIF survived.
 - reset_shield: clear an account's shield state (risk, honeypot hits, challenges, coverage,
   semantic history) after a lockout scenario, so reruns start clean.
+- retire_topic: supersede the CANONICAL articles an earlier run of a scenario left behind
+  (blocks by the given author, title matching an ILIKE pattern), through the governance
+  transition and the vector outbox, so a rerun's chat answer can only cite this run's article.
 - atlas_example: load the example atlas domain (idempotent, Stage 9).
 - atlas_jpeg: a JPEG with structure unique to this run (base64), so the atlas's duplicate
   check never matches a photo from an earlier run.
@@ -41,6 +44,9 @@ from spoldzielnia_ai.vector.client import make_qdrant
 from spoldzielnia_ai.vector.embedding import Embedder
 from spoldzielnia_ai.vector.generations import GenerationStore
 from spoldzielnia_ai.vector.indexing import Indexer
+from spoldzielnia_ai.vector.sync import VectorSync
+from spoldzielnia_ai.wiki.governance import Action, Actor
+from spoldzielnia_ai.wiki.review import change_status
 from spoldzielnia_ai.workers.jobs import ArticleJob
 
 GPS_IFD = 0x8825
@@ -151,6 +157,29 @@ async def reset_shield(factory, settings, cipher, args) -> dict:
     return {"removed": removed}
 
 
+async def retire_topic(factory, settings, cipher, args) -> dict:
+    async with factory() as session, session.begin():
+        author = await user_id(session, args["email"])
+        articles = list(
+            await session.scalars(
+                select(WikiArticle).where(
+                    WikiArticle.status == ArticleStatus.CANONICAL,
+                    WikiArticle.title.ilike(args["title"]),
+                    WikiArticle.id.in_(
+                        select(ArticleBlock.article_id).where(ArticleBlock.author_id == author)
+                    ),
+                )
+            )
+        )
+        ops = []
+        for article in articles:
+            ops += await change_status(
+                session, article, Action.SUPERSEDE, Actor.SYSTEM, None, {"reason": "e2e rerun"}
+            )
+        await VectorSync.record(session, ops)  # applied by worker-core's outbox reconciler
+    return {"retired": [str(a.id) for a in articles]}
+
+
 async def atlas_example(factory, settings, cipher, args) -> dict:
     from spoldzielnia_ai.atlas.seed import seed_example
 
@@ -187,6 +216,7 @@ async def main() -> None:
         "gps": gps,
         "gps_jpeg": gps_jpeg,
         "reset_shield": reset_shield,
+        "retire_topic": retire_topic,
         "atlas_example": atlas_example,
         "atlas_jpeg": atlas_jpeg,
     }
