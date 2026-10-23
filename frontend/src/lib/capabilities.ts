@@ -18,7 +18,8 @@ export type Feature =
   | "notebook_search"
   | "promotion"
   | "image_descriptions"
-  | "recognition";
+  | "recognition"
+  | "transcription";
 
 export const MODEL_MISSING = "Model nie jest skonfigurowany";
 

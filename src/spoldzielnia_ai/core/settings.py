@@ -397,6 +397,8 @@ class LlmSettings(BaseModel):
     chat_model: str | None = None  # e.g. "speakleash/bielik-11b-v2.3-instruct"
     vlm_model: str | None = None  # e.g. "qwen2.5-vl-7b-instruct"
     embed_model: str | None = None  # e.g. "text-embedding-embeddinggemma"
+    # Speech-to-text on the local endpoint (10.4), e.g. a self-hosted whisper server.
+    transcribe_model: str | None = None
     # Docker secret `llm_api_key` (LM Studio requires a token; Ollama ignores it).
     api_key: SecretStr | None = None
     timeout_seconds: float = Field(default=180.0, gt=0)
@@ -431,11 +433,22 @@ class LlmSettings(BaseModel):
     # Re-embedding the text index with a new model (10.3): items per minute when the model is
     # not on a local endpoint (cost guard for cloud APIs). Local models run unthrottled.
     reembed_per_minute: int = Field(default=600, ge=1)
+    # Speech-to-text over the API (10.4): recordings are cut into segments of at most this
+    # length (providers cap the request size; 600 s of 16 kHz mono WAV is 19.2 MB) and sent with
+    # this language. One request may take long on a CPU server, hence its own timeout.
+    transcribe_segment_seconds: int = Field(default=600, ge=10, le=1200)
+    transcribe_language: str = "pl"
+    transcribe_timeout_seconds: float = Field(default=900.0, gt=0)
+    # The media worker's built-in faster-whisper (optional, needs its model in the ``models``
+    # volume) transcribes when no TRANSCRIBE model is routed. Never used when one is routed,
+    # even if that one fails (no fallback, P5); it never leaves the server.
+    builtin_transcription: bool = True
 
     @field_validator(
         "chat_model",
         "vlm_model",
         "embed_model",
+        "transcribe_model",
         "cloud_model",
         "cloud_base_url",
         "egress_proxy_url",

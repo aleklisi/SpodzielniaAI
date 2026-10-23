@@ -2382,7 +2382,8 @@
         "enum": [
           "CHAT",
           "VLM",
-          "EMBED"
+          "EMBED",
+          "TRANSCRIBE"
         ],
         "title": "LlmCapability",
         "type": "string"
@@ -2413,7 +2414,8 @@
           "PROMOTION",
           "VLM",
           "EMBED",
-          "RAG"
+          "RAG",
+          "TRANSCRIBE"
         ],
         "title": "LlmRoutePurpose",
         "type": "string"

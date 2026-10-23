@@ -125,6 +125,8 @@ check "api reaches IdP via proxy alias" "${COMPOSE[@]}" exec -T api python -c \
   "import socket; socket.create_connection(('auth.$DOMAIN', 443), 3)"
 OUT='import socket; socket.create_connection(("1.1.1.1", 443), 5)'
 check_not "worker-media has no internet access" "${COMPOSE[@]}" exec -T worker-media python -c "$OUT"
+check "worker-media reaches cloud model APIs only via llm-egress" "${COMPOSE[@]}" exec -T worker-media \
+  python -c "import socket; socket.create_connection(('llm-egress', 3128), 3)"
 check "worker-egress reaches the internet" "${COMPOSE[@]}" exec -T worker-egress python -c "$OUT"
 
 echo "6. Media pipeline"
@@ -288,6 +290,29 @@ asyncio.run(main())
 '
 check "worker-core: image model separates unrelated images, atlas collection ready" \
   "${COMPOSE[@]}" exec -T worker-core python -c "$ATLAS_PY"
+# 10.4: speech-to-text through the TRANSCRIBE model configured in /admin/llm (or .env), if any.
+STT_PY='
+import asyncio, sys
+from spoldzielnia_ai.core.settings import WorkerSettings
+from spoldzielnia_ai.llm.gateway import LLMPurpose
+from spoldzielnia_ai.llm.probes import PROBE_MAX_WER, PROBE_SPEECH, probe_speech, word_error_rate
+from spoldzielnia_ai.workers.runtime import WorkerRuntime
+async def main():
+    gateway = WorkerRuntime(WorkerSettings(), None)._gateway()
+    await gateway.refresh()
+    if not gateway.configured(LLMPurpose.TRANSCRIBE):
+        sys.exit(3)
+    result = await gateway.transcribe(probe_speech(), filename="smoke.wav")
+    assert word_error_rate(PROBE_SPEECH, result.text) <= PROBE_MAX_WER
+asyncio.run(main())
+'
+stt=0
+"${COMPOSE[@]}" exec -T worker-media python -c "$STT_PY" >/dev/null 2>&1 || stt=$?
+case $stt in
+  0) ok "worker-media: the TRANSCRIBE model reads back a Polish clip" ;;
+  3) echo "  - worker-media: no TRANSCRIBE model configured (speech-to-text API check skipped)" ;;
+  *) bad "worker-media: the TRANSCRIBE model reads back a Polish clip" ;;
+esac
 check "beat: scheduler running" bash -c \
   "${COMPOSE[*]} logs beat 2>&1 | grep -q 'beat: Starting'"
 check "worker-media: model volume is read-only" bash -c \

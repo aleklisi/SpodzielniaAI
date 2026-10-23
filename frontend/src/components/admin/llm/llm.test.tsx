@@ -163,6 +163,19 @@ describe("helpers", () => {
     expect(screen.getByText(/JSON \(response_format\)/)).toHaveTextContent("✗");
     expect(screen.getByText("schemat w poleceniu")).toBeInTheDocument();
   });
+
+  it("offers speech-to-text only transcription models of cleared providers", () => {
+    const whisper = { ...model("01900000-0000-7000-8000-0000000000a5", LOCAL, "whisper-large-v3"), capability: "TRANSCRIBE" as const };
+    const cloudWhisper = { ...model("01900000-0000-7000-8000-0000000000a6", CLOUD, "voxtral-mini"), capability: "TRANSCRIBE" as const };
+    const all = [...MODELS, whisper, cloudWhisper];
+    const names = eligibleModels({ capability: "TRANSCRIBE", private_data: true }, all, PROVIDERS).map((m) => m.model_name);
+    expect(names).toEqual(["whisper-large-v3"]);
+  });
+
+  it("shows the word error rate of a transcription probe", () => {
+    renderWithClient(<ProbeReport report={{ ok: true, checks: [{ name: "transcribe", ok: true, latency_ms: 900, word_error_rate: 0.167 }] }} />);
+    expect(screen.getByText(/Transkrypcja nagrania testowego/)).toHaveTextContent("błędne słowa 17%");
+  });
 });
 
 describe("routing", () => {

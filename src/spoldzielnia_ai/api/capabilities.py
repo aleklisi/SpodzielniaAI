@@ -12,7 +12,7 @@ from fastapi import APIRouter, HTTPException, Request, status
 from pydantic import BaseModel
 
 from spoldzielnia_ai.auth.deps import CurrentUser  # noqa: TC001 - FastAPI resolves it
-from spoldzielnia_ai.llm.capabilities import FEATURES, capabilities
+from spoldzielnia_ai.llm.capabilities import FEATURES, builtin_purposes, capabilities
 
 if TYPE_CHECKING:
     from spoldzielnia_ai.llm.gateway import LiteLLMGateway, LLMPurpose
@@ -27,7 +27,8 @@ class CapabilitiesOut(BaseModel):
 @router.get("/capabilities", response_model=CapabilitiesOut)
 async def get_capabilities(request: Request, _user: CurrentUser) -> CapabilitiesOut:
     gateway: LiteLLMGateway = request.app.state.llm
-    return CapabilitiesOut(features=await capabilities(gateway))
+    builtin = builtin_purposes(request.app.state.settings.llm)
+    return CapabilitiesOut(features=await capabilities(gateway, builtin))
 
 
 def model_not_configured() -> HTTPException:

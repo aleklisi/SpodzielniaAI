@@ -144,8 +144,12 @@ Notes, attachments and derivatives are encrypted per row (envelope encryption, K
 secret `kek`) and isolated by Postgres RLS. Uploads (`POST /api/notes/{id}/attachments`) are
 validated by content (libmagic), checked by the archive guard, scanned by ClamAV (fail-closed),
 stripped of metadata and stored encrypted in MinIO. Links (`POST /api/notes/{id}/links`) pass
-SSRF checks and are fetched by `worker-egress`. Celery workers produce derivatives: transcripts
-(faster-whisper), parsed documents (Docling) and fetched pages.
+SSRF checks and are fetched by `worker-egress`. Celery workers produce derivatives: transcripts,
+parsed documents (Docling) and fetched pages. Recordings go to the speech-to-text model routed
+for „Transkrypcja nagrań” in `/admin/llm` (any `/v1/audio/transcriptions` API: a self-hosted
+whisper server, Mistral Voxtral, OpenAI…; 10-minute segments, timestamps stitched). Without one,
+the built-in faster-whisper transcribes if `make models` installed it
+(`LLM_BUILTIN_TRANSCRIPTION=false` turns it off); otherwise recordings wait for a model.
 
 ```bash
 make models        # once: Whisper small + Docling into the `models` volume (needs internet)
@@ -190,15 +194,15 @@ LLM_CLOUD_HOSTS=["api.openai.com"]        # https hosts admins may configure
 # SPOLDZIELNIA_LLM__CONFIG_SOURCE=env     # emergency: ignore the database and use .env only
 ```
 
-Private-data purposes (notes, promotion, PII scrubbing, images, embeddings) can only use
+Private-data purposes (notes, promotion, PII scrubbing, images, embeddings, speech-to-text) can only use
 providers **cleared for private data** (Stage 10.1, AGENTS.md rule 4). An endpoint can be cleared
 only if it is on `LLM_PRIVATE_DATA_ENDPOINTS` (unset: the local endpoints; `[]`: none), and an
 admin clears it in „Dostawcy” → „Dopuść do danych prywatnych” with a fresh login, recording the
 data region, retention and contract. A cloud API (e.g. Mistral in the EU) can be cleared this
 way; un-clearing stops its private purposes at once. This is enforced by the UI, the API,
 database triggers and the gateway. Cloud calls go
-out through the `llm-egress` proxy (CONNECT to `LLM_CLOUD_HOSTS` only); the api has no other
-route to the internet. Changing the embedding model in the console builds a new version of the
+out through the `llm-egress` proxy (CONNECT to `LLM_CLOUD_HOSTS` only); the api and worker-media
+have no other route to the internet. Changing the embedding model in the console builds a new version of the
 search index in the background (each version records its model and dimension, probed from the
 model); the old one keeps answering, with its own model, until the new one is complete
 (`GET /admin/llm/index`; `make reindex` does the same on demand).

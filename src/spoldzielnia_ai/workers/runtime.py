@@ -39,6 +39,7 @@ from spoldzielnia_ai.vector.sync import AtlasSink, VectorSync
 from spoldzielnia_ai.wiki.promotion import PromotionProcessor
 from spoldzielnia_ai.workers.celery_adapter import make_celery, register
 from spoldzielnia_ai.workers.engines.text import TextEngine
+from spoldzielnia_ai.workers.engines.transcription import GatewayTranscriptionEngine
 from spoldzielnia_ai.workers.engines.vision import GatewayVisionEngine, UnavailableVisionEngine
 from spoldzielnia_ai.workers.jobs import MaintenanceJob, TaskName
 from spoldzielnia_ai.workers.processing import DerivativeProcessor
@@ -101,11 +102,11 @@ class WorkerRuntime:
     def _engine_for(self, kind: DerivativeKind, mime_type: str) -> Engine:
         models = self._settings.models
         if kind == DerivativeKind.TRANSCRIPT:
-            key = "whisper"
+            key = "transcription"
             if key not in self._engine_cache:
-                from spoldzielnia_ai.workers.engines.whisper import WhisperEngine
-
-                self._engine_cache[key] = WhisperEngine(models)
+                self._engine_cache[key] = GatewayTranscriptionEngine(
+                    self._config_gateway, self._settings.llm, self._builtin_whisper
+                )
         elif kind == DerivativeKind.PARSED_DOC and mime_type in _TEXT_TYPES:
             key = "text"
             self._engine_cache.setdefault(key, TextEngine())
@@ -118,19 +119,30 @@ class WorkerRuntime:
         else:
             key = "vision"
             if key not in self._engine_cache:
-                # The engine runs on its own event loop (worker thread), so it gets the
-                # configuration ``run`` refreshed, not the store with its loop-bound clients.
-                store = self._llm_store()
                 self._engine_cache[key] = (
-                    GatewayVisionEngine(
-                        lambda: LiteLLMGateway(
-                            self._settings.llm, source=StaticConfig(store.cached)
-                        )
-                    )
+                    GatewayVisionEngine(self._config_gateway)
                     if self._settings.llm.vlm_model or self._settings.llm.config_source == "db"
                     else UnavailableVisionEngine()
                 )
         return self._engine_cache[key]
+
+    def _config_gateway(self) -> LiteLLMGateway:
+        """For engines on their own event loop (worker thread): the configuration ``run``
+        refreshed, not the store with its loop-bound clients."""
+        return LiteLLMGateway(self._settings.llm, source=StaticConfig(self._llm_store().cached))
+
+    def _builtin_whisper(self) -> Engine | None:
+        """faster-whisper, if the operator allows it and its model is in the volume (10.4)."""
+        models = self._settings.models
+        if not self._settings.llm.builtin_transcription:
+            return None
+        if not (Path(models.whisper_dir) / "model.bin").is_file():
+            return None
+        if "whisper" not in self._engine_cache:
+            from spoldzielnia_ai.workers.engines.whisper import WhisperEngine
+
+            self._engine_cache["whisper"] = WhisperEngine(models)
+        return self._engine_cache["whisper"]
 
     def _llm_store(self) -> LlmConfigStore:
         """One per process: the ACTIVE LLM configuration revision (7.2)."""
@@ -274,7 +286,8 @@ class WorkerRuntime:
         if self._processor is None:
             self._processor = runner.run(_construct(self._build))
         processor = self._processor
-        # A fresh LLM configuration for the vision engine (cheap: TTL and a Redis GET).
+        # A fresh LLM configuration for the vision and transcription engines (cheap: TTL and a
+        # Redis GET).
         runner.run(self._llm_store().current())
         try:
             return runner.run(processor.handle(job, final_attempt=attempt >= MAX_RETRIES))

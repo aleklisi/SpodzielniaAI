@@ -2654,7 +2654,7 @@ export interface components {
          * LlmCapability
          * @enum {string}
          */
-        LlmCapability: "CHAT" | "VLM" | "EMBED";
+        LlmCapability: "CHAT" | "VLM" | "EMBED" | "TRANSCRIBE";
         /**
          * LlmProviderKind
          * @description Derived from the endpoint allowlist the base URL matched (7.1), never chosen freely.
@@ -2671,7 +2671,7 @@ export interface components {
          * @description Purposes an admin can assign a model to (``llm.gateway.LLMPurpose`` minus the playground).
          * @enum {string}
          */
-        LlmRoutePurpose: "PII_SCRUB" | "PRIVATE_NOTE" | "PROMOTION" | "VLM" | "EMBED" | "RAG";
+        LlmRoutePurpose: "PII_SCRUB" | "PRIVATE_NOTE" | "PROMOTION" | "VLM" | "EMBED" | "RAG" | "TRANSCRIBE";
         /** LogoutResponse */
         LogoutResponse: {
             /** Logout Url */

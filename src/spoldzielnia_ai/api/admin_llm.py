@@ -33,7 +33,7 @@ from spoldzielnia_ai.db.enums import (
     LlmRoutePurpose,
     Role,
 )
-from spoldzielnia_ai.llm.capabilities import missing_purposes
+from spoldzielnia_ai.llm.capabilities import builtin_purposes, missing_purposes
 from spoldzielnia_ai.llm.config_service import (
     PRIVATE_ROUTE_PURPOSES,
     ClearanceIn,
@@ -352,7 +352,7 @@ async def get_status(request: Request, service: Service) -> StatusOut:
     local, cloud = allowed_endpoints(llm)
     active = await service.active()
     store = getattr(request.app.state, "llm_config", None)
-    missing = await missing_purposes(request.app.state.llm)
+    missing = await missing_purposes(request.app.state.llm, builtin_purposes(llm))
     return StatusOut(
         config_source=llm.config_source,
         allow_cloud=llm.allow_cloud,
@@ -701,7 +701,7 @@ async def playground(
             kind = service.kind_of(provider.base_url)
         except ConfigError as exc:
             raise _http(exc) from None
-        if model.capability == LlmCapability.EMBED:
+        if model.capability in (LlmCapability.EMBED, LlmCapability.TRANSCRIBE):
             raise _http(ConfigError("capability_mismatch", model=model.model_name))
         if model.disabled_at is not None or provider.disabled_at is not None:
             raise _http(ConfigError("model_disabled", model=model.model_name))

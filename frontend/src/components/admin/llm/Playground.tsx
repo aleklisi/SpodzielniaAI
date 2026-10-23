@@ -6,6 +6,7 @@ import { KindBadge } from "@/components/admin/llm/Catalog";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import {
+  generates,
   llmError,
   modelLabel,
   usePlayground,
@@ -31,7 +32,7 @@ export function PlaygroundPanel({ status, providers, models }: { status: LlmStat
   const byProvider = new Map(providers.map((p) => [p.id, p]));
   const candidates = models.filter((m) => {
     const p = byProvider.get(m.provider_id);
-    return m.capability !== "EMBED" && !m.disabled && p !== undefined && !p.disabled && p.allowed;
+    return generates(m.capability) && !m.disabled && p !== undefined && !p.disabled && p.allowed;
   });
   const current = presets.data?.find((p) => p.key === preset);
   const isCloud = (m: LlmModel) => byProvider.get(m.provider_id)?.kind === "CLOUD";

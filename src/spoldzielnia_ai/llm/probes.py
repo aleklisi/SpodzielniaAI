@@ -11,6 +11,8 @@ token counts and error class names: never the prompt or the model's output.
 - VLM: describe the colour of a generated 64x64 image.
 - EMBED: the vector dimension (recorded; any size, 10.3) and whether two unrelated
   sentences end up apart (the smoke check of 6.7).
+- TRANSCRIBE (10.4): a packaged synthetic Polish clip ("Pszczoły zbierają nektar z kwiatów
+  rzepaku.") read back; the report holds the word error rate, not the text.
 """
 
 from __future__ import annotations
@@ -18,8 +20,10 @@ from __future__ import annotations
 import base64
 import io
 import math
+import re
 import time
 from dataclasses import replace
+from importlib import resources
 from typing import TYPE_CHECKING, Any, cast
 
 import httpx
@@ -44,6 +48,8 @@ if TYPE_CHECKING:
 MAX_MODELS_BODY = 1024 * 1024
 MAX_LISTED_MODELS = 500
 SEPARATION_MAX_COSINE = 0.9
+PROBE_SPEECH = "Pszczoły zbierają nektar z kwiatów rzepaku."
+PROBE_MAX_WER = 0.34  # at most two of the six words wrong
 
 
 class CityAnswer(BaseModel):
@@ -217,6 +223,50 @@ async def _probe_embed(
     return report
 
 
+def probe_speech() -> bytes:
+    return resources.files("spoldzielnia_ai.llm").joinpath("assets/probe_pl.wav").read_bytes()
+
+
+def _words(text: str) -> list[str]:
+    return re.findall(r"\w+", text.lower())
+
+
+def word_error_rate(reference: str, hypothesis: str) -> float:
+    """Word-level Levenshtein distance divided by the reference length."""
+    ref, hyp = _words(reference), _words(hypothesis)
+    previous = list(range(len(hyp) + 1))
+    for i, word in enumerate(ref, 1):
+        current = [i]
+        for j, other in enumerate(hyp, 1):
+            current.append(
+                min(previous[j] + 1, current[j - 1] + 1, previous[j - 1] + (word != other))
+            )
+        previous = current
+    return previous[-1] / len(ref) if ref else 0.0
+
+
+async def _probe_transcribe(
+    deployment: Deployment, settings: LlmSettings, transport: ChatTransport | None
+) -> dict[str, JsonValue]:
+    # A synthetic clip, so any allowed provider may be probed before it is cleared.
+    gateway = single_gateway(deployment, settings, transport)
+    check, result = await _timed(
+        "transcribe",
+        gateway.transcribe(
+            probe_speech(),
+            filename="probe.wav",
+            language="pl",
+            private_data=False,
+            purpose=LLMPurpose.PLAYGROUND,
+        ),
+    )
+    if result is not None:
+        wer = round(word_error_rate(PROBE_SPEECH, result.text), 3)
+        check["word_error_rate"] = wer
+        check["ok"] = wer <= PROBE_MAX_WER
+    return {"ok": bool(check["ok"]), "checks": [check]}
+
+
 async def probe_model(
     capability: LlmCapability,
     deployment: Deployment,
@@ -228,6 +278,8 @@ async def probe_model(
         return await _probe_vlm(deployment, settings, transport)
     if capability == LlmCapability.EMBED:
         return await _probe_embed(deployment, settings, transport)
+    if capability == LlmCapability.TRANSCRIBE:
+        return await _probe_transcribe(deployment, settings, transport)
     return await _probe_chat(deployment, settings, transport)
 
 

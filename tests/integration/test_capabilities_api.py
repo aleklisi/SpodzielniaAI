@@ -45,7 +45,7 @@ async def test_every_feature_is_on_when_its_purposes_have_models(
 async def test_without_models_features_are_off_and_refused_up_front(
     settings: Settings, factory: SessionFactory
 ) -> None:
-    bare = settings.model_copy(update={"llm": LlmSettings()})
+    bare = settings.model_copy(update={"llm": LlmSettings(builtin_transcription=False)})
     async with harness(bare, factory) as h:
         h.app.state.generations = StaticGenerations(())  # no embedding model, no index (10.3)
         member = await h.login(amr=["pwd", "otp"])

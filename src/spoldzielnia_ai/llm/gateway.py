@@ -9,8 +9,8 @@ process picks up without a restart. Each purpose has its own route.
 Routing policy (AGENTS.md §3 rule 4, chunk 10.1):
 
 - Purposes in ``PRIVATE_PURPOSES`` (PII scrubbing, private notes, promotion, vision,
-  embeddings) go only to deployments **cleared for private data**, whatever the caller passes.
-  That is defence in depth against a missing ``private_data=True``.
+  embeddings, speech-to-text) go only to deployments **cleared for private data**, whatever
+  the caller passes. That is defence in depth against a missing ``private_data=True``.
 - ``private_data=True`` → cleared deployments only. A deployment is cleared when an admin
   cleared its provider and its endpoint is on ``llm.private_data_endpoints``; locality alone no
   longer decides. If none is configured, or the call to it fails, ``ModelUnavailable`` is
@@ -55,6 +55,7 @@ if TYPE_CHECKING:
     from collections.abc import Mapping
 
     from spoldzielnia_ai.core.settings import LlmSettings
+    from spoldzielnia_ai.llm.transcription import Transcription
 
 # Before LiteLLM is imported anywhere: never download the model price map at runtime.
 os.environ.setdefault("LITELLM_LOCAL_MODEL_COST_MAP", "True")
@@ -69,6 +70,7 @@ class LLMPurpose(StrEnum):
     VLM = "VLM"
     EMBED = "EMBED"
     RAG = "RAG"  # Stage 5: canonical (public) knowledge only
+    TRANSCRIBE = "TRANSCRIBE"  # 10.4: speech-to-text of members' recordings
     PLAYGROUND = "PLAYGROUND"  # 7.5: an admin's own test prompt, never retrieval or user data
 
 
@@ -79,13 +81,15 @@ PRIVATE_PURPOSES = frozenset(
         LLMPurpose.PROMOTION,
         LLMPurpose.VLM,
         LLMPurpose.EMBED,
+        LLMPurpose.TRANSCRIBE,
     }
 )
 
-LOCAL_CHAT, LOCAL_VLM, LOCAL_EMBED, CLOUD_CHAT = (
+LOCAL_CHAT, LOCAL_VLM, LOCAL_EMBED, LOCAL_TRANSCRIBE, CLOUD_CHAT = (
     "local-chat",
     "local-vlm",
     "local-embed",
+    "local-transcribe",
     "cloud-chat",
 )
 
@@ -241,6 +245,7 @@ def deployments(settings: LlmSettings) -> dict[str, Deployment]:
         (LOCAL_CHAT, settings.chat_model),
         (LOCAL_VLM, settings.vlm_model),
         (LOCAL_EMBED, settings.embed_model),
+        (LOCAL_TRANSCRIBE, settings.transcribe_model),
     ):
         if model:
             found[name] = Deployment(
@@ -270,6 +275,8 @@ def _kind_deployment(purpose: LLMPurpose) -> str:
         return LOCAL_VLM
     if purpose == LLMPurpose.EMBED:
         return LOCAL_EMBED
+    if purpose == LLMPurpose.TRANSCRIBE:
+        return LOCAL_TRANSCRIBE
     return LOCAL_CHAT
 
 
@@ -677,6 +684,44 @@ class LiteLLMGateway:
             time.monotonic() - started
         )
         return [list(map(float, item["embedding"])) for item in response.data]
+
+    async def transcribe(
+        self,
+        audio: bytes,
+        *,
+        filename: str = "audio.wav",
+        language: str | None = None,
+        private_data: bool = True,
+        purpose: LLMPurpose = LLMPurpose.TRANSCRIBE,
+    ) -> Transcription:
+        """Speech-to-text of one audio segment (10.4). ``purpose`` is TRANSCRIBE except for
+        probes (PLAYGROUND: a synthetic clip only). TRANSCRIBE is private: only a deployment
+        cleared for private data receives members' recordings, never another one (P1, P9)."""
+        from spoldzielnia_ai.llm.transcription import post_transcription
+
+        await self.refresh()
+        deployment = self.route(purpose, private_data)
+        started = time.monotonic()
+        try:
+            result = await post_transcription(
+                deployment,
+                audio,
+                filename,
+                language=language or self._settings.transcribe_language,
+                settings=self._settings,
+            )
+        except (ModelRejected, ModelUnavailable) as exc:
+            kind = "rejected" if isinstance(exc, ModelRejected) else "unavailable"
+            LLM_ERRORS.labels(deployment=deployment.name, kind=kind).inc()
+            log.warning("llm.transcription_failed", deployment=deployment.name, error=str(exc))
+            raise
+        except LLMOutputInvalid:
+            LLM_ERRORS.labels(deployment=deployment.name, kind="invalid_output").inc()
+            raise
+        LLM_REQUEST_SECONDS.labels(deployment=deployment.name, purpose=purpose.value).observe(
+            time.monotonic() - started
+        )
+        return result
 
 
 def _usage(response: Any) -> dict[str, int]:

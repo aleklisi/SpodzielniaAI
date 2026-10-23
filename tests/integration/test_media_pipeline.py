@@ -30,6 +30,7 @@ from spoldzielnia_ai.notebook.uploads import UploadPipeline
 from spoldzielnia_ai.workers.celery_adapter import make_celery, register
 from spoldzielnia_ai.workers.engines.base import PermanentError, TransientError
 from spoldzielnia_ai.workers.engines.text import TextEngine
+from spoldzielnia_ai.workers.engines.transcription import GatewayTranscriptionEngine
 from spoldzielnia_ai.workers.engines.vision import UnavailableVisionEngine
 from spoldzielnia_ai.workers.jobs import DerivativeJob, TaskName
 from spoldzielnia_ai.workers.processing import DerivativeProcessor
@@ -72,10 +73,11 @@ class FakeEngine:
 class Engines:
     whisper: FakeEngine = field(default_factory=FakeEngine)
     docling: FakeEngine = field(default_factory=lambda: FakeEngine("# Raport\n\nTreść."))
+    transcription: Engine | None = None  # 10.4: the real API engine, when a test sets it
 
     def __call__(self, kind: DerivativeKind, mime: str) -> Engine:
         if kind == DerivativeKind.TRANSCRIPT:
-            return self.whisper
+            return self.transcription or self.whisper
         if kind == DerivativeKind.IMAGE_DESCRIPTION:
             return UnavailableVisionEngine()
         if mime in ("text/plain", "text/markdown"):
@@ -248,6 +250,59 @@ async def test_an_image_waits_for_a_vision_model_then_resumes(
     async with factory() as session:
         assert await session.scalar(text("SELECT count(*) FROM model_wait")) == 0
     assert await ModelWaitResumer(factory, configured, record).run() == 0
+
+
+async def test_a_recording_waits_for_a_transcription_model_then_goes_to_its_api(
+    h: Harness, engines: Engines, runtime: EagerRuntime, factory: SessionFactory
+) -> None:
+    """10.4: no TRANSCRIBE model and no built-in Whisper → WAITING_FOR_MODEL; once a cleared
+    model is configured the recording is sent to its API (decrypted WAV, multipart) only."""
+    current = {"llm": LlmSettings()}
+    engines.transcription = GatewayTranscriptionEngine(
+        lambda: LiteLLMGateway(current["llm"]), LlmSettings(), lambda: None
+    )
+    alice = await h.login()
+    note_id = await _note(alice)
+    with respx.mock(assert_all_called=False) as router:
+        h.idp.mount(router)
+        api = router.post("http://llm:11434/v1/audio/transcriptions").mock(
+            return_value=httpx.Response(200, json={"text": "Matki pszczele wychodzą z ula."})
+        )
+        await _upload(alice, note_id, files.wav(seconds=1.0), "nagranie.wav", "audio/wav")
+        (derivative,) = await _derivatives(alice, note_id)
+        assert (derivative["status"], derivative["error"]) == (
+            "WAITING_FOR_MODEL",
+            "model_not_configured:TRANSCRIBE",
+        )
+        async with factory() as session:
+            waiting = (
+                await session.execute(
+                    text("SELECT task FROM model_wait WHERE purpose = 'TRANSCRIBE'")
+                )
+            ).all()
+        assert [tuple(r) for r in waiting] == [("media.transcribe_audio",)]
+        assert api.call_count == 0
+
+        sent: list[tuple[TaskName, Any]] = []
+
+        async def record(name: TaskName, job: Any) -> None:
+            sent.append((name, job))
+
+        current["llm"] = LlmSettings(transcribe_model="whisper-large-v3")
+        assert await ModelWaitResumer(factory, LiteLLMGateway(current["llm"]), record).run() == 1
+        ((name, job),) = sent
+        assert name == TaskName.TRANSCRIBE_AUDIO
+        await asyncio.to_thread(runtime.run, job, 1)  # what the media worker does next
+
+        (derivative,) = await _derivatives(alice, note_id)
+        assert (derivative["status"], derivative["content"]) == (
+            "DONE",
+            "Matki pszczele wychodzą z ula.",
+        )
+        assert api.call_count == 1
+        body = api.calls.last.request.content
+        assert b"RIFF" in body
+        assert b'name="model"\r\n\r\nwhisper-large-v3' in body
 
 
 async def test_permanent_engine_error_fails_without_retry(h: Harness, engines: Engines) -> None:

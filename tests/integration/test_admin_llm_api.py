@@ -123,6 +123,7 @@ async def test_first_visit_shows_the_env_configuration_as_revision_one(h: Harnes
         "PII_SCRUB": True,
         "PRIVATE_NOTE": True,
         "PROMOTION": True,
+        "TRANSCRIBE": True,
         "VLM": True,
         "EMBED": True,
         "RAG": False,
@@ -434,6 +435,30 @@ async def test_playground_compares_models_and_audits_only_a_hash(
     assert len(rows) == 2
     assert rows[0].payload["prompt_sha256"] == hashlib.sha256(prompt.encode()).hexdigest()
     assert "4711" not in json.dumps([r.payload for r in rows])
+
+
+async def test_a_transcription_model_is_probed_with_a_polish_clip(h: Harness) -> None:
+    """10.4: the probe sends the packaged synthetic clip and reports the word error rate."""
+    admin = await _admin(h)
+    whisper = await _model(admin, await _vllm(admin), "whisper-large-v3", "TRANSCRIBE")
+    route = h.router.post("http://vllm:8000/v1/audio/transcriptions").mock(
+        return_value=httpx.Response(200, json={"text": "Pszczoły zbierają nektar z kwiatów."})
+    )
+    probed = (
+        await admin.client.post(f"/admin/llm/models/{whisper['id']}/probe", headers=admin.headers)
+    ).json()
+    (check,) = probed["report"]["checks"]
+    assert (check["name"], check["ok"], check["word_error_rate"]) == ("transcribe", True, 0.167)
+    assert probed["model"]["last_probe_ok"] is True
+    assert b"RIFF" in route.calls.last.request.content
+    assert "nektar" not in json.dumps(probed)  # no model output stored or returned
+    playground = await admin.client.post(
+        "/admin/llm/playground",
+        json={"model_ids": [whisper["id"]], "prompt": "x"},
+        headers=admin.headers,
+    )
+    assert playground.status_code == 422
+    assert playground.json()["detail"]["error"] == "capability_mismatch"
 
 
 async def test_playground_input_rules(h: Harness) -> None:

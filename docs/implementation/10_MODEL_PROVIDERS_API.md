@@ -447,3 +447,52 @@ reference local one.
   a consent change during the build reaches both generations; cancel keeps the old one serving;
   rolling the model back cancels the build; un-clearing stops the generation; drop after grace
   and alias; a first model builds and then serves; `reindex` builds and swaps; admin endpoints).
+
+### 10.4 — Speech-to-text over API
+- **Purpose and capability:** `TRANSCRIBE` in `LLMPurpose`, `LlmRoutePurpose` and `LlmCapability`,
+  among the private purposes (P1/P9). Migration `0022_transcribe_purpose` adds the enum values and
+  redefines the 0019 guards: a TRANSCRIBE route needs a TRANSCRIBE model of a cleared provider.
+  `.env` mode: `LLM_TRANSCRIBE_MODEL` on the local endpoint (`local-transcribe`), never the chat
+  model; seeding routes it when the local endpoint is cleared.
+- **API adapter:** `llm/transcription.py` posts one multipart request per segment to
+  `{base_url}/audio/transcriptions` with `file`, `model` and `language` only (the subset OpenAI,
+  Groq, Mistral Voxtral, vLLM and self-hosted whisper servers share), httpx with no redirects,
+  through `llm-egress` for cloud endpoints. `text` is required; `segments` are used when present.
+  `LiteLLMGateway.transcribe` routes it with the same policy as every call (cloud ceiling,
+  clearance, `llm_route_refused_total`, no fallback). Errors: 5xx/408/429/connection →
+  `ModelUnavailable` (the task retries), other 4xx and 3xx → `ModelRejected` (FAILED
+  `transcription_rejected`), no text → `transcription_invalid`.
+- **Segmenting:** `workers/engines/transcription.split_audio` decodes with PyAV once, streaming,
+  into 16 kHz mono 16-bit WAV files of at most `llm.transcribe_segment_seconds` (600 s = 19.2 MB,
+  under the common 25 MB cap) in the job's tmpfs; a tail under 2 s joins the previous segment.
+  Each segment's timestamps are shifted by its offset (`stitch`); the derivative stays plain
+  text, as with the built-in engine. `llm.transcribe_timeout_seconds` (900) per request.
+- **Built-in Whisper is optional:** per job, the routed TRANSCRIBE model if there is a usable one;
+  else faster-whisper if `llm.builtin_transcription` (default true, `LLM_BUILTIN_TRANSCRIPTION`)
+  and its model is in the volume; else WAITING_FOR_MODEL. A routed model that fails is retried,
+  never replaced by the built-in one (P5). `/capabilities` gains `transcription`; the built-in
+  engine counts as configured when the setting is on (the api cannot see the worker's volume,
+  so the operator turns the setting off when the model is not installed; 10.7 revisits the
+  defaults).
+- **Probe:** the TRANSCRIBE probe sends a packaged synthetic Polish clip
+  (`llm/assets/probe_pl.wav`, "Pszczoły zbierają nektar z kwiatów rzepaku.") under PLAYGROUND
+  and records the word error rate (pass ≤ 0.34), never the text. Transcription models are not
+  offered in the playground.
+- **Egress:** `worker-media` (transcription, vision) joins `llm-cloud` with
+  `SPOLDZIELNIA_LLM__EGRESS_PROXY_URL`, so a cleared cloud provider is reachable only through the
+  proxy; smoke checks that worker-media reaches `llm-egress` and still has no internet, and
+  transcribes the probe clip when a TRANSCRIBE model is configured (else skipped).
+  `worker-core` stays off `llm-cloud` until 10.7 (smoke still checks that it cannot reach the
+  proxy), so cleared cloud providers for its purposes (embeddings, PII, promotion) need 10.7.
+- **UI:** „Transkrypcja nagrań” in routing, model type „Mowa na tekst” (no temperature or token
+  limit), the probe's word error rate in the report.
+- **Limits:** a transient failure on segment k retries the recording from the first segment.
+  Work parked for TRANSCRIBE resumes when a model is routed, not when the built-in model is
+  installed later (send the job again or route a model).
+- **Tests:** unit with respx (a 25-minute file is three requests with offsets 0/600/1200 and
+  durations 600/600/300; 4xx permanent, 5xx/429/connection retried; an uncleared provider gets
+  nothing, even with `private_data=False`; cloud only with `allow_cloud` and via the proxy; the
+  routed model is never replaced by the built-in one; `.env` routing; WER and the probe);
+  integration (a recording waits without a model, resumes and goes to the API; service and
+  triggers refuse uncleared providers and wrong capabilities; the admin probe); Vitest.
+

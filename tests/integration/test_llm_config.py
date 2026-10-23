@@ -306,6 +306,72 @@ async def test_private_purposes_refuse_uncleared_providers_in_service_and_databa
     assert view.routing[LlmRoutePurpose.RAG] == cloud_chat.id
 
 
+async def test_transcription_is_a_private_purpose_with_its_own_models(
+    factory: SessionFactory, cipher: EnvelopeCipher
+) -> None:
+    """10.4: TRANSCRIBE needs a TRANSCRIBE model of a cleared provider (service + triggers)."""
+    service = _service(factory, cipher, allow_cloud=True, transcribe_model="whisper-large-v3")
+    await service.ensure_seeded(None)
+    active = await service.active()
+    assert active is not None
+    seeded = ConfigSnapshot.model_validate(active.revision.snapshot)
+    whisper = seeded.deployment_for(LlmRoutePurpose.TRANSCRIBE)
+    assert whisper is not None
+    assert (whisper.model, whisper.capability, whisper.private_data) == (
+        "whisper-large-v3",
+        LlmCapability.TRANSCRIBE,
+        True,
+    )
+    store = LlmConfigStore(factory, cipher, service.settings, None)
+    gateway = LiteLLMGateway(service.settings, source=store)
+    await gateway.refresh()
+    assert gateway.configured(LLMPurpose.TRANSCRIBE)
+    assert gateway.route(LLMPurpose.TRANSCRIBE, private_data=True).model == "whisper-large-v3"
+
+    local_chat, cloud_chat = await _two_chat_models(service)
+    voxtral = await service.create_model(
+        None,
+        ModelIn(
+            provider_id=cloud_chat.provider_id,
+            model_name="voxtral-mini-latest",
+            capability=LlmCapability.TRANSCRIBE,
+        ),
+    )
+    draft = await service.create_draft(None, None, "test")
+    with pytest.raises(ConfigError) as exc:
+        await service.set_routing(
+            None, draft.revision.number, {LlmRoutePurpose.TRANSCRIBE: voxtral.id}
+        )
+    assert exc.value.code == "provider_not_cleared"
+    with pytest.raises(ConfigError) as exc:
+        await service.set_routing(
+            None, draft.revision.number, {LlmRoutePurpose.TRANSCRIBE: local_chat.id}
+        )
+    assert exc.value.code == "capability_mismatch"
+
+    def route(purpose: LlmRoutePurpose, model_id: UUID) -> Executable:
+        return (
+            update(LlmRouting)
+            .where(LlmRouting.revision_id == draft.revision.id, LlmRouting.purpose == purpose)
+            .values(model_id=model_id)
+        )
+
+    # Bypassing the service: the triggers of 0022 say no.
+    with pytest.raises(DBAPIError, match="cleared for private data"):
+        await _write(factory, route(LlmRoutePurpose.TRANSCRIBE, voxtral.id))
+    cleared_chat = seeded.deployments[seeded.routes[LlmRoutePurpose.PRIVATE_NOTE]].model_id
+    with pytest.raises(DBAPIError, match="cannot use a CHAT model"):
+        await _write(factory, route(LlmRoutePurpose.TRANSCRIBE, cleared_chat))
+    with pytest.raises(DBAPIError, match="cannot use a TRANSCRIBE model"):
+        await _write(
+            factory,
+            route(
+                LlmRoutePurpose.RAG,
+                seeded.deployments[seeded.routes[LlmRoutePurpose.TRANSCRIBE]].model_id,
+            ),
+        )
+
+
 async def test_a_cleared_cloud_provider_serves_private_purposes(
     factory: SessionFactory, cipher: EnvelopeCipher
 ) -> None:

@@ -103,6 +103,7 @@ class LlmCapability(StrEnum):
     CHAT = "CHAT"
     VLM = "VLM"
     EMBED = "EMBED"
+    TRANSCRIBE = "TRANSCRIBE"  # 10.4: speech-to-text (``/v1/audio/transcriptions``)
 
 
 class LlmRevisionStatus(StrEnum):
@@ -120,6 +121,7 @@ class LlmRoutePurpose(StrEnum):
     VLM = "VLM"
     EMBED = "EMBED"
     RAG = "RAG"
+    TRANSCRIBE = "TRANSCRIBE"  # 10.4
 
 
 class VisualDomainStatus(StrEnum):

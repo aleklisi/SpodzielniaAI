@@ -39,6 +39,10 @@ x-llm-env: &llm-env
   SPOLDZIELNIA_LLM__CHAT_MODEL: ${LLM_CHAT_MODEL:-}
   SPOLDZIELNIA_LLM__VLM_MODEL: ${LLM_VLM_MODEL:-}
   SPOLDZIELNIA_LLM__EMBED_MODEL: ${LLM_EMBED_MODEL:-}
+  # 10.4: speech-to-text model on the local endpoint (e.g. a whisper server); the built-in
+  # faster-whisper of worker-media transcribes only while no TRANSCRIBE model is routed.
+  SPOLDZIELNIA_LLM__TRANSCRIBE_MODEL: ${LLM_TRANSCRIBE_MODEL:-}
+  SPOLDZIELNIA_LLM__BUILTIN_TRANSCRIPTION: ${LLM_BUILTIN_TRANSCRIPTION:-true}
   SPOLDZIELNIA_LLM__STRUCTURED_OUTPUT: ${LLM_STRUCTURED_OUTPUT:-json_schema}
   # Stage 7: the ceiling for the admin's model configuration (same in every process).
   SPOLDZIELNIA_LLM__ALLOW_CLOUD: ${LLM_ALLOW_CLOUD:-false}
@@ -47,7 +51,7 @@ x-llm-env: &llm-env
   # 10.1: endpoints that may be cleared for private data (null = the local endpoints).
   SPOLDZIELNIA_LLM__PRIVATE_DATA_ENDPOINTS: ${LLM_PRIVATE_DATA_ENDPOINTS:-null}
 
-# Qdrant over internal TLS (4.1). The vector size must match LLM_EMBED_MODEL's dimension.
+# Qdrant over internal TLS (4.1). Text collections take the embedding model's dimension (10.3).
 x-qdrant-env: &qdrant-env
   SPOLDZIELNIA_QDRANT__CA_BUNDLE: /run/secrets/internal_ca
 
@@ -72,7 +76,7 @@ networks:
     driver: bridge
     internal: true
     ipam: { config: [{ subnet: 172.30.2.0/24 }] }
-  # api <-> llm-egress only (7.3). No internet; workers are not on it.
+  # api and worker-media <-> llm-egress only (7.3, 10.4). No internet.
   llm-cloud:
     driver: bridge
     internal: true
@@ -350,7 +354,8 @@ services:
     image: ${REGISTRY:-spoldzielnia}/worker-media:${VERSION:-dev}
     command: ["worker", "--queues", "media.transcribe,media.vision,media.parse"]
     restart: unless-stopped
-    networks: [backend]
+    # llm-cloud: cloud model APIs (speech-to-text, vision) through llm-egress only (10.4, P6).
+    networks: [backend, llm-cloud]
     # Decrypted inputs + Docling/Whisper scratch space.
     tmpfs: ["/tmp:size=2g"]
     mem_limit: 4g
@@ -362,6 +367,7 @@ services:
       minio: { condition: service_healthy }
     environment:
       <<: [*app-env, *llm-env]
+      SPOLDZIELNIA_LLM__EGRESS_PROXY_URL: http://llm-egress:3128
       SPOLDZIELNIA_MODELS__WHISPER_MODEL: ${WHISPER_MODEL:-small}
     volumes:
       - models:/models:ro

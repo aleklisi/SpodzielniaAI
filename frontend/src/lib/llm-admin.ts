@@ -170,11 +170,22 @@ export const PURPOSES: Record<Purpose, { label: string; hint: string }> = {
   PII_SCRUB: { label: "Anonimizacja", hint: "Usuwanie danych osobowych." },
   VLM: { label: "Opisy zdjęć", hint: "Model wizyjny dla załączników." },
   EMBED: { label: "Embeddingi", hint: "Wektory indeksu wiedzy (zmiana wymaga reindeksacji)." },
+  TRANSCRIBE: { label: "Transkrypcja nagrań", hint: "Zamiana mowy na tekst w nagraniach z notatek." },
 };
 
-export const PURPOSE_ORDER: Purpose[] = ["RAG", "PROMOTION", "PRIVATE_NOTE", "PII_SCRUB", "VLM", "EMBED"];
+export const PURPOSE_ORDER: Purpose[] = ["RAG", "PROMOTION", "PRIVATE_NOTE", "PII_SCRUB", "VLM", "TRANSCRIBE", "EMBED"];
 
-export const CAPABILITIES: Record<Capability, string> = { CHAT: "Czat", VLM: "Wizyjny", EMBED: "Embeddingi" };
+export const CAPABILITIES: Record<Capability, string> = {
+  CHAT: "Czat",
+  VLM: "Wizyjny",
+  EMBED: "Embeddingi",
+  TRANSCRIBE: "Mowa na tekst",
+};
+
+/** Models that generate text from a prompt: temperature and token limit apply. */
+export function generates(capability: Capability): boolean {
+  return capability === "CHAT" || capability === "VLM";
+}
 
 export const REVISION_STATUS: Record<Revision["status"], string> = {
   DRAFT: "Szkic",

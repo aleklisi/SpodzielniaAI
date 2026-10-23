@@ -73,6 +73,8 @@ PRIVATE_ROUTE_PURPOSES = frozenset(
 )
 
 StructuredOutput = Literal["json_schema", "prompt"]
+# Models that generate text from a prompt (temperature and token limit apply).
+_GENERATES = frozenset({LlmCapability.CHAT, LlmCapability.VLM})
 
 
 def capability_for(purpose: LlmRoutePurpose) -> LlmCapability:
@@ -80,6 +82,8 @@ def capability_for(purpose: LlmRoutePurpose) -> LlmCapability:
         return LlmCapability.VLM
     if purpose == LlmRoutePurpose.EMBED:
         return LlmCapability.EMBED
+    if purpose == LlmRoutePurpose.TRANSCRIBE:
+        return LlmCapability.TRANSCRIBE
     return LlmCapability.CHAT
 
 
@@ -933,8 +937,8 @@ class LlmConfigService:
                 provider_id=provider.id,
                 model_name=name,
                 capability=capability,
-                temperature=s.temperature if capability != LlmCapability.EMBED else None,
-                max_tokens=s.max_tokens if capability != LlmCapability.EMBED else None,
+                temperature=s.temperature if capability in _GENERATES else None,
+                max_tokens=s.max_tokens if capability in _GENERATES else None,
                 embed_dimension=dim,
                 notes="Zaimportowano z konfiguracji serwera (.env)",
                 created_by=actor,
@@ -958,6 +962,10 @@ class LlmConfigService:
             if s.embed_model and cleared:
                 routing[LlmRoutePurpose.EMBED] = await model(
                     local, s.embed_model, LlmCapability.EMBED
+                )
+            if s.transcribe_model and cleared:
+                routing[LlmRoutePurpose.TRANSCRIBE] = await model(
+                    local, s.transcribe_model, LlmCapability.TRANSCRIBE
                 )
         if s.allow_cloud and s.cloud_model and s.cloud_base_url:
             cloud = await provider("cloud", s.cloud_base_url)

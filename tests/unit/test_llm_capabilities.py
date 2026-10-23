@@ -7,7 +7,12 @@ from typing import TYPE_CHECKING, Any
 import pytest
 
 from spoldzielnia_ai.core.settings import LlmSettings
-from spoldzielnia_ai.llm.capabilities import FEATURES, capabilities, missing_purposes
+from spoldzielnia_ai.llm.capabilities import (
+    FEATURES,
+    builtin_purposes,
+    capabilities,
+    missing_purposes,
+)
 from spoldzielnia_ai.llm.gateway import (
     Deployment,
     LiteLLMGateway,
@@ -72,13 +77,22 @@ async def test_capabilities_name_features_whose_purposes_all_have_models() -> No
         "promotion": True,
         "image_descriptions": False,
         "recognition": False,
+        "transcription": False,
     }
     assert set(features) == set(FEATURES)
-    full = LiteLLMGateway(LlmSettings(chat_model="b", vlm_model="v", embed_model="e"))
+    full = LiteLLMGateway(
+        LlmSettings(chat_model="b", vlm_model="v", embed_model="e", transcribe_model="w")
+    )
     assert all((await capabilities(full)).values())
     assert await missing_purposes(full) == []
     nothing_cleared = LiteLLMGateway(
-        LlmSettings(chat_model="b", vlm_model="v", embed_model="e", private_data_endpoints=[])
+        LlmSettings(
+            chat_model="b",
+            vlm_model="v",
+            embed_model="e",
+            transcribe_model="w",
+            private_data_endpoints=[],
+        )
     )
     assert await missing_purposes(nothing_cleared) == [
         LLMPurpose.PII_SCRUB,
@@ -86,7 +100,17 @@ async def test_capabilities_name_features_whose_purposes_all_have_models() -> No
         LLMPurpose.PROMOTION,
         LLMPurpose.VLM,
         LLMPurpose.EMBED,
+        LLMPurpose.TRANSCRIBE,
     ]
+
+
+async def test_the_builtin_whisper_counts_as_transcription() -> None:
+    settings = LlmSettings(chat_model="bielik")
+    gateway = LiteLLMGateway(settings)
+    assert (await capabilities(gateway, builtin_purposes(settings)))["transcription"] is True
+    assert LLMPurpose.TRANSCRIBE not in await missing_purposes(gateway, builtin_purposes(settings))
+    off = settings.model_copy(update={"builtin_transcription": False})
+    assert (await capabilities(gateway, builtin_purposes(off)))["transcription"] is False
 
 
 def test_images_wait_for_a_vision_model(tmp_path: Path) -> None:

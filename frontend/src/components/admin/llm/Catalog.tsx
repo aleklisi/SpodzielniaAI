@@ -11,6 +11,7 @@ import { useToast } from "@/components/ui/Toast";
 import { StepUpRequired } from "@/lib/api";
 import {
   CAPABILITIES,
+  generates,
   llmError,
   useClearProvider,
   useCreateModel,
@@ -465,6 +466,7 @@ const CHECKS: Record<string, string> = {
   json_prompt: "JSON (schemat w poleceniu)",
   image: "Opis obrazu",
   embed: "Embedding",
+  transcribe: "Transkrypcja nagrania testowego",
 };
 
 interface ProbeCheck {
@@ -475,6 +477,7 @@ interface ProbeCheck {
   error?: string;
   dimension?: number;
   cosine_unrelated?: number;
+  word_error_rate?: number;
 }
 
 export function ProbeReport({ report }: { report: Record<string, unknown> }) {
@@ -490,6 +493,7 @@ export function ProbeReport({ report }: { report: Record<string, unknown> }) {
             {c.tokens ? ` · ${c.tokens} tokenów` : ""}
             {c.dimension !== undefined && ` · wymiar ${c.dimension}`}
             {c.cosine_unrelated !== undefined && ` · podobieństwo niepowiązanych ${c.cosine_unrelated}`}
+            {c.word_error_rate !== undefined && ` · błędne słowa ${Math.round(c.word_error_rate * 100)}%`}
             {c.error && ` · ${c.error}`}
           </li>
         ))}
@@ -564,7 +568,9 @@ export function ModelsPanel({ status, providers, models }: { status: LlmStatus; 
                   <td className="py-2 pr-3 text-xs text-text-muted">
                     {m.capability === "EMBED"
                       ? `wymiar ${m.embed_dimension ?? "?"}`
-                      : `temp. ${m.temperature ?? "dom."} · max ${m.max_tokens ?? "dom."} tok.`}
+                      : m.capability === "TRANSCRIBE"
+                        ? "nagrania po polsku"
+                        : `temp. ${m.temperature ?? "dom."} · max ${m.max_tokens ?? "dom."} tok.`}
                   </td>
                   <td className="py-2 pr-3">
                     {m.last_probe_at ? (
@@ -634,8 +640,8 @@ function AddModel({ status, providers }: { status: LlmStatus; providers: Provide
         provider_id: providerId,
         model_name: name.trim(),
         capability,
-        temperature: temperature ? Number(temperature) : null,
-        max_tokens: maxTokens ? Number(maxTokens) : null,
+        temperature: generates(capability) && temperature ? Number(temperature) : null,
+        max_tokens: generates(capability) && maxTokens ? Number(maxTokens) : null,
         embed_dimension: null, // the probe records it; each index version keeps its own
 
         notes: null,
@@ -681,7 +687,7 @@ function AddModel({ status, providers }: { status: LlmStatus; providers: Provide
               ))}
             </select>
           </label>
-          {capability !== "EMBED" ? (
+          {generates(capability) ? (
             <div className="grid grid-cols-2 gap-2">
               <label className="flex flex-col gap-1">
                 Temperatura
@@ -692,9 +698,13 @@ function AddModel({ status, providers }: { status: LlmStatus; providers: Provide
                 <input className={INPUT} type="number" min={1} value={maxTokens} onChange={(e) => setMaxTokens(e.target.value)} />
               </label>
             </div>
-          ) : (
+          ) : capability === "EMBED" ? (
             <p className="self-end text-xs text-text-muted">
               Wymiar wektora odczyta test modelu. Zmiana modelu embeddingów buduje nową wersję indeksu w tle.
+            </p>
+          ) : (
+            <p className="self-end text-xs text-text-muted">
+              Serwer z API /audio/transcriptions (np. whisper). Test modelu odczyta krótkie polskie nagranie testowe.
             </p>
           )}
         </div>
