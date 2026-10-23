@@ -9,7 +9,7 @@ process picks up without a restart. Each purpose has its own route.
 Routing policy (AGENTS.md §3 rule 4, chunk 10.1):
 
 - Purposes in ``PRIVATE_PURPOSES`` (PII scrubbing, private notes, promotion, vision,
-  embeddings, speech-to-text) go only to deployments **cleared for private data**, whatever
+  embeddings, speech-to-text, OCR) go only to deployments **cleared for private data**, whatever
   the caller passes. That is defence in depth against a missing ``private_data=True``.
 - ``private_data=True`` → cleared deployments only. A deployment is cleared when an admin
   cleared its provider and its endpoint is on ``llm.private_data_endpoints``; locality alone no
@@ -71,6 +71,7 @@ class LLMPurpose(StrEnum):
     EMBED = "EMBED"
     RAG = "RAG"  # Stage 5: canonical (public) knowledge only
     TRANSCRIBE = "TRANSCRIBE"  # 10.4: speech-to-text of members' recordings
+    OCR = "OCR"  # 10.5: text of scanned document pages (a vision model)
     PLAYGROUND = "PLAYGROUND"  # 7.5: an admin's own test prompt, never retrieval or user data
 
 
@@ -82,6 +83,7 @@ PRIVATE_PURPOSES = frozenset(
         LLMPurpose.VLM,
         LLMPurpose.EMBED,
         LLMPurpose.TRANSCRIBE,
+        LLMPurpose.OCR,
     }
 )
 
@@ -271,7 +273,7 @@ def deployments(settings: LlmSettings) -> dict[str, Deployment]:
 
 
 def _kind_deployment(purpose: LLMPurpose) -> str:
-    if purpose == LLMPurpose.VLM:
+    if purpose in (LLMPurpose.VLM, LLMPurpose.OCR):
         return LOCAL_VLM
     if purpose == LLMPurpose.EMBED:
         return LOCAL_EMBED

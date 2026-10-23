@@ -176,6 +176,7 @@ def test_env_config_matches_the_pre_stage_7_routing() -> None:
     assert config.revision == 0
     assert dict(config.routes) == {
         LLMPurpose.VLM: "local-vlm",
+        LLMPurpose.OCR: "local-vlm",  # 10.5: scanned pages are read by the vision model
         LLMPurpose.EMBED: "local-embed",
         LLMPurpose.RAG: "cloud-chat",  # no local chat model: only RAG may use the cloud
     }

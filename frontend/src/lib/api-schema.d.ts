@@ -2671,7 +2671,7 @@ export interface components {
          * @description Purposes an admin can assign a model to (``llm.gateway.LLMPurpose`` minus the playground).
          * @enum {string}
          */
-        LlmRoutePurpose: "PII_SCRUB" | "PRIVATE_NOTE" | "PROMOTION" | "VLM" | "EMBED" | "RAG" | "TRANSCRIBE";
+        LlmRoutePurpose: "PII_SCRUB" | "PRIVATE_NOTE" | "PROMOTION" | "VLM" | "EMBED" | "RAG" | "TRANSCRIBE" | "OCR";
         /** LogoutResponse */
         LogoutResponse: {
             /** Logout Url */

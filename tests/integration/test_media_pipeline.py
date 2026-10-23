@@ -8,13 +8,16 @@ and DB engine, as a worker process would.
 from __future__ import annotations
 
 import asyncio
+import io
 import ipaddress
 from dataclasses import dataclass, field
+from types import SimpleNamespace
 from typing import IO, TYPE_CHECKING, Any
 
 import httpx
 import pytest
 import respx
+from PIL import Image
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine
 
@@ -29,6 +32,8 @@ from spoldzielnia_ai.notebook.queue import CeleryProcessingQueue
 from spoldzielnia_ai.notebook.uploads import UploadPipeline
 from spoldzielnia_ai.workers.celery_adapter import make_celery, register
 from spoldzielnia_ai.workers.engines.base import PermanentError, TransientError
+from spoldzielnia_ai.workers.engines.docling_engine import DocxEngine
+from spoldzielnia_ai.workers.engines.documents import DocumentEngine
 from spoldzielnia_ai.workers.engines.text import TextEngine
 from spoldzielnia_ai.workers.engines.transcription import GatewayTranscriptionEngine
 from spoldzielnia_ai.workers.engines.vision import UnavailableVisionEngine
@@ -74,6 +79,7 @@ class Engines:
     whisper: FakeEngine = field(default_factory=FakeEngine)
     docling: FakeEngine = field(default_factory=lambda: FakeEngine("# Raport\n\nTreść."))
     transcription: Engine | None = None  # 10.4: the real API engine, when a test sets it
+    documents: Engine | None = None  # 10.5: the real document engine, when a test sets it
 
     def __call__(self, kind: DerivativeKind, mime: str) -> Engine:
         if kind == DerivativeKind.TRANSCRIPT:
@@ -82,7 +88,7 @@ class Engines:
             return UnavailableVisionEngine()
         if mime in ("text/plain", "text/markdown"):
             return TextEngine()
-        return self.docling
+        return self.documents or self.docling
 
 
 class EagerRuntime:
@@ -303,6 +309,77 @@ async def test_a_recording_waits_for_a_transcription_model_then_goes_to_its_api(
         body = api.calls.last.request.content
         assert b"RIFF" in body
         assert b'name="model"\r\n\r\nwhisper-large-v3' in body
+
+
+@dataclass
+class VisionTransport:
+    """The OCR model's endpoint: records what it was sent."""
+
+    seen: list[list[Any]] = field(default_factory=list[list[Any]])
+
+    async def acompletion(self, model: str, messages: list[Any], **kwargs: Any) -> Any:
+        self.seen.append(messages)
+        message = SimpleNamespace(content="Odczytany protokół z zebrania.")
+        return SimpleNamespace(choices=[SimpleNamespace(message=message)], usage=None)
+
+    async def aembedding(self, model: str, input: list[str], **kwargs: Any) -> Any:
+        raise AssertionError("no embeddings here")
+
+
+def _scanned_pdf() -> bytes:
+    out = io.BytesIO()
+    Image.new("RGB", (400, 560), "white").save(out, "PDF")  # an image page, no text layer
+    return out.getvalue()
+
+
+def _text_pdf() -> bytes:
+    from reportlab.pdfgen import canvas
+
+    out = io.BytesIO()
+    pdf = canvas.Canvas(out)
+    pdf.drawString(72, 720, "Protokol z przegladu pasieki numer 4, rodziny silne.")
+    pdf.save()
+    return out.getvalue()
+
+
+async def test_a_scan_waits_for_an_ocr_model_while_text_documents_complete(
+    h: Harness, engines: Engines, runtime: EagerRuntime, factory: SessionFactory
+) -> None:
+    """10.5: no OCR model and no built-in Docling OCR → the scan waits; a born-digital PDF
+    completes with no model. Once a cleared vision model serves OCR, the scan is read by it."""
+    current = {"llm": LlmSettings()}
+    transport = VisionTransport()
+    engines.documents = DocumentEngine(
+        lambda: LiteLLMGateway(current["llm"], transport), LlmSettings(), DocxEngine()
+    )
+    alice = await h.login()
+    note_id = await _note(alice)
+    await _upload(alice, note_id, _text_pdf(), "protokol.pdf", "application/pdf")
+    await _upload(alice, note_id, _scanned_pdf(), "skan.pdf", "application/pdf")
+    done, waiting = sorted(await _derivatives(alice, note_id), key=lambda d: d["status"])
+    assert done["status"] == "DONE"
+    assert "przegladu pasieki numer 4" in done["content"]
+    assert (waiting["status"], waiting["error"]) == (
+        "WAITING_FOR_MODEL",
+        "model_not_configured:OCR",
+    )
+    assert transport.seen == []
+
+    sent: list[tuple[TaskName, Any]] = []
+
+    async def record(name: TaskName, job: Any) -> None:
+        sent.append((name, job))
+
+    current["llm"] = LlmSettings(vlm_model="qwen2.5-vl")  # .env: OCR uses the vision model
+    assert await ModelWaitResumer(factory, LiteLLMGateway(current["llm"]), record).run() == 1
+    ((name, job),) = sent
+    assert name == TaskName.PARSE_DOCUMENT
+    await asyncio.to_thread(runtime.run, job, 1)
+
+    scan = next(d for d in await _derivatives(alice, note_id) if d["id"] == waiting["id"])
+    assert (scan["status"], scan["content"]) == ("DONE", "Odczytany protokół z zebrania.")
+    ((_system, user),) = transport.seen
+    assert user["content"][1]["image_url"]["url"].startswith("data:image/jpeg;base64,")
 
 
 async def test_permanent_engine_error_fails_without_retry(h: Harness, engines: Engines) -> None:

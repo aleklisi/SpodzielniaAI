@@ -443,6 +443,11 @@ class LlmSettings(BaseModel):
     # volume) transcribes when no TRANSCRIBE model is routed. Never used when one is routed,
     # even if that one fails (no fallback, P5); it never leaves the server.
     builtin_transcription: bool = True
+    # Scanned PDF pages (no text layer) go to the OCR purpose: a vision model reads each page
+    # image (10.5). Pages beyond the limit fail the document (cost guard). Docling's own OCR
+    # (optional, its models in the ``models`` volume) reads them when no OCR model is routed.
+    ocr_max_pages: int = Field(default=200, ge=1)
+    builtin_ocr: bool = True
 
     @field_validator(
         "chat_model",

@@ -150,6 +150,10 @@ for „Transkrypcja nagrań” in `/admin/llm` (any `/v1/audio/transcriptions` A
 whisper server, Mistral Voxtral, OpenAI…; 10-minute segments, timestamps stitched). Without one,
 the built-in faster-whisper transcribes if `make models` installed it
 (`LLM_BUILTIN_TRANSCRIPTION=false` turns it off); otherwise recordings wait for a model.
+Documents need no model: DOCX through Docling's simple pipeline, ODT natively, PDFs from their
+text layer (or Docling's layout models, if installed). Scanned pages are rendered and read by the
+vision model routed for „Odczyt skanów (OCR)”, else by Docling's built-in OCR if installed
+(`LLM_BUILTIN_OCR`); otherwise the scan waits for a model while text documents complete.
 
 ```bash
 make models        # once: Whisper small + Docling into the `models` volume (needs internet)

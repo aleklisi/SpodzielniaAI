@@ -247,7 +247,7 @@ Rejestr historyjek dodanych poza Etapami 1–6: [docs/USER_STORIES_LOG.md](docs/
 - [x] 10.2 „Model nie jest skonfigurowany” zamiast awarii (`/api/capabilities`, zadania czekające na model, start bez modeli)
 - [x] 10.3 Wersjonowane kolekcje Qdrant i bezpieczna zmiana modelu embeddingów (aliasy, ponowne embedowanie, zgody w obu wersjach)
 - [x] 10.4 Transkrypcja mowy przez API (`/v1/audio/transcriptions`), wbudowany Whisper opcjonalny
-- [ ] 10.5 Dokumenty: Docling bez modeli ML, OCR przez API (VLM lub dedykowany OCR)
+- [x] 10.5 Dokumenty: Docling bez modeli ML, OCR przez API (VLM lub dedykowany OCR)
 - [ ] 10.6 Embeddingi obrazów przez API lub wbudowany SigLIP (opcjonalny), rozpoznawanie wyłączone bez modelu
 - [ ] 10.7 Compose bez serwera modeli domyślnie (profil `ollama`, relay do LM Studio, profil „tylko API”)
 - [ ] 10.8 Panel `/admin/llm`, strona „Gdzie przetwarzane są Twoje dane”, E2E, przegląd bezpieczeństwa i dokumentacja

@@ -8,7 +8,8 @@ token counts and error class names: never the prompt or the model's output.
 - CHAT: a plain reply; a JSON answer with ``response_format`` (constrained decoding); the same in
   prompt mode. The report recommends the structured-output mode that worked (LM Studio + Bielik
   rejects ``json_schema`` with a 400, see 3.4).
-- VLM: describe the colour of a generated 64x64 image.
+- VLM: describe the colour of a generated 64x64 image; and (10.5, informational: OCR uses VLM
+  models) read back a rendered line of text, reported as a word error rate.
 - EMBED: the vector dimension (recorded; any size, 10.3) and whether two unrelated
   sentences end up apart (the smoke check of 6.7).
 - TRANSCRIBE (10.4): a packaged synthetic Polish clip ("Pszczoły zbierają nektar z kwiatów
@@ -163,6 +164,21 @@ async def _probe_chat(
     return {"ok": ok, "checks": listed, "recommended_structured_output": recommended}
 
 
+PROBE_OCR_TEXT = "Ul numer 7 miod lipowy 12 kg przeglad w sobote"
+
+
+def probe_text_image_data_url() -> str:
+    """A rendered line of text (ASCII: the default font has no Polish diacritics)."""
+    from PIL import Image, ImageDraw, ImageFont
+
+    image = Image.new("RGB", (900, 120), "white")
+    font = ImageFont.load_default(40)
+    ImageDraw.Draw(image).text((20, 35), PROBE_OCR_TEXT, fill="black", font=font)
+    buffer = io.BytesIO()
+    image.save(buffer, "PNG")
+    return "data:image/png;base64," + base64.b64encode(buffer.getvalue()).decode()
+
+
 def probe_image_data_url() -> str:
     from PIL import Image
 
@@ -190,7 +206,19 @@ async def _probe_vlm(
         check["ok"] = bool(text.strip())
         check["tokens"] = _tokens(result)
         check["colour_named"] = "czerw" in text or "red" in text
-    return {"ok": bool(check["ok"]), "checks": [check]}
+    page: ChatMessage = {
+        "role": "user",
+        "content": [
+            {"type": "text", "text": "Przepisz dokładnie tekst z obrazka. Tylko tekst."},
+            {"type": "image_url", "image_url": {"url": probe_text_image_data_url()}},
+        ],
+    }
+    ocr, read = await _timed("ocr", gateway.complete([page], purpose=LLMPurpose.PLAYGROUND))
+    if read is not None:
+        wer = round(word_error_rate(PROBE_OCR_TEXT, str(read.content)), 3)
+        ocr["word_error_rate"] = wer
+        ocr["ok"] = wer <= PROBE_MAX_WER
+    return {"ok": bool(check["ok"]), "checks": [check, ocr], "reads_text": bool(ocr["ok"])}
 
 
 def _cosine(a: list[float], b: list[float]) -> float:

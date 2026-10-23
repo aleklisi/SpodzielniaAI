@@ -496,3 +496,35 @@ reference local one.
   integration (a recording waits without a model, resumes and goes to the API; service and
   triggers refuse uncleared providers and wrong capabilities; the admin probe); Vitest.
 
+### 10.5 — Documents: Docling without models, OCR over API
+- **No model needed for born-digital documents:** DOCX goes through Docling's simple pipeline
+  (`DocxEngine`, no artifacts); ODT is converted natively (`workers/engines/odt.py`: defusedxml,
+  50 MB cap on `content.xml`; headings, paragraphs, lists, tables), replacing the old
+  `odt_not_supported`; PDFs are read page by page from their text layer with pdfium. When
+  Docling's models are installed, born-digital PDFs still go through its layout pipeline
+  (headings, tables) with OCR off.
+- **Scans:** a PDF page with fewer than 20 non-space characters in its text layer is a scan.
+  Per job (no fallback after a failure, P5): OCR routed → each scanned page is rendered (pdfium,
+  144 dpi, ≤ 2000 px JPEG, inline `data:` URL) and read by that model with the `OCR_PAGE` prompt;
+  text pages keep their text layer and the order is kept. Else Docling's built-in OCR
+  (`llm.builtin_ocr`, its models installed). Else WAITING_FOR_MODEL (purpose OCR): scans wait
+  while born-digital documents complete. `llm.ocr_max_pages` (200) is a cost guard
+  (`ocr_too_many_pages`). Errors map like vision: rejected → `ocr_rejected`, unavailable →
+  retried. The OCR text is a derivative like any other, so worker-core's injection screening
+  covers it.
+- **Purpose:** `OCR` (private, P1/P9) uses **VLM** models (`capability_for(OCR) = VLM`);
+  migration `0023_ocr_purpose` adds the enum value and the guards (private, VLM capability).
+  `.env` mode and seeding route OCR to the vision model. `/capabilities` gains `ocr` (the
+  built-in Docling OCR counts when `llm.builtin_ocr` is on).
+- **Decision (dedicated OCR APIs):** not in this chunk. Mistral OCR (`/v1/ocr`) and similar APIs
+  have their own request shapes and return whole documents; a vision model through the standard
+  chat API covers every provider we support (LM Studio, Ollama, vLLM, Mistral, OpenAI). An
+  adapter can be added behind the same purpose later.
+- **Probe:** the VLM probe adds an informational `ocr` check (a rendered line of text read
+  back, word error rate) and `reads_text`; pass/fail is still the image check.
+- **Tests:** unit (born-digital PDF and ODT/DOCX with no model and no call; layout pipeline when
+  installed; scans to the OCR model in page order, inline JPEG; built-in OCR or waiting without a
+  model; a routed model never replaced; an uncleared provider never called; page limit; entity
+  bomb refused); integration (a scan waits while a text PDF completes, then is read by the vision
+  model after resume; service and triggers for OCR); the `ml` tests use the new constructor.
+

@@ -171,9 +171,10 @@ export const PURPOSES: Record<Purpose, { label: string; hint: string }> = {
   VLM: { label: "Opisy zdjęć", hint: "Model wizyjny dla załączników." },
   EMBED: { label: "Embeddingi", hint: "Wektory indeksu wiedzy (zmiana wymaga reindeksacji)." },
   TRANSCRIBE: { label: "Transkrypcja nagrań", hint: "Zamiana mowy na tekst w nagraniach z notatek." },
+  OCR: { label: "Odczyt skanów (OCR)", hint: "Model wizyjny odczytuje strony dokumentów bez warstwy tekstowej." },
 };
 
-export const PURPOSE_ORDER: Purpose[] = ["RAG", "PROMOTION", "PRIVATE_NOTE", "PII_SCRUB", "VLM", "TRANSCRIBE", "EMBED"];
+export const PURPOSE_ORDER: Purpose[] = ["RAG", "PROMOTION", "PRIVATE_NOTE", "PII_SCRUB", "VLM", "OCR", "TRANSCRIBE", "EMBED"];
 
 export const CAPABILITIES: Record<Capability, string> = {
   CHAT: "Czat",

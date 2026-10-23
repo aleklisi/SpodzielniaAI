@@ -6,7 +6,7 @@ disables the rest with „Model nie jest skonfigurowany”, and the admin consol
 purposes. Nothing here calls a model; availability is about configuration, not health.
 
 A purpose served by a built-in engine (``builtin_purposes``: the media worker's faster-whisper
-for TRANSCRIBE, 10.4) counts as configured without a route.
+for TRANSCRIBE, 10.4, and Docling's OCR for OCR, 10.5) counts as configured without a route.
 """
 
 from __future__ import annotations
@@ -31,6 +31,7 @@ FEATURES: dict[str, tuple[LLMPurpose, ...]] = {
     "image_descriptions": (LLMPurpose.VLM,),
     "recognition": (LLMPurpose.VLM,),
     "transcription": (LLMPurpose.TRANSCRIBE,),
+    "ocr": (LLMPurpose.OCR,),
 }
 
 ROUTED_PURPOSES = tuple(p for p in LLMPurpose if p != LLMPurpose.PLAYGROUND)
@@ -38,7 +39,12 @@ ROUTED_PURPOSES = tuple(p for p in LLMPurpose if p != LLMPurpose.PLAYGROUND)
 
 def builtin_purposes(settings: LlmSettings) -> frozenset[LLMPurpose]:
     """Purposes a built-in engine serves when no model is routed (the operator's setting)."""
-    return frozenset({LLMPurpose.TRANSCRIBE}) if settings.builtin_transcription else frozenset()
+    found: set[LLMPurpose] = set()
+    if settings.builtin_transcription:
+        found.add(LLMPurpose.TRANSCRIBE)
+    if settings.builtin_ocr:
+        found.add(LLMPurpose.OCR)
+    return frozenset(found)
 
 
 async def missing_purposes(

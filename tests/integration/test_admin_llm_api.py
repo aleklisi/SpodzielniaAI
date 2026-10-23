@@ -124,6 +124,7 @@ async def test_first_visit_shows_the_env_configuration_as_revision_one(h: Harnes
         "PRIVATE_NOTE": True,
         "PROMOTION": True,
         "TRANSCRIBE": True,
+        "OCR": True,
         "VLM": True,
         "EMBED": True,
         "RAG": False,

@@ -64,7 +64,7 @@ def test_docling_parses_pdf(tmp_path: Path) -> None:
 
     pdf = tmp_path / "raport.pdf"
     pdf.write_bytes(_text_pdf("Sprawozdanie z przegladu pasieki"))
-    markdown = DoclingEngine(_settings()).extract(pdf, "application/pdf")
+    markdown = DoclingEngine(_settings().docling_dir, ocr=True).extract(pdf, "application/pdf")
     assert "przegladu pasieki" in markdown
 
 
@@ -74,7 +74,7 @@ def test_docling_rejects_garbage(tmp_path: Path) -> None:
     bad = tmp_path / "bad.pdf"
     bad.write_bytes(b"%PDF-1.4\nnot really a pdf")
     with pytest.raises(PermanentError):
-        DoclingEngine(_settings()).extract(bad, "application/pdf")
+        DoclingEngine(_settings().docling_dir, ocr=True).extract(bad, "application/pdf")
 
 
 def _text_pdf(line: str) -> bytes:

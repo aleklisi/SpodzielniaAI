@@ -136,6 +136,7 @@ async def test_seeding_imports_env_as_active_revision_one(
         LlmRoutePurpose.PROMOTION: "bielik-11b",
         LlmRoutePurpose.RAG: "bielik-11b",
         LlmRoutePurpose.VLM: "qwen-vl",
+        LlmRoutePurpose.OCR: "qwen-vl",
         LlmRoutePurpose.EMBED: "gemma-embed",
     }
     assert all(d.kind == LlmProviderKind.LOCAL for d in snapshot.deployments.values())
@@ -362,6 +363,25 @@ async def test_transcription_is_a_private_purpose_with_its_own_models(
     cleared_chat = seeded.deployments[seeded.routes[LlmRoutePurpose.PRIVATE_NOTE]].model_id
     with pytest.raises(DBAPIError, match="cannot use a CHAT model"):
         await _write(factory, route(LlmRoutePurpose.TRANSCRIBE, cleared_chat))
+    # 10.5: OCR is private too and reads pages with a vision model.
+    cloud_vision = await service.create_model(
+        None,
+        ModelIn(
+            provider_id=cloud_chat.provider_id,
+            model_name="pixtral-large",
+            capability=LlmCapability.VLM,
+        ),
+    )
+    for model_id, code in (
+        (cloud_vision.id, "provider_not_cleared"),
+        (voxtral.id, "capability_mismatch"),
+    ):
+        with pytest.raises(ConfigError) as exc:
+            await service.set_routing(None, draft.revision.number, {LlmRoutePurpose.OCR: model_id})
+        assert exc.value.code == code
+    assert seeded.deployment_for(LlmRoutePurpose.OCR) == seeded.deployment_for(LlmRoutePurpose.VLM)
+    with pytest.raises(DBAPIError, match="cannot use a CHAT model"):
+        await _write(factory, route(LlmRoutePurpose.OCR, cleared_chat))
     with pytest.raises(DBAPIError, match="cannot use a TRANSCRIBE model"):
         await _write(
             factory,
@@ -749,6 +769,7 @@ async def test_unclearing_stops_private_purposes_at_once_without_a_new_revision(
         "PRIVATE_NOTE",
         "PROMOTION",
         "VLM",
+        "OCR",
         "EMBED",
     }
 

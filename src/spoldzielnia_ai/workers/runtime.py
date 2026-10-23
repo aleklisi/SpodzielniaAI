@@ -38,6 +38,7 @@ from spoldzielnia_ai.vector.repositories import CanonicalFanout, CanonicalVector
 from spoldzielnia_ai.vector.sync import AtlasSink, VectorSync
 from spoldzielnia_ai.wiki.promotion import PromotionProcessor
 from spoldzielnia_ai.workers.celery_adapter import make_celery, register
+from spoldzielnia_ai.workers.engines.documents import DocumentEngine
 from spoldzielnia_ai.workers.engines.text import TextEngine
 from spoldzielnia_ai.workers.engines.transcription import GatewayTranscriptionEngine
 from spoldzielnia_ai.workers.engines.vision import GatewayVisionEngine, UnavailableVisionEngine
@@ -100,7 +101,6 @@ class WorkerRuntime:
         self._engine_cache: dict[str, Engine] = {}
 
     def _engine_for(self, kind: DerivativeKind, mime_type: str) -> Engine:
-        models = self._settings.models
         if kind == DerivativeKind.TRANSCRIPT:
             key = "transcription"
             if key not in self._engine_cache:
@@ -111,11 +111,13 @@ class WorkerRuntime:
             key = "text"
             self._engine_cache.setdefault(key, TextEngine())
         elif kind == DerivativeKind.PARSED_DOC:
-            key = "docling"
+            key = "documents"
             if key not in self._engine_cache:
-                from spoldzielnia_ai.workers.engines.docling_engine import DoclingEngine
+                from spoldzielnia_ai.workers.engines.docling_engine import DocxEngine
 
-                self._engine_cache[key] = DoclingEngine(models)
+                self._engine_cache[key] = DocumentEngine(
+                    self._config_gateway, self._settings.llm, DocxEngine(), self._builtin_docling
+                )
         else:
             key = "vision"
             if key not in self._engine_cache:
@@ -130,6 +132,24 @@ class WorkerRuntime:
         """For engines on their own event loop (worker thread): the configuration ``run``
         refreshed, not the store with its loop-bound clients."""
         return LiteLLMGateway(self._settings.llm, source=StaticConfig(self._llm_store().cached))
+
+    def _builtin_docling(self, ocr: bool) -> Engine | None:
+        """Docling's PDF pipeline (layout, tables; RapidOCR with ``ocr``), if its models are
+        in the volume and, for OCR, the operator allows it (10.5)."""
+        from spoldzielnia_ai.workers.engines.docling_engine import (
+            DoclingEngine,
+            docling_models_present,
+        )
+
+        models = self._settings.models
+        if not docling_models_present(models.docling_dir):
+            return None
+        if ocr and not (self._settings.llm.builtin_ocr and models.docling_ocr):
+            return None
+        key = "docling-ocr" if ocr else "docling"
+        if key not in self._engine_cache:
+            self._engine_cache[key] = DoclingEngine(models.docling_dir, ocr=ocr)
+        return self._engine_cache[key]
 
     def _builtin_whisper(self) -> Engine | None:
         """faster-whisper, if the operator allows it and its model is in the volume (10.4)."""

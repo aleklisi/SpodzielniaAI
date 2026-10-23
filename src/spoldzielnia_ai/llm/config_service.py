@@ -78,7 +78,7 @@ _GENERATES = frozenset({LlmCapability.CHAT, LlmCapability.VLM})
 
 
 def capability_for(purpose: LlmRoutePurpose) -> LlmCapability:
-    if purpose == LlmRoutePurpose.VLM:
+    if purpose in (LlmRoutePurpose.VLM, LlmRoutePurpose.OCR):
         return LlmCapability.VLM
     if purpose == LlmRoutePurpose.EMBED:
         return LlmCapability.EMBED
@@ -958,7 +958,8 @@ class LlmConfigService:
                     ):
                         routing[purpose] = chat
             if s.vlm_model and cleared:
-                routing[LlmRoutePurpose.VLM] = await model(local, s.vlm_model, LlmCapability.VLM)
+                vlm = await model(local, s.vlm_model, LlmCapability.VLM)
+                routing[LlmRoutePurpose.VLM] = routing[LlmRoutePurpose.OCR] = vlm
             if s.embed_model and cleared:
                 routing[LlmRoutePurpose.EMBED] = await model(
                     local, s.embed_model, LlmCapability.EMBED

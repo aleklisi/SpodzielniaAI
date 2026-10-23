@@ -191,6 +191,7 @@ def test_migrations_form_a_single_linear_history() -> None:
         "0020_model_wait",
         "0021_index_generations",
         "0022_transcribe_purpose",
+        "0023_ocr_purpose",
     ]
 
 
@@ -217,4 +218,5 @@ def test_migration_enum_types_match_python_enums() -> None:
     migrated["derivative_kind"].append("RECOGNITION")  # added by 0018_recognition
     migrated["llm_capability"].append("TRANSCRIBE")  # added by 0022_transcribe_purpose
     migrated["llm_route_purpose"].append("TRANSCRIBE")  # added by 0022_transcribe_purpose
+    migrated["llm_route_purpose"].append("OCR")  # added by 0023_ocr_purpose
     assert migrated == {name: [m.value for m in enum] for enum, name in PG_ENUM_NAMES.items()}

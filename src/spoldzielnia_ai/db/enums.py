@@ -122,6 +122,7 @@ class LlmRoutePurpose(StrEnum):
     EMBED = "EMBED"
     RAG = "RAG"
     TRANSCRIBE = "TRANSCRIBE"  # 10.4
+    OCR = "OCR"  # 10.5: scanned pages, read by a vision model
 
 
 class VisualDomainStatus(StrEnum):

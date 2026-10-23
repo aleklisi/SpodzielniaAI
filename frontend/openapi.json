@@ -2415,7 +2415,8 @@
           "VLM",
           "EMBED",
           "RAG",
-          "TRANSCRIBE"
+          "TRANSCRIBE",
+          "OCR"
         ],
         "title": "LlmRoutePurpose",
         "type": "string"

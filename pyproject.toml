@@ -12,6 +12,7 @@ dependencies = [
     "asyncpg>=0.32.0",
     "celery>=5.6.3",
     "cryptography>=50.0.2",
+    "defusedxml>=0.7.1",
     "fastapi>=0.143.2",
     "httpx>=0.28.1",
     "joserfc>=1.7.5",
@@ -66,6 +67,7 @@ dev = [
     "respx>=0.23.1",
     "ruff>=0.17.1",
     "testcontainers[postgres,redis]>=4.15.0",
+    "types-defusedxml>=0.7.0.20260504",
 ]
 core = [
     # Prompt-injection classifier runtime (3.3); torch is routed to the CPU index on Linux.

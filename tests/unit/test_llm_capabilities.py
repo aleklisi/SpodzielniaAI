@@ -78,6 +78,7 @@ async def test_capabilities_name_features_whose_purposes_all_have_models() -> No
         "image_descriptions": False,
         "recognition": False,
         "transcription": False,
+        "ocr": False,
     }
     assert set(features) == set(FEATURES)
     full = LiteLLMGateway(
@@ -101,6 +102,7 @@ async def test_capabilities_name_features_whose_purposes_all_have_models() -> No
         LLMPurpose.VLM,
         LLMPurpose.EMBED,
         LLMPurpose.TRANSCRIBE,
+        LLMPurpose.OCR,
     ]
 
 

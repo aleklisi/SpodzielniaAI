@@ -19,7 +19,8 @@ export type Feature =
   | "promotion"
   | "image_descriptions"
   | "recognition"
-  | "transcription";
+  | "transcription"
+  | "ocr";
 
 export const MODEL_MISSING = "Model nie jest skonfigurowany";
 

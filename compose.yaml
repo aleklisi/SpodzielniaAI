@@ -43,6 +43,9 @@ x-llm-env: &llm-env
   # faster-whisper of worker-media transcribes only while no TRANSCRIBE model is routed.
   SPOLDZIELNIA_LLM__TRANSCRIBE_MODEL: ${LLM_TRANSCRIBE_MODEL:-}
   SPOLDZIELNIA_LLM__BUILTIN_TRANSCRIPTION: ${LLM_BUILTIN_TRANSCRIPTION:-true}
+  # 10.5: scanned PDF pages go to the OCR purpose (a vision model); Docling's own OCR reads them
+  # only while no OCR model is routed (and only if `make models` installed it).
+  SPOLDZIELNIA_LLM__BUILTIN_OCR: ${LLM_BUILTIN_OCR:-true}
   SPOLDZIELNIA_LLM__STRUCTURED_OUTPUT: ${LLM_STRUCTURED_OUTPUT:-json_schema}
   # Stage 7: the ceiling for the admin's model configuration (same in every process).
   SPOLDZIELNIA_LLM__ALLOW_CLOUD: ${LLM_ALLOW_CLOUD:-false}

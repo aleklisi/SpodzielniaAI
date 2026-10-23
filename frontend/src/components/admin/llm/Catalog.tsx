@@ -467,6 +467,7 @@ const CHECKS: Record<string, string> = {
   image: "Opis obrazu",
   embed: "Embedding",
   transcribe: "Transkrypcja nagrania testowego",
+  ocr: "Odczyt tekstu z obrazka",
 };
 
 interface ProbeCheck {
