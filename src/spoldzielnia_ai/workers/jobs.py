@@ -43,6 +43,7 @@ class TaskName(StrEnum):
     REFRESH_CLUSTERS = "index.refresh_clusters"  # Celery beat, nightly (5.3)
     RESUME_WAITING = "index.resume_waiting"  # 10.2: beat every minute + after config changes
     REEMBED = "index.reembed"  # 10.3: fill a new index generation (resumable, time-boxed)
+    REEMBED_ATLAS = "index.reembed_atlas"  # 10.6: fill a new atlas generation
 
 
 TASK_QUEUE: dict[TaskName, Queue] = {
@@ -63,6 +64,7 @@ TASK_QUEUE: dict[TaskName, Queue] = {
     TaskName.REFRESH_CLUSTERS: Queue.INDEX,
     TaskName.RESUME_WAITING: Queue.INDEX,
     TaskName.REEMBED: Queue.INDEX,
+    TaskName.REEMBED_ATLAS: Queue.INDEX,
 }
 
 # Not produced by a media worker: the owner's own annotation text (9.2, screened then indexed)
@@ -95,6 +97,7 @@ TIME_LIMITS: dict[TaskName, tuple[int, int]] = {
     TaskName.REFRESH_CLUSTERS: (1800, 1860),
     TaskName.RESUME_WAITING: (120, 150),
     TaskName.REEMBED: (600, 660),  # a run stops after 240 s and sends itself again
+    TaskName.REEMBED_ATLAS: (600, 660),
 }
 
 

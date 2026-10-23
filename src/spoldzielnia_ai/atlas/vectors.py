@@ -1,4 +1,4 @@
-"""The visual atlas in Qdrant (chunk 9.8): ``atlas_visual_index``.
+"""The visual atlas in Qdrant (chunk 9.8): ``atlas_visual_index``, versioned since 10.6.
 
 One point per approved photo (``kind: image``) and one per mark (``kind: region``, a crop with a
 margin). Payloads hold ids and governance fields only (overview §2.5, A4): ``atlas_image_id``,
@@ -10,8 +10,10 @@ overwrites.
   ``is_active``); callers may narrow it, never widen it (A5).
 - ``AtlasOp``: operations recorded in the shared ``vector_outbox`` (``filter_json.target =
   "atlas"``), applied in commit order with the wiki's operations (4.4).
-- ``AtlasIndexer``: reads the photo's current state and (re)builds its points; a photo that is
-  no longer APPROVED + ACTIVE loses them.
+- ``AtlasIndexer``: reads the photo's current state and (re)builds its points in every writable
+  atlas generation, each with its own image model (10.6, P8); a photo that is no longer
+  APPROVED + ACTIVE loses them in every live one.
+- ``AtlasFanout``: consent and governance operations for every live generation.
 """
 
 from __future__ import annotations
@@ -32,14 +34,15 @@ from spoldzielnia_ai.atlas.labels import LabelService
 from spoldzielnia_ai.core.logging import get_logger
 from spoldzielnia_ai.db.enums import AtlasImageStatus, ConsentStatus, VectorOpKind
 from spoldzielnia_ai.db.models import AtlasImage, AtlasRegion
-from spoldzielnia_ai.vector.collections import ATLAS_COLLECTION
+from spoldzielnia_ai.llm.gateway import LLMPurpose, ModelNotConfigured
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Mapping
 
+    from PIL.Image import Image
     from qdrant_client import AsyncQdrantClient
 
-    from spoldzielnia_ai.atlas.embedding import ImageEmbedder
+    from spoldzielnia_ai.atlas.generations import ImageGeneration, ImageGenerationSource
     from spoldzielnia_ai.core.crypto import EnvelopeCipher
     from spoldzielnia_ai.db.session import SessionFactory
     from spoldzielnia_ai.files.storage import ObjectStorage
@@ -158,8 +161,11 @@ class AtlasHit:
 
 
 class AtlasVectorRepo:
-    def __init__(self, client: AsyncQdrantClient) -> None:
+    """One atlas generation's collection."""
+
+    def __init__(self, client: AsyncQdrantClient, collection: str) -> None:
         self._client = client
+        self.collection = collection
 
     async def upsert(self, points: list[AtlasPoint]) -> None:
         if not points:
@@ -170,7 +176,7 @@ class AtlasVectorRepo:
             )
             for p in points
         ]
-        await self._client.upsert(ATLAS_COLLECTION, points=structs, wait=True)
+        await self._client.upsert(self.collection, points=structs, wait=True)
 
     async def search(
         self,
@@ -188,7 +194,7 @@ class AtlasVectorRepo:
         if kind is not None:
             must.append(_match("kind", kind))
         response = await self._client.query_points(
-            ATLAS_COLLECTION,
+            self.collection,
             query=vector,
             query_filter=models.Filter(must=must),
             limit=limit,
@@ -212,7 +218,7 @@ class AtlasVectorRepo:
 
     async def set_payload(self, scope: AtlasScope, payload: Mapping[str, Any]) -> None:
         await self._client.set_payload(
-            ATLAS_COLLECTION,
+            self.collection,
             payload=dict(payload),
             points=models.FilterSelector(filter=scope.to_filter()),
             wait=True,
@@ -220,25 +226,44 @@ class AtlasVectorRepo:
 
     async def delete(self, scope: AtlasScope) -> None:
         await self._client.delete(
-            ATLAS_COLLECTION,
+            self.collection,
             points_selector=models.FilterSelector(filter=scope.to_filter()),
             wait=True,
         )
 
     async def count(self, scope: AtlasScope) -> int:
         result = await self._client.count(
-            ATLAS_COLLECTION, count_filter=scope.to_filter(), exact=True
+            self.collection, count_filter=scope.to_filter(), exact=True
         )
         return result.count
 
     async def payloads(self, image_id: UUID) -> list[dict[str, Any]]:
         records, _ = await self._client.scroll(
-            ATLAS_COLLECTION,
+            self.collection,
             scroll_filter=AtlasScope(image_ids=(image_id,)).to_filter(),
             limit=1000,
             with_payload=True,
         )
         return [dict(r.payload or {}) for r in records]
+
+
+class AtlasFanout:
+    """Consent and governance writes for every live atlas generation (read fresh each time)."""
+
+    def __init__(self, client: AsyncQdrantClient, generations: ImageGenerationSource) -> None:
+        self._client = client
+        self._generations = generations
+
+    async def _repos(self) -> list[AtlasVectorRepo]:
+        return [AtlasVectorRepo(self._client, g.collection) for g in await self._generations.live()]
+
+    async def set_payload(self, scope: AtlasScope, payload: Mapping[str, Any]) -> None:
+        for repo in await self._repos():
+            await repo.set_payload(scope, payload)
+
+    async def delete(self, scope: AtlasScope) -> None:
+        for repo in await self._repos():
+            await repo.delete(scope)
 
 
 def atlas_payload(
@@ -267,16 +292,20 @@ class AtlasIndexer:
         factory: SessionFactory,
         cipher: EnvelopeCipher,
         storage: ObjectStorage,
-        embedder: ImageEmbedder,
-        repo: AtlasVectorRepo,
+        generations: ImageGenerationSource,
+        client: AsyncQdrantClient,
     ) -> None:
         self._factory = factory
         self._objects = AtlasObjects(cipher, storage)
-        self._embedder = embedder
-        self._repo = repo
+        self._generations = generations
+        self._client = client
 
-    async def index_image(self, image_id: UUID) -> int:
-        """(Re)build the photo's points from its current state. Returns the point count."""
+    async def index_image(
+        self, image_id: UUID, targets: list[ImageGeneration] | None = None
+    ) -> int:
+        """(Re)build the photo's points from its current state in ``targets`` (default: every
+        writable generation). Returns the point count per generation. Raises
+        ``ModelNotConfigured`` when no target has a usable image model (the job waits)."""
         async with self._factory() as session:
             image = await session.get(AtlasImage, image_id)
             regions: list[AtlasRegion] = []
@@ -297,32 +326,47 @@ class AtlasIndexer:
             or image.status != AtlasImageStatus.APPROVED
             or image.consent_status != ConsentStatus.ACTIVE
         ):
-            await self._repo.delete(scope)
+            await self._delete(scope, targets)
             return 0
+        writable = targets if targets is not None else await self._generations.writable()
+        usable = [g for g in writable if g.embedder is not None]
+        if not usable:
+            raise ModelNotConfigured(LLMPurpose.IMAGE_EMBED)
         data = await self._objects.read(image, "full")
         if data is None:
-            await self._repo.delete(scope)
+            await self._delete(scope, targets)
             return 0
-        vectors = await asyncio.to_thread(self._embed, data, regions)
-        points = [AtlasPoint(image.id, None, vectors[0], atlas_payload(image, None, None))]
-        points += [
-            AtlasPoint(
-                image.id,
-                region.id,
-                vector,
-                atlas_payload(image, region, labels.get(region.label_id, region.label_id)),
-            )
-            for region, vector in zip(regions, vectors[1:], strict=True)
-        ]
-        await self._repo.delete(scope)  # marks removed by a correction leave no point behind
-        await self._repo.upsert(points)
-        log.info("atlas.indexed", image=str(image_id), points=len(points))
-        return len(points)
+        images = await asyncio.to_thread(_images, data, regions)
+        count = 0
+        for generation in usable:
+            assert generation.embedder is not None  # noqa: S101 - filtered above
+            vectors = await asyncio.to_thread(generation.embedder.embed, images)
+            points = [AtlasPoint(image.id, None, vectors[0], atlas_payload(image, None, None))]
+            points += [
+                AtlasPoint(
+                    image.id,
+                    region.id,
+                    vector,
+                    atlas_payload(image, region, labels.get(region.label_id, region.label_id)),
+                )
+                for region, vector in zip(regions, vectors[1:], strict=True)
+            ]
+            repo = AtlasVectorRepo(self._client, generation.collection)
+            await repo.delete(scope)  # marks removed by a correction leave no point behind
+            await repo.upsert(points)
+            count = len(points)
+        log.info("atlas.indexed", image=str(image_id), points=count, generations=len(usable))
+        return count
 
-    def _embed(self, data: bytes, regions: list[AtlasRegion]) -> list[list[float]]:
-        from PIL import Image
+    async def _delete(self, scope: AtlasScope, targets: list[ImageGeneration] | None) -> None:
+        for generation in targets if targets is not None else await self._generations.live():
+            await AtlasVectorRepo(self._client, generation.collection).delete(scope)
 
-        with Image.open(io.BytesIO(data)) as source:
-            whole = source.convert("RGB")
-        crops = [crop(whole, Box(r.x, r.y, r.w, r.h)) for r in regions]
-        return self._embedder.embed([whole, *crops])
+
+def _images(data: bytes, regions: list[AtlasRegion]) -> list[Image]:
+    """The whole photo, then one crop per mark."""
+    from PIL import Image as PilImage
+
+    with PilImage.open(io.BytesIO(data)) as source:
+        whole = source.convert("RGB")
+    return [whole, *(crop(whole, Box(r.x, r.y, r.w, r.h)) for r in regions)]

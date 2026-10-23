@@ -528,3 +528,51 @@ reference local one.
   bomb refused); integration (a scan waits while a text PDF completes, then is read by the vision
   model after resume; service and triggers for OCR); the `ml` tests use the new constructor.
 
+### 10.6 — Image embeddings: API or built-in
+- **Spike (request shapes):** multimodal embedding APIs are not standardised. Self-hosted
+  embedding servers for CLIP/SigLIP (Infinity) take images on the OpenAI-style `/embeddings`
+  endpoint; vLLM's online multimodal embedding input is not clearly documented; Cohere, Voyage and
+  Jina each have their own shapes. **Chosen: one shape**, `POST {base}/embeddings` with
+  `{"model", "input": [JPEG data URIs], "modality": "image", "encoding_format": "float"}`
+  (`llm/image_embedding.py`); vectors are L2-normalised. A server expecting another shape fails
+  the probe (required before activation), never silently. Other shapes can be added behind the
+  same purpose.
+- **Purpose:** `IMAGE_EMBED` (private, P1) with capability `IMAGE_EMBED`; migration
+  `0024_image_embed` adds the enum values and guards. `.env`: `LLM_IMAGE_EMBED_MODEL` on the local
+  endpoint. `LiteLLMGateway.embed_images(..., deployment=)` pins a generation's model with the
+  same policy as routes. Probe: two pictures of one synthetic object must be closer than a
+  different object; records the dimension (`embed_dimension`, like EMBED).
+- **Built-in SigLIP:** the 9.8 code stays as an optional engine of worker-core
+  (`llm.builtin_image_embed`, its model in the volume). Deviation from §3.7: it is not listed as
+  a provider in `/admin/llm`; as with Whisper and Docling OCR, the routed API model is used when
+  there is one, else the built-in one (decided per configuration, never as a fallback after a
+  failure).
+- **Atlas on generations (P8):** `index_generation.family` (`TEXT`/`IMAGE`, unique SERVING and
+  BUILDING per family); an IMAGE generation has one collection `atlas_visual_index__g<n>` in
+  `canonical_collection`. `atlas/generations.py`: `ImageGenerationStore` (serving cached, writers
+  fresh; API models re-resolved live, un-clearing stops them), `ImageGenerationManager.reconcile`
+  (adopts the 9.8 collection for the built-in model, creates a BUILDING generation when the
+  image model changes, cancels on change back), `AtlasReEmbedder` (task `index.reembed_atlas`,
+  every APPROVED + ACTIVE photo in id order, cursor, 240 s runs, cloud throttle, swap).
+  `AtlasIndexer` writes every writable generation with its own model; `AtlasFanout` sends consent
+  and governance operations to every live one (api and worker); recognition embeds the query
+  crops with the serving generation's model and searches its collection; the nightly audit checks
+  every live generation; `spoldzielnia reindex` builds and swaps a new atlas generation; the
+  benchmark CLI runs on the serving generation (it never embeds, so it works with either model).
+  `swap_generation`/`drop_expired` are shared with the text index. Bootstrap no longer creates
+  any Qdrant collection; `qdrant.image_vector_size` is removed.
+- **No model:** atlas indexing raises `ModelNotConfigured` and is parked (`model_wait`, task
+  `index.atlas_image`); the resume task treats IMAGE_EMBED as ready when a writable atlas
+  generation has a usable model (the built-in one has no route). `/capabilities` `recognition`
+  needs VLM and IMAGE_EMBED (the built-in counts when allowed); „Rozpoznaj” answers 503 up front;
+  a recognition job that finds no serving model fails as `model_not_configured`.
+- **Admin:** `GET /admin/llm/index` adds `atlas_generations` and `atlas_items`; cancelling a build
+  works for either family. UI: purpose „Atlas: wektory zdjęć”, model type „Embeddingi zdjęć”.
+- **Tests:** unit (request shape, normalisation and order, error mapping, an uncleared or cloud
+  provider never receives a photo, `.env` routing, the probe, recognition needs an image model);
+  integration with real Postgres + Qdrant (adoption of the 9.8 collection; switching the built-in
+  model to an API model builds and swaps, and queries use the serving model's space; a consent
+  change during the build reaches both generations; no model → indexing waits, then a model
+  appears, the first generation is built and the parked job resumes); existing atlas tests on
+  the new constructors.
+

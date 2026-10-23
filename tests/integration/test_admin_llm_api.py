@@ -125,6 +125,7 @@ async def test_first_visit_shows_the_env_configuration_as_revision_one(h: Harnes
         "PROMOTION": True,
         "TRANSCRIBE": True,
         "OCR": True,
+        "IMAGE_EMBED": True,
         "VLM": True,
         "EMBED": True,
         "RAG": False,
@@ -624,7 +625,13 @@ async def test_index_generations_are_shown_and_guarded(h: Harness) -> None:
     admin = await _admin(h)
 
     index = (await admin.client.get("/admin/llm/index")).json()
-    assert index == {"generations": [], "items": 0, "reembed_per_minute": 600}
+    assert index == {
+        "generations": [],
+        "items": 0,
+        "reembed_per_minute": 600,
+        "atlas_generations": [],
+        "atlas_items": 0,
+    }
     rebuild = await admin.client.post("/admin/llm/index/rebuild", headers=admin.headers)
     assert rebuild.status_code == 409
     assert rebuild.json()["detail"]["error"] == "embed_model_unavailable"

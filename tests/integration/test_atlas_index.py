@@ -17,7 +17,7 @@ from sqlalchemy.ext.asyncio import create_async_engine
 from spoldzielnia_ai.atlas.consistency import AtlasConsistency
 from spoldzielnia_ai.atlas.vectors import AtlasIndexer, AtlasScope, AtlasVectorRepo
 from spoldzielnia_ai.db.session import SessionFactory, create_session_factory
-from spoldzielnia_ai.vector.collections import recreate_atlas_collection
+from spoldzielnia_ai.vector.collections import ATLAS_COLLECTION, recreate_atlas_collection
 from spoldzielnia_ai.vector.deps import get_vector_sync
 from tests.fixtures.app import harness
 from tests.fixtures.atlas import (
@@ -31,6 +31,7 @@ from tests.fixtures.atlas import (
     make_world,
     sent_photo,
 )
+from tests.fixtures.llm import static_atlas
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
@@ -81,12 +82,12 @@ async def world(h: Harness, factory: SessionFactory, queue: RecordingQueue) -> W
 def indexer(world: World, qdrant: AsyncQdrantClient) -> AtlasIndexer:
     state = world.h.app.state
     return AtlasIndexer(
-        world.factory, state.cipher, world.h.storage, ColourEmbedder(), AtlasVectorRepo(qdrant)
+        world.factory, state.cipher, world.h.storage, static_atlas(ColourEmbedder()), qdrant
     )
 
 
 async def payloads(qdrant: AsyncQdrantClient, image_id: str) -> list[dict[str, Any]]:
-    return await AtlasVectorRepo(qdrant).payloads(UUID(image_id))
+    return await AtlasVectorRepo(qdrant, ATLAS_COLLECTION).payloads(UUID(image_id))
 
 
 async def approved_and_indexed(
@@ -131,7 +132,7 @@ async def test_consent_reaches_the_index_at_once(world: World, qdrant: AsyncQdra
     author = await world.h.login(
         subject=await _subject(world, image_id), roles=["MEMBER"], auth_time=int(time.time())
     )
-    repo = AtlasVectorRepo(qdrant)
+    repo = AtlasVectorRepo(qdrant, ATLAS_COLLECTION)
     query = ColourEmbedder().embed([Image.new("RGB", (8, 8), "orange")])[0]
     assert {h.image_id for h in await repo.search(query, limit=10)} == {UUID(image_id)}
 
@@ -170,7 +171,7 @@ async def test_label_merge_repoints_points(world: World, qdrant: AsyncQdrantClie
 async def test_consistency_audit_repairs_drift(world: World, qdrant: AsyncQdrantClient) -> None:
     image_id = await approved_and_indexed(world, qdrant)
     other = await approved_and_indexed(world, qdrant, "green")
-    repo = AtlasVectorRepo(qdrant)
+    repo = AtlasVectorRepo(qdrant, ATLAS_COLLECTION)
     await repo.set_payload(AtlasScope(image_ids=(UUID(image_id),)), {"is_active": False})  # drift
     await repo.delete(AtlasScope(image_ids=(UUID(other),)))  # lost points
     world.queue.indexed.clear()
@@ -181,11 +182,15 @@ async def test_consistency_audit_repairs_drift(world: World, qdrant: AsyncQdrant
     async def requeue(image: UUID) -> None:
         queued.append(image)
 
-    report = await AtlasConsistency(world.factory, qdrant, sync, requeue).run()
+    report = await AtlasConsistency(
+        world.factory, qdrant, sync, requeue, static_atlas(ColourEmbedder())
+    ).run()
     assert (report.fixed, report.queued, report.deleted) == (1, 1, 0)
     assert queued == [UUID(other)]
     assert {p["is_active"] for p in await payloads(qdrant, image_id)} == {True}
-    again = await AtlasConsistency(world.factory, qdrant, sync, requeue).run()
+    again = await AtlasConsistency(
+        world.factory, qdrant, sync, requeue, static_atlas(ColourEmbedder())
+    ).run()
     assert (again.fixed, again.deleted) == (0, 0)
 
 

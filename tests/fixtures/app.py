@@ -18,7 +18,7 @@ from spoldzielnia_ai.llm.config_store import LlmConfigStore
 from spoldzielnia_ai.llm.gateway import LiteLLMGateway
 from spoldzielnia_ai.main import create_app
 from spoldzielnia_ai.notebook.uploads import NoProcessing
-from tests.fixtures.llm import static_generations
+from tests.fixtures.llm import static_atlas, static_generations
 from tests.fixtures.oidc import FakeIdP
 
 if TYPE_CHECKING:
@@ -75,6 +75,7 @@ async def harness(settings: Settings, factory: SessionFactory) -> AsyncGenerator
     app.state.llm = LiteLLMGateway(settings.llm, source=app.state.llm_config)
     # The bare test collections as the serving index generation (10.3).
     app.state.generations = static_generations()
+    app.state.image_generations = static_atlas()
     storage = MemoryObjectStorage()
     app.state.storage = storage
     app.state.processing_queue = NoProcessing()  # tests opt in to Celery (eager) explicitly

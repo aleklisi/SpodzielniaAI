@@ -98,7 +98,7 @@ def test_normalize_strips_trailing_slashes() -> None:
 
 
 def test_private_purposes_match_the_gateway_and_the_migration() -> None:
-    migration = importlib.import_module("spoldzielnia_ai.db.migrations.versions.0023_ocr_purpose")
+    migration = importlib.import_module("spoldzielnia_ai.db.migrations.versions.0024_image_embed")
     gateway = {p.value for p in PRIVATE_PURPOSES}
     assert {p.value for p in PRIVATE_ROUTE_PURPOSES} == gateway
     assert set(migration.PRIVATE) == gateway
@@ -110,6 +110,7 @@ def test_capability_per_purpose() -> None:
     assert capability_for(LlmRoutePurpose.EMBED) == LlmCapability.EMBED
     assert capability_for(LlmRoutePurpose.TRANSCRIBE) == LlmCapability.TRANSCRIBE
     assert capability_for(LlmRoutePurpose.OCR) == LlmCapability.VLM
+    assert capability_for(LlmRoutePurpose.IMAGE_EMBED) == LlmCapability.IMAGE_EMBED
     assert capability_for(LlmRoutePurpose.RAG) == LlmCapability.CHAT
     assert capability_for(LlmRoutePurpose.PII_SCRUB) == LlmCapability.CHAT
 

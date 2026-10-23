@@ -6,7 +6,8 @@ disables the rest with „Model nie jest skonfigurowany”, and the admin consol
 purposes. Nothing here calls a model; availability is about configuration, not health.
 
 A purpose served by a built-in engine (``builtin_purposes``: the media worker's faster-whisper
-for TRANSCRIBE, 10.4, and Docling's OCR for OCR, 10.5) counts as configured without a route.
+for TRANSCRIBE, 10.4, Docling's OCR for OCR, 10.5, worker-core's SigLIP for IMAGE_EMBED, 10.6)
+counts as configured without a route.
 """
 
 from __future__ import annotations
@@ -29,7 +30,7 @@ FEATURES: dict[str, tuple[LLMPurpose, ...]] = {
     "notebook_search": (LLMPurpose.EMBED,),
     "promotion": (LLMPurpose.PROMOTION,),
     "image_descriptions": (LLMPurpose.VLM,),
-    "recognition": (LLMPurpose.VLM,),
+    "recognition": (LLMPurpose.VLM, LLMPurpose.IMAGE_EMBED),
     "transcription": (LLMPurpose.TRANSCRIBE,),
     "ocr": (LLMPurpose.OCR,),
 }
@@ -44,6 +45,8 @@ def builtin_purposes(settings: LlmSettings) -> frozenset[LLMPurpose]:
         found.add(LLMPurpose.TRANSCRIBE)
     if settings.builtin_ocr:
         found.add(LLMPurpose.OCR)
+    if settings.builtin_image_embed:
+        found.add(LLMPurpose.IMAGE_EMBED)
     return frozenset(found)
 
 

@@ -82,7 +82,13 @@ async def test_capabilities_name_features_whose_purposes_all_have_models() -> No
     }
     assert set(features) == set(FEATURES)
     full = LiteLLMGateway(
-        LlmSettings(chat_model="b", vlm_model="v", embed_model="e", transcribe_model="w")
+        LlmSettings(
+            chat_model="b",
+            vlm_model="v",
+            embed_model="e",
+            transcribe_model="w",
+            image_embed_model="s",
+        )
     )
     assert all((await capabilities(full)).values())
     assert await missing_purposes(full) == []
@@ -92,6 +98,7 @@ async def test_capabilities_name_features_whose_purposes_all_have_models() -> No
             vlm_model="v",
             embed_model="e",
             transcribe_model="w",
+            image_embed_model="s",
             private_data_endpoints=[],
         )
     )
@@ -103,6 +110,7 @@ async def test_capabilities_name_features_whose_purposes_all_have_models() -> No
         LLMPurpose.EMBED,
         LLMPurpose.TRANSCRIBE,
         LLMPurpose.OCR,
+        LLMPurpose.IMAGE_EMBED,
     ]
 
 

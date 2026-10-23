@@ -36,6 +36,7 @@ from spoldzielnia_ai.api.rag import router as rag_router
 from spoldzielnia_ai.api.recognition import router as recognition_router
 from spoldzielnia_ai.api.reviews import router as reviews_router
 from spoldzielnia_ai.api.wiki import router as wiki_router
+from spoldzielnia_ai.atlas.generations import ImageGenerationStore
 from spoldzielnia_ai.auth.crypto import CsrfTokens, TokenSealer, derive_key
 from spoldzielnia_ai.auth.csrf import csrf_middleware
 from spoldzielnia_ai.auth.deps import DbAuditSink
@@ -146,6 +147,11 @@ def create_app(
     # Which index generation searches use, with which embedding model (10.3, P8).
     app.state.generations = GenerationStore(
         app.state.session_factory, app.state.cipher, settings.llm
+    )
+    # The atlas generations (10.6): the api only writes consent changes to every live one, so it
+    # never loads an image model (``builtin`` is never asked for).
+    app.state.image_generations = ImageGenerationStore(
+        app.state.session_factory, app.state.cipher, settings.llm, lambda: None
     )
     app.state.notifier = make_notifier(settings.shield)
     app.include_router(auth_router)

@@ -156,3 +156,17 @@ class FakeLLMGateway:
         if self.embedding is not None:
             return [self.embedding(t) for t in texts]
         return [hash_embedding(t, self.embed_dim) for t in texts]
+
+
+def static_atlas(
+    embedder: Any = None, collection: str = "atlas_visual_index", dim: int = 8, number: int = 1
+) -> Any:
+    """One SERVING atlas generation (10.6) on ``collection``; ``embedder`` None means its model
+    can't be used (enough for consent writes, which only need the collection)."""
+    from spoldzielnia_ai.atlas.generations import ImageGeneration, StaticImageGenerations
+    from spoldzielnia_ai.db.enums import IndexGenerationStatus
+
+    generation = ImageGeneration(
+        number, IndexGenerationStatus.SERVING, "test-image", dim, collection, embedder
+    )
+    return StaticImageGenerations((generation,))

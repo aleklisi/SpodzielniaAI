@@ -36,6 +36,7 @@ from sqlalchemy import select
 from spoldzielnia_ai.atlas.embedding import Box, crop
 from spoldzielnia_ai.atlas.images import AtlasObjects
 from spoldzielnia_ai.atlas.labels import LabelService
+from spoldzielnia_ai.atlas.vectors import AtlasVectorRepo
 from spoldzielnia_ai.core.crypto import row_aad
 from spoldzielnia_ai.core.ids import uuid7
 from spoldzielnia_ai.core.logging import get_logger
@@ -72,9 +73,10 @@ if TYPE_CHECKING:
     from collections.abc import Sequence
 
     from PIL.Image import Image
+    from qdrant_client import AsyncQdrantClient
 
-    from spoldzielnia_ai.atlas.embedding import ImageEmbedder
-    from spoldzielnia_ai.atlas.vectors import AtlasHit, AtlasVectorRepo
+    from spoldzielnia_ai.atlas.generations import ImageGenerationSource
+    from spoldzielnia_ai.atlas.vectors import AtlasHit
     from spoldzielnia_ai.core.crypto import EnvelopeCipher
     from spoldzielnia_ai.core.settings import AtlasSettings
     from spoldzielnia_ai.db.rls import RlsSession
@@ -267,8 +269,8 @@ class AtlasRecognizer:
         factory: SessionFactory,
         cipher: EnvelopeCipher,
         storage: ObjectStorage,
-        embedder: ImageEmbedder,
-        repo: AtlasVectorRepo,
+        generations: ImageGenerationSource,
+        client: AsyncQdrantClient,
         gateway: LLMGateway,
         guard: InjectionGuard,
         settings: AtlasSettings,
@@ -280,8 +282,8 @@ class AtlasRecognizer:
         self._cipher = cipher
         self._storage = storage
         self._objects = AtlasObjects(cipher, storage)
-        self._embedder = embedder
-        self._repo = repo
+        self._generations = generations
+        self._client = client
         self._gateway = gateway
         self._guard = guard
         self._settings = settings
@@ -298,10 +300,22 @@ class AtlasRecognizer:
         except (FileRejected, InvalidTag, OSError):
             await self._finish(job, error="image_unreadable")
             return False
+        # The serving atlas generation, searched only with its own image model (10.6, P8).
+        generation = await self._generations.serving()
+        if generation is None or generation.embedder is None:
+            await self._finish(job, error="model_not_configured")
+            return False
         windows = [Box(0, 0, 1, 1), *grid()]
         crops = [photo if w == Box(0, 0, 1, 1) else crop(photo, w) for w in windows]
-        vectors = await asyncio.to_thread(self._embedder.embed, crops)
-        candidates = await self._candidates(request, windows, vectors)
+        try:
+            vectors = await asyncio.to_thread(generation.embedder.embed, crops)
+        except LLMError:
+            if not final_attempt:
+                return True
+            await self._finish(job, error="image_model_unavailable")
+            return False
+        repo = AtlasVectorRepo(self._client, generation.collection)
+        candidates = await self._candidates(request, windows, vectors, repo)
         if not candidates:
             await self._finish(
                 job,
@@ -374,12 +388,16 @@ class AtlasRecognizer:
         return await asyncio.to_thread(decode)
 
     async def _candidates(
-        self, request: _Request, windows: list[Box], vectors: list[list[float]]
+        self,
+        request: _Request,
+        windows: list[Box],
+        vectors: list[list[float]],
+        repo: AtlasVectorRepo,
     ) -> list[Candidate]:
         domain = None if request.all_domains else request.domain_id
         best: dict[UUID, tuple[float, Box, list[AtlasHit]]] = {}
         for window, vector in zip(windows, vectors, strict=True):
-            hits = await self._repo.search(
+            hits = await repo.search(
                 vector,
                 limit=HITS_PER_CROP,
                 domain_id=domain,

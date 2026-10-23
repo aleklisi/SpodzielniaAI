@@ -25,10 +25,16 @@ from spoldzielnia_ai.db.enums import DerivativeStatus
 from spoldzielnia_ai.db.models import ModelWait, NoteDerivative
 from spoldzielnia_ai.db.rls import rls_session
 from spoldzielnia_ai.llm.gateway import LLMPurpose
-from spoldzielnia_ai.workers.jobs import KIND_TASK, ArticleJob, DerivativeJob, TaskName
+from spoldzielnia_ai.workers.jobs import (
+    KIND_TASK,
+    ArticleJob,
+    AtlasIndexJob,
+    DerivativeJob,
+    TaskName,
+)
 
 if TYPE_CHECKING:
-    from collections.abc import Awaitable, Callable
+    from collections.abc import Awaitable, Callable, Collection
     from uuid import UUID
 
     from pydantic import BaseModel
@@ -89,8 +95,10 @@ class ModelWaitResumer:
         self._gateway = gateway
         self._send = send
 
-    async def run(self) -> int:
-        """Resume the parked work whose purpose now has a model. Returns how many items."""
+    async def run(self, ready_without_route: Collection[LLMPurpose] = ()) -> int:
+        """Resume the parked work whose purpose now has a model. Returns how many items.
+        ``ready_without_route``: purposes served without a route (the atlas's built-in image
+        model, 10.6)."""
         async with self._factory() as session:
             result = await session.execute(
                 select(ModelWait.purpose, func.count()).group_by(ModelWait.purpose)
@@ -104,7 +112,8 @@ class ModelWaitResumer:
         ready = [
             p
             for p in counts
-            if p in LLMPurpose.__members__ and self._gateway.configured(LLMPurpose(p))
+            if p in LLMPurpose.__members__
+            and (LLMPurpose(p) in ready_without_route or self._gateway.configured(LLMPurpose(p)))
         ]
         resumed = 0
         for purpose in ready:
@@ -132,6 +141,8 @@ class ModelWaitResumer:
                 job = DerivativeJob(derivative_id=row.subject_id, owner_id=row.owner_id)
             elif row.task == TaskName.INDEX_ARTICLE.value:
                 job = ArticleJob(article_id=row.subject_id)
+            elif row.task == TaskName.INDEX_ATLAS.value:
+                job = AtlasIndexJob(image_id=row.subject_id)
             else:
                 log.error("worker.wait_unknown_task", task=row.task)
                 continue

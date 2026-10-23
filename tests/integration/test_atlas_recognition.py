@@ -17,7 +17,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import create_async_engine
 
 from spoldzielnia_ai.atlas.recognition import FILTERED_ANSWER, NO_EXAMPLES, AtlasRecognizer
-from spoldzielnia_ai.atlas.vectors import AtlasIndexer, AtlasVectorRepo
+from spoldzielnia_ai.atlas.vectors import AtlasIndexer
 from spoldzielnia_ai.core.settings import AtlasSettings
 from spoldzielnia_ai.db.enums import DerivativeKind, DerivativeStatus
 from spoldzielnia_ai.db.models import NoteDerivative
@@ -39,7 +39,7 @@ from tests.fixtures.atlas import (
     photo_bytes,
     sent_photo,
 )
-from tests.fixtures.llm import Call, FakeLLMGateway
+from tests.fixtures.llm import Call, FakeLLMGateway, static_atlas
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
@@ -122,8 +122,8 @@ class Setup:
             self.world.factory,
             state.cipher,
             self.world.h.storage,
-            ColourEmbedder(),
-            AtlasVectorRepo(self.qdrant),
+            static_atlas(ColourEmbedder()),
+            self.qdrant,
             self.vlm,
             InjectionGuard(),
             self.settings,
@@ -138,8 +138,8 @@ class Setup:
             self.world.factory,
             state.cipher,
             self.world.h.storage,
-            ColourEmbedder(),
-            AtlasVectorRepo(self.qdrant),
+            static_atlas(ColourEmbedder()),
+            self.qdrant,
         )
         await indexer.index_image(UUID(image_id))
         return image_id

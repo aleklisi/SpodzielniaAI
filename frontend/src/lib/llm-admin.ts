@@ -171,16 +171,18 @@ export const PURPOSES: Record<Purpose, { label: string; hint: string }> = {
   VLM: { label: "Opisy zdjęć", hint: "Model wizyjny dla załączników." },
   EMBED: { label: "Embeddingi", hint: "Wektory indeksu wiedzy (zmiana wymaga reindeksacji)." },
   TRANSCRIBE: { label: "Transkrypcja nagrań", hint: "Zamiana mowy na tekst w nagraniach z notatek." },
+  IMAGE_EMBED: { label: "Atlas: wektory zdjęć", hint: "Embeddingi zdjęć atlasu i fragmentów do „Rozpoznaj” (zmiana przebudowuje indeks atlasu w tle)." },
   OCR: { label: "Odczyt skanów (OCR)", hint: "Model wizyjny odczytuje strony dokumentów bez warstwy tekstowej." },
 };
 
-export const PURPOSE_ORDER: Purpose[] = ["RAG", "PROMOTION", "PRIVATE_NOTE", "PII_SCRUB", "VLM", "OCR", "TRANSCRIBE", "EMBED"];
+export const PURPOSE_ORDER: Purpose[] = ["RAG", "PROMOTION", "PRIVATE_NOTE", "PII_SCRUB", "VLM", "OCR", "TRANSCRIBE", "EMBED", "IMAGE_EMBED"];
 
 export const CAPABILITIES: Record<Capability, string> = {
   CHAT: "Czat",
   VLM: "Wizyjny",
   EMBED: "Embeddingi",
   TRANSCRIBE: "Mowa na tekst",
+  IMAGE_EMBED: "Embeddingi zdjęć",
 };
 
 /** Models that generate text from a prompt: temperature and token limit apply. */

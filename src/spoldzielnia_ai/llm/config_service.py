@@ -75,6 +75,8 @@ PRIVATE_ROUTE_PURPOSES = frozenset(
 StructuredOutput = Literal["json_schema", "prompt"]
 # Models that generate text from a prompt (temperature and token limit apply).
 _GENERATES = frozenset({LlmCapability.CHAT, LlmCapability.VLM})
+# Models that return vectors: their probe records the dimension.
+_EMBEDS = frozenset({LlmCapability.EMBED, LlmCapability.IMAGE_EMBED})
 
 
 def capability_for(purpose: LlmRoutePurpose) -> LlmCapability:
@@ -84,6 +86,8 @@ def capability_for(purpose: LlmRoutePurpose) -> LlmCapability:
         return LlmCapability.EMBED
     if purpose == LlmRoutePurpose.TRANSCRIBE:
         return LlmCapability.TRANSCRIBE
+    if purpose == LlmRoutePurpose.IMAGE_EMBED:
+        return LlmCapability.IMAGE_EMBED
     return LlmCapability.CHAT
 
 
@@ -529,7 +533,7 @@ class LlmConfigService:
     # --- models ---------------------------------------------------------------------------------
 
     async def create_model(self, actor: UUID | None, data: ModelIn) -> LlmModel:
-        if data.embed_dimension is not None and data.capability != LlmCapability.EMBED:
+        if data.embed_dimension is not None and data.capability not in _EMBEDS:
             raise ConfigError("embed_dimension_only_for_embed")
         async with self._factory() as session, session.begin():
             provider = await self._get(session, LlmProvider, data.provider_id, "provider")
@@ -576,7 +580,7 @@ class LlmConfigService:
             if (
                 "embed_dimension" in fields
                 and patch.embed_dimension is not None
-                and model.capability != LlmCapability.EMBED
+                and model.capability not in _EMBEDS
             ):
                 raise ConfigError("embed_dimension_only_for_embed")
             changes: dict[str, JsonValue] = {}
@@ -626,7 +630,7 @@ class LlmConfigService:
             model.last_probe_at = self._now()
             model.last_probe_ok = ok
             model.last_probe_report = dict(report)
-            if model.capability == LlmCapability.EMBED and isinstance(report.get("dimension"), int):
+            if model.capability in _EMBEDS and isinstance(report.get("dimension"), int):
                 model.embed_dimension = int(report["dimension"])  # pyright: ignore[reportArgumentType]
             await AuditService(session).record(
                 EventType.LLM_MODEL_PROBED,
@@ -963,6 +967,10 @@ class LlmConfigService:
             if s.embed_model and cleared:
                 routing[LlmRoutePurpose.EMBED] = await model(
                     local, s.embed_model, LlmCapability.EMBED
+                )
+            if s.image_embed_model and cleared:
+                routing[LlmRoutePurpose.IMAGE_EMBED] = await model(
+                    local, s.image_embed_model, LlmCapability.IMAGE_EMBED
                 )
             if s.transcribe_model and cleared:
                 routing[LlmRoutePurpose.TRANSCRIBE] = await model(

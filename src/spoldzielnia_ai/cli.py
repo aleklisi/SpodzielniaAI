@@ -267,11 +267,26 @@ def _atlas_benchmark() -> int:
     configure_logging("INFO")
 
     async def run() -> dict[str, object]:
+        from spoldzielnia_ai.atlas.generations import ImageGenerationStore
+        from spoldzielnia_ai.core.crypto import EnvelopeCipher, StaticKeyProvider
+        from spoldzielnia_ai.db.engine import create_app_engine
+        from spoldzielnia_ai.db.session import create_session_factory
+
+        engine = create_app_engine(settings.db)
         client = make_qdrant(settings.qdrant)
+        cipher = EnvelopeCipher(StaticKeyProvider(settings.security.kek.get_secret_value()))
+        store = ImageGenerationStore(
+            create_session_factory(engine), cipher, settings.llm, lambda: None
+        )
         try:
-            return (await run_benchmark(client)).to_json()
+            generation = await store.serving()
+            if generation is None:
+                return {"error": "no atlas generation"}
+            report = (await run_benchmark(client, generation.collection)).to_json()
+            return {"generation": generation.number, "model": generation.model, **report}
         finally:
             await client.close()
+            await engine.dispose()
 
     print(json.dumps(asyncio.run(run()), indent=2))
     return 0

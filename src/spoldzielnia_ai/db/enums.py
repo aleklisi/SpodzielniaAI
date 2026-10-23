@@ -104,6 +104,7 @@ class LlmCapability(StrEnum):
     VLM = "VLM"
     EMBED = "EMBED"
     TRANSCRIBE = "TRANSCRIBE"  # 10.4: speech-to-text (``/v1/audio/transcriptions``)
+    IMAGE_EMBED = "IMAGE_EMBED"  # 10.6: image embeddings (``/v1/embeddings``, images)
 
 
 class LlmRevisionStatus(StrEnum):
@@ -123,6 +124,7 @@ class LlmRoutePurpose(StrEnum):
     RAG = "RAG"
     TRANSCRIBE = "TRANSCRIBE"  # 10.4
     OCR = "OCR"  # 10.5: scanned pages, read by a vision model
+    IMAGE_EMBED = "IMAGE_EMBED"  # 10.6: the visual atlas
 
 
 class VisualDomainStatus(StrEnum):

@@ -10,9 +10,14 @@ import asyncio
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from spoldzielnia_ai.atlas.generations import (
+    AtlasReEmbedder,
+    ImageGenerationManager,
+    ImageGenerationStore,
+)
 from spoldzielnia_ai.atlas.recognition import AtlasRecognizer
 from spoldzielnia_ai.atlas.submissions import AtlasPreparer
-from spoldzielnia_ai.atlas.vectors import AtlasIndexer, AtlasVectorRepo
+from spoldzielnia_ai.atlas.vectors import AtlasFanout, AtlasIndexer
 from spoldzielnia_ai.auth.deps import DbAuditSink
 from spoldzielnia_ai.core.crypto import EnvelopeCipher, StaticKeyProvider
 from spoldzielnia_ai.core.logging import get_logger
@@ -22,7 +27,7 @@ from spoldzielnia_ai.db.session import create_session_factory
 from spoldzielnia_ai.files.antivirus import ClamdScanner
 from spoldzielnia_ai.files.storage import S3ObjectStorage
 from spoldzielnia_ai.llm.config_store import LlmConfigStore
-from spoldzielnia_ai.llm.gateway import LiteLLMGateway, StaticConfig
+from spoldzielnia_ai.llm.gateway import LiteLLMGateway, LLMPurpose, ModelNotConfigured, StaticConfig
 from spoldzielnia_ai.llm.injection_guard import InjectionGuard
 from spoldzielnia_ai.net.safe_fetch import SafeFetcher
 from spoldzielnia_ai.notebook.queue import CeleryProcessingQueue
@@ -98,6 +103,7 @@ class WorkerRuntime:
         self._cipher: EnvelopeCipher | None = None
         self._llm_config: LlmConfigStore | None = None
         self._generation_store: GenerationStore | None = None
+        self._image_store: ImageGenerationStore | None = None
         self._engine_cache: dict[str, Engine] = {}
 
     def _engine_for(self, kind: DerivativeKind, mime_type: str) -> Engine:
@@ -268,7 +274,9 @@ class WorkerRuntime:
             queue.article_canonical,
             settings.qdrant.timeout_seconds,
             settings.governance.outbox_alert_after,
-            atlas=AtlasSink(AtlasVectorRepo(self._qdrant()), queue.atlas_canonical),
+            atlas=AtlasSink(
+                AtlasFanout(self._qdrant(), self._image_generations()), queue.atlas_canonical
+            ),
         )
 
     def _build(self) -> DerivativeProcessor:
@@ -342,16 +350,43 @@ class WorkerRuntime:
         self._loop().run(builder.handle(job.export_id))
         return False
 
-    def _image_embedder(self) -> SiglipEmbedder:
-        """One SigLIP per process (loaded on first use), shared by indexing and recognition."""
+    def _builtin_siglip(self) -> SiglipEmbedder | None:
+        """The built-in SigLIP (one per process, loaded on first use), if the operator allows
+        it and its model is in the volume (10.6)."""
+        model_dir = Path(self._settings.models.image_embed_dir)
+        if not self._settings.llm.builtin_image_embed:
+            return None
+        if not (model_dir / "model.safetensors").is_file():
+            return None
         if self._embedder is None:
             from spoldzielnia_ai.atlas.embedding import SiglipEmbedder
 
-            self._embedder = SiglipEmbedder(Path(self._settings.models.image_embed_dir))
+            self._embedder = SiglipEmbedder(model_dir)
         return self._embedder
 
+    def _image_generations(self) -> ImageGenerationStore:
+        """One per process: the atlas generations and their image models (10.6)."""
+        if self._image_store is None:
+            factory, cipher = self._shared()
+            self._image_store = ImageGenerationStore(
+                factory, cipher, self._settings.llm, self._builtin_siglip
+            )
+        return self._image_store
+
+    def _image_manager(self) -> ImageGenerationManager:
+        factory, _ = self._shared()
+        settings = self._settings
+        return ImageGenerationManager(
+            factory,
+            self._qdrant(),
+            self._image_generations(),
+            settings.llm,
+            settings.qdrant,
+            self._builtin_siglip,
+        )
+
     def _atlas_indexer(self) -> AtlasIndexer:
-        """worker-core: SigLIP from the models volume, storage, Qdrant."""
+        """worker-core: the atlas generations' image models, storage, Qdrant."""
         if self._atlas_index is None:
             factory, cipher = self._shared()
             settings = self._settings
@@ -359,8 +394,8 @@ class WorkerRuntime:
                 factory,
                 cipher,
                 S3ObjectStorage(settings.s3),
-                self._image_embedder(),
-                AtlasVectorRepo(self._qdrant()),
+                self._image_generations(),
+                self._qdrant(),
             )
         return self._atlas_index
 
@@ -373,8 +408,8 @@ class WorkerRuntime:
             factory,
             cipher,
             S3ObjectStorage(settings.s3),
-            self._image_embedder(),
-            AtlasVectorRepo(self._qdrant()),
+            self._image_generations(),
+            self._qdrant(),
             self._gateway(),
             guard,
             settings.atlas,
@@ -390,8 +425,20 @@ class WorkerRuntime:
         return runner.run(self._recognizer.handle(job, final_attempt=attempt >= MAX_RETRIES))
 
     def index_atlas(self, job: AtlasIndexJob, _attempt: int) -> bool:
+        from spoldzielnia_ai.workers.waiting import park
+
         indexer = self._loop().run(_construct(self._atlas_indexer))
-        self._loop().run(indexer.index_image(job.image_id))
+        factory, _ = self._shared()
+
+        async def run() -> None:
+            try:
+                await indexer.index_image(job.image_id)
+            except ModelNotConfigured:  # no image model: wait for one (10.6, P5)
+                await park(
+                    factory, job.image_id, None, LLMPurpose.IMAGE_EMBED.value, TaskName.INDEX_ATLAS
+                )
+
+        self._loop().run(run())
         return False
 
     def _index(self) -> Indexer:
@@ -430,7 +477,14 @@ class WorkerRuntime:
             reconciled = await self._generation_manager().reconcile()
             if reconciled.building:
                 await dispatch(TaskName.REEMBED, MaintenanceJob())
-            await ModelWaitResumer(factory, self._gateway(), dispatch).run()
+            # The atlas too (10.6); its model may be the built-in one, which has no route.
+            if await self._image_manager().reconcile():
+                await dispatch(TaskName.REEMBED_ATLAS, MaintenanceJob())
+            images = await self._image_generations().writable()
+            ready: set[LLMPurpose] = set()
+            if any(g.embedder is not None for g in images):
+                ready.add(LLMPurpose.IMAGE_EMBED)
+            await ModelWaitResumer(factory, self._gateway(), dispatch).run(ready)
 
         self._loop().run(run())
         return False  # the next beat tick is the retry
@@ -464,6 +518,20 @@ class WorkerRuntime:
             send(self._celery, TaskName.REEMBED, MaintenanceJob())
         return False  # waiting or busy: the next reconcile (every minute) sends it again
 
+    def reembed_atlas(self, _job: MaintenanceJob, _attempt: int) -> bool:
+        """Fill the BUILDING atlas generation for up to 240 s, then hand over (10.6)."""
+        from spoldzielnia_ai.workers.celery_adapter import send
+
+        factory, _ = self._shared()
+        indexer = self._loop().run(_construct(self._atlas_indexer))
+        reembed = AtlasReEmbedder(
+            factory, self._image_generations(), indexer, self._image_manager(), self._settings.llm
+        )
+        run = self._loop().run(reembed.run())
+        if run.more:
+            send(self._celery, TaskName.REEMBED_ATLAS, MaintenanceJob())
+        return False
+
     def consistency_audit(self, _job: MaintenanceJob, _attempt: int) -> bool:
         from spoldzielnia_ai.atlas.consistency import AtlasConsistency
 
@@ -472,7 +540,9 @@ class WorkerRuntime:
         auditor = ConsistencyAuditor(factory, self._qdrant(), sync, self._generations())
         self._loop().run(auditor.run())
         queue = CeleryProcessingQueue(factory, cipher, self._celery)
-        atlas = AtlasConsistency(factory, self._qdrant(), sync, queue.atlas_canonical)
+        atlas = AtlasConsistency(
+            factory, self._qdrant(), sync, queue.atlas_canonical, self._image_generations()
+        )
         self._loop().run(atlas.run())
         return False
 
@@ -511,6 +581,7 @@ class WorkerRuntime:
             TaskName.REFRESH_CLUSTERS: self.refresh_clusters,
             TaskName.RESUME_WAITING: self.resume_waiting,
             TaskName.REEMBED: self.reembed,
+            TaskName.REEMBED_ATLAS: self.reembed_atlas,
         }
         return handlers.get(name, self.run)
 

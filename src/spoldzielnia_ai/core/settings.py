@@ -125,8 +125,6 @@ class QdrantSettings(BaseModel):
     # dimension its embedding model produced when probed (10.3). A replaced generation keeps
     # receiving consent changes, and is dropped this long after the swap.
     retired_grace_hours: int = Field(default=24, ge=0, le=24 * 30)
-    # Dimension of the atlas image model (SigLIP base: 768, 9.8).
-    image_vector_size: int = Field(default=768, ge=8, le=8192)
     # Bounded wait for synchronous index operations (consent propagation, 4.3).
     timeout_seconds: int = Field(default=10, ge=1, le=120)
 
@@ -399,6 +397,8 @@ class LlmSettings(BaseModel):
     embed_model: str | None = None  # e.g. "text-embedding-embeddinggemma"
     # Speech-to-text on the local endpoint (10.4), e.g. a self-hosted whisper server.
     transcribe_model: str | None = None
+    # Image embeddings on the local endpoint (10.6), e.g. SigLIP/CLIP behind an embedding server.
+    image_embed_model: str | None = None
     # Docker secret `llm_api_key` (LM Studio requires a token; Ollama ignores it).
     api_key: SecretStr | None = None
     timeout_seconds: float = Field(default=180.0, gt=0)
@@ -448,12 +448,17 @@ class LlmSettings(BaseModel):
     # (optional, its models in the ``models`` volume) reads them when no OCR model is routed.
     ocr_max_pages: int = Field(default=200, ge=1)
     builtin_ocr: bool = True
+    # The visual atlas (10.6): image embeddings from the IMAGE_EMBED model, else worker-core's
+    # built-in SigLIP (optional, its model in the ``models`` volume). Recognition and atlas
+    # indexing wait without either.
+    builtin_image_embed: bool = True
 
     @field_validator(
         "chat_model",
         "vlm_model",
         "embed_model",
         "transcribe_model",
+        "image_embed_model",
         "cloud_model",
         "cloud_base_url",
         "egress_proxy_url",

@@ -2555,6 +2555,10 @@ export interface components {
         IndexGenerationStatus: "BUILDING" | "SERVING" | "RETIRED" | "CANCELLED";
         /** IndexOut */
         IndexOut: {
+            /** Atlas Generations */
+            atlas_generations: components["schemas"]["GenerationOut"][];
+            /** Atlas Items */
+            atlas_items: number;
             /** Generations */
             generations: components["schemas"]["GenerationOut"][];
             /** Items */
@@ -2654,7 +2658,7 @@ export interface components {
          * LlmCapability
          * @enum {string}
          */
-        LlmCapability: "CHAT" | "VLM" | "EMBED" | "TRANSCRIBE";
+        LlmCapability: "CHAT" | "VLM" | "EMBED" | "TRANSCRIBE" | "IMAGE_EMBED";
         /**
          * LlmProviderKind
          * @description Derived from the endpoint allowlist the base URL matched (7.1), never chosen freely.
@@ -2671,7 +2675,7 @@ export interface components {
          * @description Purposes an admin can assign a model to (``llm.gateway.LLMPurpose`` minus the playground).
          * @enum {string}
          */
-        LlmRoutePurpose: "PII_SCRUB" | "PRIVATE_NOTE" | "PROMOTION" | "VLM" | "EMBED" | "RAG" | "TRANSCRIBE" | "OCR";
+        LlmRoutePurpose: "PII_SCRUB" | "PRIVATE_NOTE" | "PROMOTION" | "VLM" | "EMBED" | "RAG" | "TRANSCRIBE" | "OCR" | "IMAGE_EMBED";
         /** LogoutResponse */
         LogoutResponse: {
             /** Logout Url */

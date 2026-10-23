@@ -192,6 +192,7 @@ def test_migrations_form_a_single_linear_history() -> None:
         "0021_index_generations",
         "0022_transcribe_purpose",
         "0023_ocr_purpose",
+        "0024_image_embed",
     ]
 
 
@@ -219,4 +220,6 @@ def test_migration_enum_types_match_python_enums() -> None:
     migrated["llm_capability"].append("TRANSCRIBE")  # added by 0022_transcribe_purpose
     migrated["llm_route_purpose"].append("TRANSCRIBE")  # added by 0022_transcribe_purpose
     migrated["llm_route_purpose"].append("OCR")  # added by 0023_ocr_purpose
+    migrated["llm_capability"].append("IMAGE_EMBED")  # added by 0024_image_embed
+    migrated["llm_route_purpose"].append("IMAGE_EMBED")  # added by 0024_image_embed
     assert migrated == {name: [m.value for m in enum] for enum, name in PG_ENUM_NAMES.items()}

@@ -42,6 +42,7 @@ from spoldzielnia_ai.audit.service import AuditService, AuditTarget
 from spoldzielnia_ai.core.logging import get_logger
 from spoldzielnia_ai.db.enums import ArticleStatus, DerivativeStatus, IndexGenerationStatus
 from spoldzielnia_ai.db.models import IndexGeneration, NoteDerivative, User, WikiArticle
+from spoldzielnia_ai.db.models.index_generation import TEXT
 from spoldzielnia_ai.db.rls import rls_session
 from spoldzielnia_ai.llm.gateway import LLMError
 from spoldzielnia_ai.vector.collections import (
@@ -304,81 +305,104 @@ class GenerationManager:
         return row.number
 
     async def drop_expired(self) -> int:
-        """Drop the collections of CANCELLED generations and of RETIRED ones past their grace
-        period. The rows stay, as history."""
-        async with self._factory() as session, session.begin():
-            rows = list(
-                await session.scalars(
-                    select(IndexGeneration)
-                    .where(
-                        IndexGeneration.dropped_at.is_(None),
-                        or_(
-                            IndexGeneration.status == Status.CANCELLED,
-                            (IndexGeneration.status == Status.RETIRED)
-                            & (IndexGeneration.drop_after <= func.now()),
-                        ),
-                    )
-                    .with_for_update(skip_locked=True)
+        return await drop_expired(self._factory, self._client)
+
+    async def swap(self, number: int, family: str = TEXT) -> bool:
+        return await swap_generation(self._factory, self._client, self._qdrant, number, family)
+
+
+async def drop_expired(factory: SessionFactory, client: AsyncQdrantClient) -> int:
+    """Drop the collections of CANCELLED generations and of RETIRED ones past their grace
+    period. The rows stay, as history."""
+    async with factory() as session, session.begin():
+        rows = list(
+            await session.scalars(
+                select(IndexGeneration)
+                .where(
+                    IndexGeneration.dropped_at.is_(None),
+                    or_(
+                        IndexGeneration.status == Status.CANCELLED,
+                        (IndexGeneration.status == Status.RETIRED)
+                        & (IndexGeneration.drop_after <= func.now()),
+                    ),
                 )
+                .with_for_update(skip_locked=True)
             )
-            for row in rows:
-                names = tuple(n for n in (row.private_collection, row.canonical_collection) if n)
-                await drop_collections(self._client, names)
-                row.dropped_at = datetime.now(UTC)
-                log.info("vector.generation_dropped", generation=row.number, collections=names)
-            serving = await _one(session, Status.SERVING) if rows else None
-            current = (
-                (serving.private_collection, serving.canonical_collection) if serving else None
-            )
-        if current is not None:  # an adopted collection may have held the family name
-            await point_aliases(self._client, current)
-        return len(rows)
-
-    async def swap(self, number: int) -> bool:
-        """BUILDING ``number`` → SERVING; the serving one → RETIRED. False if it was cancelled."""
-        grace = timedelta(hours=self._qdrant.retired_grace_hours)
-        async with self._factory() as session, session.begin():
-            await session.execute(_RECONCILE_LOCK)
-            row = await _one(session, Status.BUILDING)
-            if row is None or row.number != number:
-                return False
-            old = await _one(session, Status.SERVING)
-            now = datetime.now(UTC)
-            if old is not None:
-                old.status = Status.RETIRED
-                old.retired_at = now
-                old.drop_after = now + grace
-                await session.flush()  # one SERVING at a time (partial unique index)
-            row.status = Status.SERVING
-            row.serving_since = now
-            row.cursor = {"phase": "done"}
-            await AuditService(session).record(
-                EventType.INDEX_GENERATION_SWAPPED,
-                None,
-                AuditTarget("index_generation", str(row.number)),
-                {
-                    "model": row.model,
-                    "dimension": row.dimension,
-                    "replaced": old.number if old is not None else None,
-                    "done": row.done,
-                    "failed": row.failed,
-                },
-            )
-            names = (row.private_collection, row.canonical_collection)
-        await point_aliases(self._client, names)
-        log.info("vector.generation_swapped", generation=number)
-        return True
+        )
+        for row in rows:
+            names = tuple(n for n in (row.private_collection, row.canonical_collection) if n)
+            await drop_collections(client, names)
+            row.dropped_at = datetime.now(UTC)
+            log.info("vector.generation_dropped", generation=row.number, collections=names)
+        current: list[str] = []
+        if rows:  # an adopted collection may have held the family name
+            for family in {row.family for row in rows}:
+                serving = await _one(session, Status.SERVING, family)
+                if serving is not None:
+                    current += [serving.private_collection, serving.canonical_collection]
+    if current:
+        await point_aliases(client, tuple(n for n in current if n))
+    return len(rows)
 
 
-async def _one(session: AsyncSession, status: IndexGenerationStatus) -> IndexGeneration | None:
-    return await session.scalar(select(IndexGeneration).where(IndexGeneration.status == status))
+async def swap_generation(
+    factory: SessionFactory,
+    client: AsyncQdrantClient,
+    qdrant: QdrantSettings,
+    number: int,
+    family: str = TEXT,
+) -> bool:
+    """BUILDING ``number`` → SERVING; the serving one → RETIRED. False if it was cancelled."""
+    grace = timedelta(hours=qdrant.retired_grace_hours)
+    async with factory() as session, session.begin():
+        await session.execute(_RECONCILE_LOCK)
+        row = await _one(session, Status.BUILDING, family)
+        if row is None or row.number != number:
+            return False
+        old = await _one(session, Status.SERVING, family)
+        now = datetime.now(UTC)
+        if old is not None:
+            old.status = Status.RETIRED
+            old.retired_at = now
+            old.drop_after = now + grace
+            await session.flush()  # one SERVING at a time (partial unique index)
+        row.status = Status.SERVING
+        row.serving_since = now
+        row.cursor = {"phase": "done"}
+        await AuditService(session).record(
+            EventType.INDEX_GENERATION_SWAPPED,
+            None,
+            AuditTarget("index_generation", str(row.number)),
+            {
+                "model": row.model,
+                "dimension": row.dimension,
+                "replaced": old.number if old is not None else None,
+                "done": row.done,
+                "failed": row.failed,
+            },
+        )
+        names = tuple(n for n in (row.private_collection, row.canonical_collection) if n)
+    await point_aliases(client, names)
+    log.info("vector.generation_swapped", generation=number, family=family)
+    return True
 
 
-async def _cancelled_for(session: AsyncSession, spec: EmbedSpec) -> bool:
+async def _one(
+    session: AsyncSession, status: IndexGenerationStatus, family: str = TEXT
+) -> IndexGeneration | None:
+    return await session.scalar(
+        select(IndexGeneration).where(
+            IndexGeneration.status == status, IndexGeneration.family == family
+        )
+    )
+
+
+async def _cancelled_for(session: AsyncSession, spec: EmbedSpec, family: str = TEXT) -> bool:
     """An admin cancelled the build for this model under this revision: don't start it again
     until the configuration changes (or an admin restarts it)."""
     found = await session.scalar(
         select(IndexGeneration.id).where(
+            IndexGeneration.family == family,
             IndexGeneration.status == Status.CANCELLED,
             IndexGeneration.embed_key == spec.key,
             IndexGeneration.revision == spec.revision,
@@ -556,12 +580,17 @@ class ReEmbedder:
             return await session.scalar(query.order_by(User.id).limit(1))
 
 
-async def generations_overview(factory: SessionFactory) -> list[IndexGeneration]:
-    """Every generation, newest first (admin)."""
+async def generations_overview(
+    factory: SessionFactory, family: str = TEXT
+) -> list[IndexGeneration]:
+    """Every generation of ``family``, newest first (admin)."""
     async with factory() as session:
         return list(
             await session.scalars(
-                select(IndexGeneration).order_by(IndexGeneration.number.desc()).limit(20)
+                select(IndexGeneration)
+                .where(IndexGeneration.family == family)
+                .order_by(IndexGeneration.number.desc())
+                .limit(20)
             )
         )
 

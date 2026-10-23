@@ -1,7 +1,7 @@
 """``spoldzielnia atlas benchmark``: how well the visual index recognises labels (chunk 9.8).
 
-Leave-one-out over the marks already in ``atlas_visual_index``: each region's vector is matched
-against the regions of *other* photos; the label of the nearest ones is the guess. Reports
+Leave-one-out over the marks already in the serving atlas generation: each region's vector is
+matched against the regions of *other* photos; the label of the nearest ones is the guess. Reports
 top-1/top-3 label accuracy and the score distribution of right and wrong top-1 matches, and
 suggests the lowest score threshold at which top-1 guesses are right at least 90 % of the time
 (``atlas.recognition_min_score``). Synthetic pictures say nothing about real ones: run this on
@@ -16,7 +16,6 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 
 from spoldzielnia_ai.atlas.vectors import active_atlas_conditions
-from spoldzielnia_ai.vector.collections import ATLAS_COLLECTION
 
 if TYPE_CHECKING:
     from qdrant_client import AsyncQdrantClient
@@ -39,14 +38,16 @@ class BenchmarkReport:
         return asdict(self)
 
 
-async def _regions(client: AsyncQdrantClient) -> list[tuple[str, str, list[float]]]:
+async def _regions(
+    client: AsyncQdrantClient, collection: str
+) -> list[tuple[str, str, list[float]]]:
     from qdrant_client import models
 
     rows: list[tuple[str, str, list[float]]] = []
     offset: Any = None
     while True:
         records, offset = await client.scroll(
-            ATLAS_COLLECTION,
+            collection,
             scroll_filter=models.Filter(
                 must=[
                     *active_atlas_conditions(),
@@ -110,5 +111,7 @@ def evaluate(rows: list[tuple[str, str, list[float]]]) -> BenchmarkReport:
     )
 
 
-async def run_benchmark(client: AsyncQdrantClient) -> BenchmarkReport:
-    return evaluate(await _regions(client))
+async def run_benchmark(client: AsyncQdrantClient, collection: str) -> BenchmarkReport:
+    """Over one atlas generation's collection (the serving one, from the CLI): its vectors were
+    all made by one image model, whichever it is (10.6)."""
+    return evaluate(await _regions(client, collection))

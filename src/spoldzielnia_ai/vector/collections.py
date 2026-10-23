@@ -7,8 +7,8 @@ Payloads hold identifiers and governance metadata only, never text (overview §2
   without the tenant filter can't use an index (``PrivateVectorRepo`` always adds it anyway).
 - ``canonical_wiki_index``: every field the mandatory filter and the consent operations use.
 - ``atlas_visual_index`` (9.8): image embeddings of approved atlas photos and their marks, with
-  the provenance and governance fields the mandatory filter needs. Its vector size is the image
-  model's (``qdrant.image_vector_size``), not the text model's.
+  the provenance and governance fields the mandatory filter needs. Versioned like the text
+  collections since 10.6 (``atlas.generations``), with the image model's probed dimension.
 
 The two text collections are versioned since 10.3 (``vector.generations``): generation ``n``
 lives in ``<family>__g<n>``, created when the generation is, with the dimension its embedding
@@ -129,27 +129,19 @@ async def ensure_collection(client: AsyncQdrantClient, name: str, vector_size: i
 async def ensure_collections(
     client: AsyncQdrantClient,
     vector_size: int,
-    image_vector_size: int | None = None,
     names: tuple[str, str] = (PRIVATE_COLLECTION, CANONICAL_COLLECTION),
 ) -> dict[str, bool]:
-    """The text collections ``names`` (private, canonical), and the atlas one when
-    ``image_vector_size`` is given."""
-    created = {name: await ensure_collection(client, name, vector_size) for name in names}
-    if image_vector_size is not None:
-        created[ATLAS_COLLECTION] = await ensure_collection(
-            client, ATLAS_COLLECTION, image_vector_size
-        )
-    return created
+    """The text collections ``names`` (private, canonical)."""
+    return {name: await ensure_collection(client, name, vector_size) for name in names}
 
 
-async def ensure_atlas_collection(client: AsyncQdrantClient, image_vector_size: int) -> bool:
-    return await ensure_collection(client, ATLAS_COLLECTION, image_vector_size)
-
-
-async def recreate_atlas_collection(client: AsyncQdrantClient, image_vector_size: int) -> None:
-    if await client.collection_exists(ATLAS_COLLECTION):
-        await client.delete_collection(ATLAS_COLLECTION)
-    await ensure_collection(client, ATLAS_COLLECTION, image_vector_size)
+async def recreate_atlas_collection(
+    client: AsyncQdrantClient, image_vector_size: int, name: str = ATLAS_COLLECTION
+) -> None:
+    """Drop and recreate an atlas collection (tests)."""
+    if await client.collection_exists(name):
+        await client.delete_collection(name)
+    await ensure_collection(client, name, image_vector_size)
 
 
 async def recreate_collections(

@@ -2,14 +2,12 @@
 
 1.2b: the private object-storage bucket with default server-side encryption (SSE-S3 via
 MinIO KMS), versioning off, and no anonymous access.
-4.1: the Qdrant atlas collection and its payload indexes (``vector.collections``), over
-internal TLS. The text collections are created lazily, by the worker, for each index generation
-with the dimension its embedding model produces (10.3): starting needs no embedding model.
+Qdrant collections are created lazily, by worker-core, for each index generation (text, 10.3;
+atlas, 10.6) with the dimension its model produces: starting needs no model at all.
 """
 
 from __future__ import annotations
 
-import asyncio
 from typing import TYPE_CHECKING, Protocol
 from urllib.parse import urlsplit
 
@@ -17,12 +15,8 @@ from minio import Minio
 from minio.sseconfig import Rule, SSEConfig
 
 from spoldzielnia_ai.core.logging import get_logger
-from spoldzielnia_ai.vector.client import make_qdrant
-from spoldzielnia_ai.vector.collections import ensure_atlas_collection
 
 if TYPE_CHECKING:
-    from qdrant_client import AsyncQdrantClient
-
     from spoldzielnia_ai.core.settings import BootstrapSettings, S3Settings
 
 log = get_logger(__name__)
@@ -69,20 +63,6 @@ def ensure_bucket(client: BucketClient, bucket: str, region: str) -> bool:
     return created
 
 
-async def _collections(settings: BootstrapSettings, qdrant: AsyncQdrantClient | None) -> None:
-    client = qdrant or make_qdrant(settings.qdrant)
-    try:
-        await ensure_atlas_collection(client, settings.qdrant.image_vector_size)
-    finally:
-        if qdrant is None:
-            await client.close()
-
-
-def run_bootstrap(
-    settings: BootstrapSettings,
-    client: BucketClient | None = None,
-    qdrant: AsyncQdrantClient | None = None,
-) -> None:
+def run_bootstrap(settings: BootstrapSettings, client: BucketClient | None = None) -> None:
     client = client or make_s3_client(settings.s3)
     ensure_bucket(client, settings.s3.bucket, settings.s3.region)
-    asyncio.run(_collections(settings, qdrant))

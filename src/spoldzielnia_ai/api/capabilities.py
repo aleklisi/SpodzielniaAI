@@ -43,5 +43,6 @@ async def require_feature(request: Request, feature: str) -> None:
     gateway: LiteLLMGateway = request.app.state.llm
     await gateway.refresh()
     needs: tuple[LLMPurpose, ...] = FEATURES[feature]
-    if not all(gateway.configured(p) for p in needs):
+    builtin = builtin_purposes(request.app.state.settings.llm)
+    if not all(p in builtin or gateway.configured(p) for p in needs):
         raise model_not_configured()

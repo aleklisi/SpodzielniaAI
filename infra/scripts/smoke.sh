@@ -268,27 +268,38 @@ import asyncio
 from pathlib import Path
 from PIL import Image, ImageDraw
 from spoldzielnia_ai.atlas.embedding import SiglipEmbedder
+from spoldzielnia_ai.atlas.generations import ImageGenerationStore
+from spoldzielnia_ai.core.crypto import EnvelopeCipher, StaticKeyProvider
 from spoldzielnia_ai.core.settings import WorkerSettings
+from spoldzielnia_ai.db.engine import create_app_engine
+from spoldzielnia_ai.db.session import create_session_factory
 from spoldzielnia_ai.vector.client import make_qdrant
-from spoldzielnia_ai.vector.collections import ATLAS_COLLECTION, ensure_collection
+from spoldzielnia_ai.vector.collections import collection_size
 s = WorkerSettings()
 def pic(color, ellipse):
     image = Image.new("RGB", (320, 240), "white")
     draw = ImageDraw.Draw(image)
     (draw.ellipse if ellipse else draw.rectangle)((60, 40, 260, 200), fill=color)
     return image
-embedder = SiglipEmbedder(Path(s.models.image_embed_dir))
-a, b, c = embedder.embed([pic("red", True), pic("darkred", True), pic("blue", False)])
-dot = lambda u, v: sum(x * y for x, y in zip(u, v))
-assert len(a) == s.qdrant.image_vector_size, len(a)
-assert dot(a, b) > dot(a, c) + 0.1, (dot(a, b), dot(a, c))
+siglip = SiglipEmbedder(Path(s.models.image_embed_dir))
 async def main():
+    engine = create_app_engine(s.db)
+    cipher = EnvelopeCipher(StaticKeyProvider(s.security.kek.get_secret_value()))
+    store = ImageGenerationStore(create_session_factory(engine), cipher, s.llm, lambda: siglip)
+    generation = await store.serving()
+    assert generation is not None and generation.embedder is not None, "no serving atlas model"
+    a, b, c = await asyncio.to_thread(
+        generation.embedder.embed, [pic("red", True), pic("darkred", True), pic("blue", False)])
+    dot = lambda u, v: sum(x * y for x, y in zip(u, v))
+    assert len(a) == generation.dimension, (len(a), generation.dimension)
+    assert dot(a, b) > dot(a, c) + 0.1, (dot(a, b), dot(a, c))
     client = make_qdrant(s.qdrant)
-    assert not await ensure_collection(client, ATLAS_COLLECTION, s.qdrant.image_vector_size)
+    assert await collection_size(client, generation.collection) == generation.dimension
     await client.close()
+    await engine.dispose()
 asyncio.run(main())
 '
-check "worker-core: image model separates unrelated images, atlas collection ready" \
+check "worker-core: serving atlas generation, its image model separates images, dimension agrees" \
   "${COMPOSE[@]}" exec -T worker-core python -c "$ATLAS_PY"
 # 10.4: speech-to-text through the TRANSCRIBE model configured in /admin/llm (or .env), if any.
 STT_PY='

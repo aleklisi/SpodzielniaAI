@@ -31,8 +31,9 @@ from sqlalchemy import or_, select
 from spoldzielnia_ai.core.logging import get_logger
 from spoldzielnia_ai.db.enums import IndexGenerationStatus, LlmRevisionStatus, LlmRoutePurpose
 from spoldzielnia_ai.db.models import IndexGeneration, LlmConfigRevision, LlmProvider
+from spoldzielnia_ai.db.models.index_generation import TEXT
 from spoldzielnia_ai.llm.config_store import resolve
-from spoldzielnia_ai.llm.gateway import LOCAL_EMBED, LLMPurpose, env_config
+from spoldzielnia_ai.llm.gateway import LOCAL_EMBED, LOCAL_IMAGE_EMBED, LLMPurpose, env_config
 from spoldzielnia_ai.llm.snapshot import ConfigSnapshot, SnapshotDeployment
 
 if TYPE_CHECKING:
@@ -141,10 +142,13 @@ async def resolve_embed(
     deployment: dict[str, Any] | None,
     cipher: EnvelopeCipher,
     settings: LlmSettings,
+    purpose: LLMPurpose = LLMPurpose.EMBED,
 ) -> Deployment | None:
-    """The usable deployment of an embedding model, or ``None`` (see the module docstring)."""
+    """The usable deployment of an embedding model, or ``None`` (see the module docstring).
+    ``purpose`` is EMBED, or IMAGE_EMBED for the atlas (10.6)."""
     if deployment is None:
-        env = env_config(settings).deployments.get(LOCAL_EMBED)
+        name = LOCAL_IMAGE_EMBED if purpose == LLMPurpose.IMAGE_EMBED else LOCAL_EMBED
+        env = env_config(settings).deployments.get(name)
         if env is None or embed_key(env.base_url, env.provider, env.model) != key:
             return None
         return env if env.cleared else None
@@ -152,9 +156,10 @@ async def resolve_embed(
     provider = await session.get(LlmProvider, item.provider_id)
     if provider is None or provider.disabled_at is not None or provider.base_url != item.base_url:
         return None
-    snapshot = ConfigSnapshot(routes={LlmRoutePurpose.EMBED: "embed"}, deployments={"embed": item})
+    route = LlmRoutePurpose(purpose.value)
+    snapshot = ConfigSnapshot(routes={route: "embed"}, deployments={"embed": item})
     config = resolve(-1, snapshot, {provider.id: provider}, cipher, settings)
-    name = config.routes.get(LLMPurpose.EMBED)
+    name = config.routes.get(purpose)
     found = config.deployments.get(name) if name is not None else None
     # Embeddings are private data (rule 4): an un-cleared provider's generation has no model
     # here already, not only in the gateway.
@@ -211,7 +216,9 @@ class GenerationStore:
         async with self._factory() as session:
             rows = list(
                 await session.scalars(
-                    select(IndexGeneration).where(where).order_by(IndexGeneration.number)
+                    select(IndexGeneration)
+                    .where(where, IndexGeneration.family == TEXT)
+                    .order_by(IndexGeneration.number)
                 )
             )
             return [

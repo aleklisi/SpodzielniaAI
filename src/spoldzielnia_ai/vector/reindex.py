@@ -6,8 +6,9 @@ from Postgres (every CANONICAL article, then every finished derivative of every 
 as its owner through RLS) and swapped in when complete. The serving generation keeps answering
 meanwhile, and pending outbox operations still apply to both; nothing is dropped up front.
 
-The atlas collection (9.8) is still recreated and every APPROVED + ACTIVE photo re-embedded
-with the local image model, when the models volume has it (10.6 moves it to generations).
+The visual atlas (10.6) the same way: a new atlas generation for the configured image model
+(the IMAGE_EMBED API model, else the built-in SigLIP), filled with every APPROVED + ACTIVE
+photo and swapped in. Skipped, with a log line, when there is no image model.
 
 Runs with the worker's settings: the KEK (private derivatives are decrypted to embed them) and
 the embedding model.
@@ -84,6 +85,46 @@ async def rebuild(
     return report
 
 
+async def rebuild_atlas(
+    factory: SessionFactory,
+    cipher: EnvelopeCipher,
+    client: AsyncQdrantClient,
+    settings: WorkerSettings,
+) -> int:
+    """A new atlas generation to completion, then swapped in. Returns the photos indexed."""
+    from spoldzielnia_ai.atlas.embedding import SiglipEmbedder
+    from spoldzielnia_ai.atlas.generations import (
+        AtlasReEmbedder,
+        ImageGenerationManager,
+        ImageGenerationStore,
+    )
+    from spoldzielnia_ai.atlas.vectors import AtlasIndexer
+    from spoldzielnia_ai.files.storage import S3ObjectStorage
+    from spoldzielnia_ai.vector.reembed import GenerationError
+
+    model_dir = Path(settings.models.image_embed_dir)
+    siglip = SiglipEmbedder(model_dir) if (model_dir / "model.safetensors").is_file() else None
+    store = ImageGenerationStore(factory, cipher, settings.llm, lambda: siglip, ttl_seconds=0)
+    manager = ImageGenerationManager(
+        factory, client, store, settings.llm, settings.qdrant, lambda: siglip
+    )
+    try:
+        await manager.start(None)
+    except GenerationError as exc:
+        log.warning("reindex.atlas_skipped", reason=exc.code)
+        return 0
+    indexer = AtlasIndexer(factory, cipher, S3ObjectStorage(settings.s3), store, client)
+    reembed = AtlasReEmbedder(factory, store, indexer, manager, settings.llm)
+    photos = 0
+    while True:
+        run = await reembed.run(budget_seconds=3600.0)
+        photos += run.processed
+        if not run.more:
+            break
+    log.info("reindex.atlas_done", photos=photos, swapped=run.swapped)
+    return photos
+
+
 async def _failed(factory: SessionFactory, number: int) -> int:
     from sqlalchemy import select
 
@@ -112,25 +153,7 @@ async def run_reindex(settings: WorkerSettings) -> ReindexReport:
             settings.llm,
             settings.qdrant,
         )
-        model_dir = Path(settings.models.image_embed_dir)
-        if not (model_dir / "model.safetensors").is_file():
-            log.warning("reindex.atlas_skipped", reason="image model missing", path=str(model_dir))
-            return report
-        from spoldzielnia_ai.atlas.consistency import rebuild_atlas
-        from spoldzielnia_ai.atlas.embedding import SiglipEmbedder
-        from spoldzielnia_ai.atlas.vectors import AtlasIndexer, AtlasVectorRepo
-        from spoldzielnia_ai.files.storage import S3ObjectStorage
-
-        indexer = AtlasIndexer(
-            factory,
-            cipher,
-            S3ObjectStorage(settings.s3),
-            SiglipEmbedder(model_dir),
-            AtlasVectorRepo(client),
-        )
-        photos = await rebuild_atlas(
-            factory, client, settings.qdrant.image_vector_size, indexer.index_image
-        )
+        photos = await rebuild_atlas(factory, cipher, client, settings)
         return ReindexReport(report.generation, report.items, report.failed, report.swapped, photos)
     finally:
         await client.close()

@@ -49,7 +49,6 @@ if TYPE_CHECKING:
 
     from sqlalchemy.ext.asyncio import AsyncSession
 
-    from spoldzielnia_ai.atlas.vectors import AtlasVectorRepo
     from spoldzielnia_ai.db.enums import ArticleStatus
     from spoldzielnia_ai.db.session import SessionFactory
 
@@ -142,11 +141,19 @@ class CanonicalWriter(Protocol):
     async def delete(self, scope: CanonicalScope) -> None: ...
 
 
+class AtlasWriter(Protocol):
+    """Every live atlas generation (``AtlasFanout``, 10.6) or one collection (tests)."""
+
+    async def set_payload(self, scope: AtlasScope, payload: Mapping[str, Any]) -> None: ...
+
+    async def delete(self, scope: AtlasScope) -> None: ...
+
+
 @dataclass(frozen=True, slots=True)
 class AtlasSink:
-    """Where atlas operations go: the repository and the re-index hand-off (worker-core)."""
+    """Where atlas operations go: the writer and the re-index hand-off (worker-core)."""
 
-    repo: AtlasVectorRepo
+    repo: AtlasWriter
     reindex: Callable[[UUID], Awaitable[None]]
 
 

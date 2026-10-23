@@ -21,6 +21,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from spoldzielnia_ai.api.contributions import recently_authenticated
+from spoldzielnia_ai.atlas.generations import count_photos, image_generations_overview
 from spoldzielnia_ai.audit.events import EventType
 from spoldzielnia_ai.audit.service import AuditService
 from spoldzielnia_ai.auth.deps import CurrentUser, elevated_router
@@ -66,7 +67,7 @@ if TYPE_CHECKING:
     from redis.asyncio import Redis
 
     from spoldzielnia_ai.core.settings import Settings
-    from spoldzielnia_ai.db.models import LlmModel, LlmProvider
+    from spoldzielnia_ai.db.models import IndexGeneration, LlmModel, LlmProvider
     from spoldzielnia_ai.llm.gateway import ChatTransport, Deployment, LiteLLMGateway
     from spoldzielnia_ai.notebook.uploads import ProcessingQueue
 
@@ -701,7 +702,11 @@ async def playground(
             kind = service.kind_of(provider.base_url)
         except ConfigError as exc:
             raise _http(exc) from None
-        if model.capability in (LlmCapability.EMBED, LlmCapability.TRANSCRIBE):
+        if model.capability in (
+            LlmCapability.EMBED,
+            LlmCapability.TRANSCRIBE,
+            LlmCapability.IMAGE_EMBED,
+        ):
             raise _http(ConfigError("capability_mismatch", model=model.model_name))
         if model.disabled_at is not None or provider.disabled_at is not None:
             raise _http(ConfigError("model_disabled", model=model.model_name))
@@ -770,6 +775,9 @@ class IndexOut(BaseModel):
     # What switching the embedding model re-embeds (cost guard): articles + derivatives.
     items: int
     reembed_per_minute: int
+    # The visual atlas (10.6): its generations, and the approved photos a switch re-embeds.
+    atlas_generations: list[GenerationOut]
+    atlas_items: int
 
 
 def _manager(request: Request) -> GenerationManager:
@@ -780,30 +788,35 @@ def _manager(request: Request) -> GenerationManager:
     )
 
 
+def _generation_out(r: IndexGeneration) -> GenerationOut:
+    return GenerationOut(
+        number=r.number,
+        status=r.status,
+        model=r.model,
+        dimension=r.dimension,
+        total=r.total,
+        done=r.done,
+        failed=r.failed,
+        created_at=r.created_at,
+        serving_since=r.serving_since,
+        retired_at=r.retired_at,
+        drop_after=r.drop_after,
+        dropped=r.dropped_at is not None,
+    )
+
+
 async def _index_out(request: Request) -> IndexOut:
     state = request.app.state
     settings: Settings = state.settings
-    rows = await generations_overview(state.session_factory)
+    factory = state.session_factory
+    async with factory() as session:
+        photos = await count_photos(session)
     return IndexOut(
-        generations=[
-            GenerationOut(
-                number=r.number,
-                status=r.status,
-                model=r.model,
-                dimension=r.dimension,
-                total=r.total,
-                done=r.done,
-                failed=r.failed,
-                created_at=r.created_at,
-                serving_since=r.serving_since,
-                retired_at=r.retired_at,
-                drop_after=r.drop_after,
-                dropped=r.dropped_at is not None,
-            )
-            for r in rows
-        ],
-        items=await count_items(state.session_factory),
+        generations=[_generation_out(r) for r in await generations_overview(factory)],
+        items=await count_items(factory),
         reembed_per_minute=settings.llm.reembed_per_minute,
+        atlas_generations=[_generation_out(r) for r in await image_generations_overview(factory)],
+        atlas_items=photos,
     )
 
 

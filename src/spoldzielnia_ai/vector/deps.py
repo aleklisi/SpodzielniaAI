@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Annotated
 from fastapi import Depends, Request
 from qdrant_client import AsyncQdrantClient
 
-from spoldzielnia_ai.atlas.vectors import AtlasVectorRepo
+from spoldzielnia_ai.atlas.vectors import AtlasFanout
 from spoldzielnia_ai.vector.repositories import CanonicalFanout, PrivateFanout
 from spoldzielnia_ai.vector.sync import AtlasSink, VectorSync
 
@@ -55,7 +55,7 @@ def get_vector_sync(request: Request) -> VectorSync:
         queue.article_canonical,
         settings.qdrant.timeout_seconds,
         settings.governance.outbox_alert_after,
-        atlas=AtlasSink(AtlasVectorRepo(state.qdrant), queue.atlas_canonical),
+        atlas=AtlasSink(AtlasFanout(state.qdrant, state.image_generations), queue.atlas_canonical),
     )
 
 

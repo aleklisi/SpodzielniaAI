@@ -221,7 +221,7 @@ model); the old one keeps answering, with its own model, until the new one is co
 Members annotate photos in their notebook („Oznacz”: a domain, a caption, rectangles with a
 label from the expert vocabulary and a description), send them to the shared **Atlas**, and
 two experts (`governance.review_quorum`) verify them. „Rozpoznaj” on a notebook photo suggests
-marked elements from verified atlas photos, with local models only.
+marked elements from verified atlas photos, with models cleared for private data only.
 
 - **Domains and labels:** admins create domains in `/admin/atlas` („Dziedziny atlasu”); experts
   curate each domain's labels in `/review/labels`; members can propose labels. For a demo,
@@ -233,9 +233,12 @@ marked elements from verified atlas photos, with local models only.
   shown, and separately whether the photo may be exported. Experts review it in `/review/atlas`.
 - **Consent:** authors suspend, resume or revoke photos and change both choices any time in
   „Moje kontrybucje”.
-- **Recognition** needs the image model in the models volume: `make models` (downloads the
-  pinned SigLIP model, ~800 MB), then `make up`. Photos approved before that are indexed by the
-  nightly audit or `spoldzielnia reindex`. Calibrate `ATLAS_RECOGNITION_MIN_SCORE` (`.env`)
+- **Recognition** needs an image embedding model: the one routed for „Atlas: wektory zdjęć” in
+  `/admin/llm` (an OpenAI-style `/v1/embeddings` server for CLIP/SigLIP, e.g. Infinity), or the
+  built-in SigLIP (`make models` downloads it, ~800 MB; `LLM_BUILTIN_IMAGE_EMBED=false` turns it
+  off). Without either, „Rozpoznaj” is off and approved photos wait for indexing. Changing the
+  image model builds a new version of the atlas index in the background and swaps it in
+  (`GET /admin/llm/index`). Calibrate `ATLAS_RECOGNITION_MIN_SCORE` (`.env`)
   with `docker compose exec worker-core spoldzielnia atlas benchmark` once the atlas holds real
   photos.
 - **Dataset export** (COCO/YOLO) is off until the operator sets

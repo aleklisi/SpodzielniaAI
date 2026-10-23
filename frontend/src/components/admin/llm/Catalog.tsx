@@ -468,6 +468,7 @@ const CHECKS: Record<string, string> = {
   embed: "Embedding",
   transcribe: "Transkrypcja nagrania testowego",
   ocr: "Odczyt tekstu z obrazka",
+  image_embed: "Embeddingi zdjęć (ten sam obiekt bliżej niż inny)",
 };
 
 interface ProbeCheck {
@@ -567,7 +568,7 @@ export function ModelsPanel({ status, providers, models }: { status: LlmStatus; 
                   </td>
                   <td className="py-2 pr-3">{CAPABILITIES[m.capability]}</td>
                   <td className="py-2 pr-3 text-xs text-text-muted">
-                    {m.capability === "EMBED"
+                    {m.capability === "EMBED" || m.capability === "IMAGE_EMBED"
                       ? `wymiar ${m.embed_dimension ?? "?"}`
                       : m.capability === "TRANSCRIBE"
                         ? "nagrania po polsku"
@@ -699,7 +700,7 @@ function AddModel({ status, providers }: { status: LlmStatus; providers: Provide
                 <input className={INPUT} type="number" min={1} value={maxTokens} onChange={(e) => setMaxTokens(e.target.value)} />
               </label>
             </div>
-          ) : capability === "EMBED" ? (
+          ) : capability === "EMBED" || capability === "IMAGE_EMBED" ? (
             <p className="self-end text-xs text-text-muted">
               Wymiar wektora odczyta test modelu. Zmiana modelu embeddingów buduje nową wersję indeksu w tle.
             </p>

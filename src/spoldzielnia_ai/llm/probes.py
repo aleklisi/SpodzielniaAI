@@ -12,6 +12,8 @@ token counts and error class names: never the prompt or the model's output.
   models) read back a rendered line of text, reported as a word error rate.
 - EMBED: the vector dimension (recorded; any size, 10.3) and whether two unrelated
   sentences end up apart (the smoke check of 6.7).
+- IMAGE_EMBED (10.6): two synthetic pictures of one object (a red ellipse, a darker one) must
+  end up closer than a different object (a blue square); records the dimension.
 - TRANSCRIBE (10.4): a packaged synthetic Polish clip ("Pszczoły zbierają nektar z kwiatów
   rzepaku.") read back; the report holds the word error rate, not the text.
 """
@@ -295,6 +297,41 @@ async def _probe_transcribe(
     return {"ok": bool(check["ok"]), "checks": [check]}
 
 
+def _picture(colour: str, ellipse: bool) -> str:
+    from PIL import Image, ImageDraw
+
+    image = Image.new("RGB", (224, 224), "white")
+    draw = ImageDraw.Draw(image)
+    (draw.ellipse if ellipse else draw.rectangle)((30, 30, 194, 194), fill=colour)
+    buffer = io.BytesIO()
+    image.save(buffer, "JPEG", quality=90)
+    return "data:image/jpeg;base64," + base64.b64encode(buffer.getvalue()).decode()
+
+
+async def _probe_image_embed(
+    deployment: Deployment, settings: LlmSettings, transport: ChatTransport | None
+) -> dict[str, JsonValue]:
+    # Synthetic pictures only, so any allowed provider may be probed before it is cleared.
+    gateway = single_gateway(deployment, settings, transport)
+    pictures = [_picture("red", True), _picture("darkred", True), _picture("blue", False)]
+    check, vectors = await _timed(
+        "image_embed",
+        gateway.embed_images(pictures, private_data=False, purpose=LLMPurpose.PLAYGROUND),
+    )
+    report: dict[str, JsonValue] = {"ok": False, "checks": [check]}
+    if vectors is None:
+        return report
+    same, other = (
+        round(_cosine(vectors[0], vectors[1]), 4),
+        round(_cosine(vectors[0], vectors[2]), 4),
+    )
+    dimension = len(vectors[0])
+    check |= {"dimension": dimension, "cosine_same_object": same, "cosine_other_object": other}
+    check["ok"] = dimension > 0 and same > other
+    report |= {"ok": check["ok"], "dimension": dimension}
+    return report
+
+
 async def probe_model(
     capability: LlmCapability,
     deployment: Deployment,
@@ -308,6 +345,8 @@ async def probe_model(
         return await _probe_embed(deployment, settings, transport)
     if capability == LlmCapability.TRANSCRIBE:
         return await _probe_transcribe(deployment, settings, transport)
+    if capability == LlmCapability.IMAGE_EMBED:
+        return await _probe_image_embed(deployment, settings, transport)
     return await _probe_chat(deployment, settings, transport)
 
 

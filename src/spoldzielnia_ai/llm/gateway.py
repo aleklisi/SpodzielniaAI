@@ -9,8 +9,9 @@ process picks up without a restart. Each purpose has its own route.
 Routing policy (AGENTS.md §3 rule 4, chunk 10.1):
 
 - Purposes in ``PRIVATE_PURPOSES`` (PII scrubbing, private notes, promotion, vision,
-  embeddings, speech-to-text, OCR) go only to deployments **cleared for private data**, whatever
-  the caller passes. That is defence in depth against a missing ``private_data=True``.
+  embeddings, speech-to-text, OCR, image embeddings) go only to deployments **cleared for
+  private data**, whatever the caller passes. That is defence in depth against a missing
+  ``private_data=True``.
 - ``private_data=True`` → cleared deployments only. A deployment is cleared when an admin
   cleared its provider and its endpoint is on ``llm.private_data_endpoints``; locality alone no
   longer decides. If none is configured, or the call to it fails, ``ModelUnavailable`` is
@@ -72,6 +73,7 @@ class LLMPurpose(StrEnum):
     RAG = "RAG"  # Stage 5: canonical (public) knowledge only
     TRANSCRIBE = "TRANSCRIBE"  # 10.4: speech-to-text of members' recordings
     OCR = "OCR"  # 10.5: text of scanned document pages (a vision model)
+    IMAGE_EMBED = "IMAGE_EMBED"  # 10.6: atlas photos and recognition crops
     PLAYGROUND = "PLAYGROUND"  # 7.5: an admin's own test prompt, never retrieval or user data
 
 
@@ -84,14 +86,16 @@ PRIVATE_PURPOSES = frozenset(
         LLMPurpose.EMBED,
         LLMPurpose.TRANSCRIBE,
         LLMPurpose.OCR,
+        LLMPurpose.IMAGE_EMBED,
     }
 )
 
-LOCAL_CHAT, LOCAL_VLM, LOCAL_EMBED, LOCAL_TRANSCRIBE, CLOUD_CHAT = (
+LOCAL_CHAT, LOCAL_VLM, LOCAL_EMBED, LOCAL_TRANSCRIBE, LOCAL_IMAGE_EMBED, CLOUD_CHAT = (
     "local-chat",
     "local-vlm",
     "local-embed",
     "local-transcribe",
+    "local-image-embed",
     "cloud-chat",
 )
 
@@ -248,6 +252,7 @@ def deployments(settings: LlmSettings) -> dict[str, Deployment]:
         (LOCAL_VLM, settings.vlm_model),
         (LOCAL_EMBED, settings.embed_model),
         (LOCAL_TRANSCRIBE, settings.transcribe_model),
+        (LOCAL_IMAGE_EMBED, settings.image_embed_model),
     ):
         if model:
             found[name] = Deployment(
@@ -279,6 +284,8 @@ def _kind_deployment(purpose: LLMPurpose) -> str:
         return LOCAL_EMBED
     if purpose == LLMPurpose.TRANSCRIBE:
         return LOCAL_TRANSCRIBE
+    if purpose == LLMPurpose.IMAGE_EMBED:
+        return LOCAL_IMAGE_EMBED
     return LOCAL_CHAT
 
 
@@ -686,6 +693,42 @@ class LiteLLMGateway:
             time.monotonic() - started
         )
         return [list(map(float, item["embedding"])) for item in response.data]
+
+    async def embed_images(
+        self,
+        images: list[str],
+        *,
+        private_data: bool = True,
+        purpose: LLMPurpose = LLMPurpose.IMAGE_EMBED,
+        deployment: Deployment | None = None,
+    ) -> list[list[float]]:
+        """Image embeddings (10.6) of inline ``data:`` URIs, L2-normalised. ``deployment``
+        pins the model of an atlas generation (P8), with the same policy as a route;
+        ``purpose`` is PLAYGROUND only for probes (synthetic images)."""
+        from spoldzielnia_ai.llm.image_embedding import post_image_embeddings
+
+        await self.refresh()
+        if deployment is None:
+            deployment = self.route(purpose, private_data)
+        else:
+            deployment = self._allowed(deployment, purpose, private_data)
+        started = time.monotonic()
+        try:
+            vectors = await post_image_embeddings(deployment, images, settings=self._settings)
+        except (ModelRejected, ModelUnavailable, LLMOutputInvalid) as exc:
+            kind = (
+                "rejected"
+                if isinstance(exc, ModelRejected)
+                else "invalid_output"
+                if isinstance(exc, LLMOutputInvalid)
+                else "unavailable"
+            )
+            LLM_ERRORS.labels(deployment=deployment.name, kind=kind).inc()
+            raise
+        LLM_REQUEST_SECONDS.labels(deployment=deployment.name, purpose=purpose.value).observe(
+            time.monotonic() - started
+        )
+        return vectors
 
     async def transcribe(
         self,
