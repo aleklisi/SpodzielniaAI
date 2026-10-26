@@ -3,6 +3,8 @@ name = "spoldzielnia-ai"
 version = "0.1.0"
 description = "Spółdzielnia AI — cooperative knowledge platform with private notebooks, governed wiki and anti-distillation RAG"
 readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
 authors = [
     { name = "Piotr Pacewicz", email = "piotr@pacewi.cz" }
 ]

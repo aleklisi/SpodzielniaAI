@@ -1,11 +1,156 @@
 # Spółdzielnia AI
 
-Cooperative knowledge platform: encrypted private notebooks, an expert-governed wiki with
-block-level provenance and consent, and a RAG chat protected by an anti-distillation shield.
+**[Polski](#polski) · [English](#english)**
 
-- Specification: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md), [`docs/SECURITY.md`](docs/SECURITY.md)
-- Implementation plan: [`PLAN.md`](PLAN.md), [`docs/implementation/`](docs/implementation/00_OVERVIEW.md)
-- Agent rules: [`AGENTS.md`](AGENTS.md)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
+---
+
+## Polski
+
+**Spółdzielnia AI** to platforma wiedzy dla spółdzielni, stowarzyszeń i wspólnot praktyków
+(np. pszczelarzy, rolników, rzemieślników). Członkowie prowadzą prywatne, zaszyfrowane notatniki.
+Wybraną wiedzę mogą przekazać do wspólnej Wiki, nad którą czuwa Rada Ekspertów. Czat AI odpowiada
+na pytania wyłącznie na podstawie zatwierdzonych artykułów, z cytowaniami, i jest chroniony przed
+wykradaniem bazy wiedzy.
+
+### Najważniejsze funkcje
+
+- **Prywatny notatnik:** notatki, zdjęcia, dokumenty, nagrania i linki, szyfrowane i izolowane
+  przez Row-Level Security w PostgreSQL. Nagrania są transkrybowane, dokumenty i zdjęcia opisywane
+  (OCR, VLM), a każdy plik skanowany antywirusem.
+- **Push-to-Wiki:** z zaznaczonych notatek model językowy przygotowuje szkic artykułu. Wcześniej
+  usuwane są dane osobowe (PESEL, nazwiska, adresy; Presidio + spaCy dla języka polskiego).
+- **Rada Ekspertów:** recenzja szkiców, zatwierdzanie z MFA, artykuły kanoniczne, zastąpione
+  i sporne. Do czatu trafia tylko obowiązująca wersja wiedzy.
+- **Pochodzenie i zgody na poziomie bloku:** każdy fragment artykułu zna swojego autora. Autor
+  może w każdej chwili wstrzymać, wznowić lub wycofać swój wkład; jego fragmenty znikają wtedy
+  z indeksu.
+- **Czat spółdzielni (RAG):** odpowiedzi z cytowaniami artykułów, nigdy surowe fragmenty bazy.
+  Gdy baza nie zna odpowiedzi, czat mówi to wprost.
+- **Ochrona przed destylacją:** proof-of-work, wykrywanie anomalii semantycznych i sweepów
+  bazy, kontrola dosłownych cytatów, znak wodny per konto, honeypoty i silnik ryzyka.
+- **Atlas wizualny:** zdjęcia z oznaczeniami, weryfikacja ekspercka, rozpoznawanie obrazów
+  i eksport zbioru danych (COCO/YOLO).
+- **Dowolne modele przez API:** lokalne (LM Studio, Ollama, vLLM) lub chmurowe, wybierane per
+  zastosowanie w panelu administratora. Dane prywatne trafiają tylko do dostawców dopuszczonych
+  przez operatora i administratora.
+- **Administracja:** użytkownicy i role (Keycloak), konfiguracja modeli z porównywarką,
+  dziennik audytu z łańcuchem skrótów SHA-256, wygląd organizacji (nazwa, logo, kolory).
+- **Nowoczesny interfejs:** menu po lewej, obszar roboczy po prawej, w stylu Open Notebook;
+  działa na komputerze, tablecie i telefonie, zgodnie z WCAG 2.2 AA.
+
+### Technologie
+
+Python 3.12 (FastAPI, SQLAlchemy 2 async, Alembic, Pydantic v2, Celery), PostgreSQL 16 z RLS,
+Qdrant, Redis, MinIO, ClamAV, Keycloak (OIDC, TOTP), LiteLLM, Docling, Presidio, Next.js
+(App Router, TypeScript, Tailwind CSS, BlockNote), Caddy, Docker Compose.
+
+### Szybki start
+
+Wymagany Docker Desktop (zalecane co najmniej 12 GB RAM) i [uv](https://docs.astral.sh/uv/).
+
+```bash
+make up          # sekrety, budowa obrazów, start i oczekiwanie na gotowość
+make trust-cert  # jednorazowo: zaufanie lokalnemu certyfikatowi Caddy
+make migrate     # migracje bazy danych
+```
+
+Aplikacja działa pod `https://spoldzielnia.localhost`. Użytkownicy deweloperscy i dalsze kroki
+(modele, produkcja, kopie zapasowe) są opisane w [dokumentacji technicznej](#developer-guide)
+poniżej (po angielsku).
+
+### Dokumentacja
+
+- Specyfikacja: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md), bezpieczeństwo:
+  [`docs/SECURITY.md`](docs/SECURITY.md), przegląd: [`docs/SECURITY_REVIEW.md`](docs/SECURITY_REVIEW.md)
+- Plan i etapy: [`PLAN.md`](PLAN.md), [`docs/implementation/`](docs/implementation/00_OVERVIEW.md),
+  historie użytkowników: [`docs/USER_STORIES_LOG.md`](docs/USER_STORIES_LOG.md)
+- Zasady dla agentów AI: [`AGENTS.md`](AGENTS.md)
+
+### Status
+
+Projekt jest rozwijany. Interfejs jest obecnie po polsku; wersja angielska jest zaplanowana
+(Etap 14).
+
+### Licencja
+
+[MIT](LICENSE) © 2026 Piotr Pacewicz
+
+---
+
+## English
+
+**Spółdzielnia AI** ("AI Cooperative") is a knowledge platform for cooperatives, associations and
+communities of practice (beekeepers, farmers, craftspeople and the like). Members keep private,
+encrypted notebooks. They can contribute selected knowledge to a shared wiki governed by an
+Expert Council. An AI chat answers questions only from approved articles, with citations, and is
+protected against extraction of the knowledge base.
+
+### Key features
+
+- **Private notebook:** notes, photos, documents, recordings and links, encrypted and isolated
+  with PostgreSQL Row-Level Security. Recordings are transcribed, documents and photos described
+  (OCR, VLM), and every file is virus-scanned.
+- **Push-to-Wiki:** a language model turns selected notes into a draft article after personal
+  data is removed (Polish national IDs, names, addresses; Presidio + spaCy for Polish).
+- **Expert Council:** draft review, MFA-protected approval, canonical, superseded and disputed
+  articles. Only the current version of the knowledge reaches the chat.
+- **Block-level provenance and consent:** every part of an article knows its author. Authors
+  can suspend, resume or revoke their contribution at any time, and their blocks leave the index.
+- **Cooperative chat (RAG):** answers cite articles and never return raw chunks of the knowledge
+  base. When the knowledge base has no answer, the chat says so.
+- **Anti-distillation shield:** proof-of-work, semantic anomaly and sweep detection, verbatim
+  checks, a per-account watermark, honeypots and a risk engine.
+- **Visual atlas:** annotated photos, expert verification, image recognition and dataset export
+  (COCO/YOLO).
+- **Any model over an API:** local (LM Studio, Ollama, vLLM) or cloud, chosen per purpose in the
+  admin console. Private data goes only to providers cleared by the operator and an admin.
+- **Administration:** users and roles (Keycloak), model configuration with a side-by-side
+  playground, a SHA-256 hash-chained audit log, organisation branding (name, logo, colours).
+- **Modern UI:** an Open Notebook-style layout (menu on the left, workspace on the right) for
+  desktops, tablets and phones, meeting WCAG 2.2 AA.
+
+### Stack
+
+Python 3.12 (FastAPI, SQLAlchemy 2 async, Alembic, Pydantic v2, Celery), PostgreSQL 16 with RLS,
+Qdrant, Redis, MinIO, ClamAV, Keycloak (OIDC, TOTP), LiteLLM, Docling, Presidio, Next.js
+(App Router, TypeScript, Tailwind CSS, BlockNote), Caddy, Docker Compose.
+
+### Quick start
+
+Requires Docker Desktop (12 GB RAM or more recommended) and [uv](https://docs.astral.sh/uv/).
+
+```bash
+make up          # secrets, image build, start, wait until healthy
+make trust-cert  # once: trust Caddy's local certificate
+make migrate     # database migrations
+```
+
+The app runs at `https://spoldzielnia.localhost`. Dev users and the next steps (models,
+production, backups) are in the [developer guide](#developer-guide) below.
+
+### Documentation
+
+- Specification: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md), security:
+  [`docs/SECURITY.md`](docs/SECURITY.md), review: [`docs/SECURITY_REVIEW.md`](docs/SECURITY_REVIEW.md)
+  (the specification and plan are written in Polish)
+- Plan and stages: [`PLAN.md`](PLAN.md), [`docs/implementation/`](docs/implementation/00_OVERVIEW.md),
+  user stories: [`docs/USER_STORIES_LOG.md`](docs/USER_STORIES_LOG.md)
+- Rules for AI coding agents: [`AGENTS.md`](AGENTS.md)
+
+### Status
+
+Under active development. The UI is currently in Polish; an English version is planned
+(Stage 14).
+
+### License
+
+[MIT](LICENSE) © 2026 Piotr Pacewicz
+
+---
+
+# Developer guide
 
 ## Quickstart (backend, no Docker)
 
