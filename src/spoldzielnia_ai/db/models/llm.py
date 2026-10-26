@@ -37,7 +37,11 @@ class LlmProvider(Entity):
 
     ``private_data_cleared`` (10.1) is what lets private purposes use the provider: set by an
     ADMIN with step-up, together with the region, retention and contract reference shown to
-    members. It counts only while the endpoint is on ``llm.private_data_endpoints``."""
+    members. It counts only while the endpoint is on ``llm.private_data_endpoints``.
+
+    ``deleted_at`` (11.1): an archived provider, removed by an admin but still named by the
+    history of revisions. Hidden, without a key or clearance, never routed to again; its name is
+    free for a new provider."""
 
     __tablename__ = "llm_provider"
     # Timestamps and identity values come back via RETURNING: the admin API returns the rows
@@ -49,9 +53,15 @@ class LlmProvider(Entity):
             " NULL AND cleared_contract_ref IS NOT NULL AND cleared_at IS NOT NULL)",
             name="clearance_complete",
         ),
+        Index(
+            "uq_llm_provider_name",
+            "name",
+            unique=True,
+            postgresql_where=text("deleted_at IS NULL"),
+        ),
     )
 
-    name: Mapped[str] = mapped_column(String(64), unique=True)
+    name: Mapped[str] = mapped_column(String(64))
     kind: Mapped[LlmProviderKind]
     base_url: Mapped[str] = mapped_column(String(512))
     litellm_provider: Mapped[str] = mapped_column(String(32), server_default="openai")
@@ -73,6 +83,7 @@ class LlmProvider(Entity):
     cleared_contract_ref: Mapped[str | None] = mapped_column(String(200))
     cleared_by: Mapped[UUID | None] = mapped_column(ForeignKey("app_user.id", ondelete="SET NULL"))
     cleared_at: Mapped[datetime | None]
+    deleted_at: Mapped[datetime | None]
 
 
 class LlmModel(Entity):

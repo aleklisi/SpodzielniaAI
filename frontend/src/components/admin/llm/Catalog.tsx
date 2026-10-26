@@ -13,9 +13,11 @@ import {
   CAPABILITIES,
   generates,
   llmError,
+  removalBlocked,
   useClearProvider,
   useCreateModel,
   useCreateProvider,
+  useDeleteProvider,
   useModelDisabled,
   useProbe,
   useProviderDisabled,
@@ -57,10 +59,11 @@ function keyLabel(provider: Provider): string {
 
 // --- Providers ----------------------------------------------------------------------------------
 
-export function ProvidersPanel({ status, providers }: { status: LlmStatus; providers: Provider[] }) {
+export function ProvidersPanel({ status, providers, models }: { status: LlmStatus; providers: Provider[]; models: LlmModel[] }) {
   const [editing, setEditing] = useState<Provider | "new" | null>(null);
   const [clearing, setClearing] = useState<Provider | null>(null);
   const [unclearing, setUnclearing] = useState<Provider | null>(null);
+  const [removing, setRemoving] = useState<Provider | null>(null);
   const [tests, setTests] = useState<Record<string, Connection | string>>({});
   const test = useTestProvider();
   const disable = useProviderDisabled();
@@ -118,6 +121,7 @@ export function ProvidersPanel({ status, providers }: { status: LlmStatus; provi
           <tbody>
             {providers.map((p) => {
               const result = tests[p.id];
+              const blocked = removalBlocked(p);
               return (
                 <tr key={p.id} className="border-t border-border align-top">
                   <td className="py-2 pr-3 font-medium">{p.name}</td>
@@ -155,7 +159,17 @@ export function ProvidersPanel({ status, providers }: { status: LlmStatus; provi
                       <Button variant="ghost" disabled={p.in_active && !p.disabled} onClick={() => void toggle(p)}>
                         {p.disabled ? "Włącz" : "Wyłącz"}
                       </Button>
+                      <Button
+                        variant="ghost"
+                        disabled={blocked !== null}
+                        title={blocked ?? undefined}
+                        aria-label={`Usuń dostawcę ${p.name}`}
+                        onClick={() => setRemoving(p)}
+                      >
+                        Usuń
+                      </Button>
                     </div>
+                    {blocked && <p className="mt-1 text-xs text-text-muted">{blocked}</p>}
                   </td>
                 </tr>
               );
@@ -166,7 +180,53 @@ export function ProvidersPanel({ status, providers }: { status: LlmStatus; provi
       <ProviderDialog status={status} provider={editing} onClose={() => setEditing(null)} />
       <ClearanceDialog provider={clearing} onClose={() => setClearing(null)} />
       <UnclearDialog provider={unclearing} onClose={() => setUnclearing(null)} />
+      <RemoveDialog provider={removing} models={models.filter((m) => m.provider_id === removing?.id).length} onClose={() => setRemoving(null)} />
     </div>
+  );
+}
+
+// --- Removal (11.1) ------------------------------------------------------------------------------
+
+export function RemoveDialog({ provider, models, onClose }: { provider: Provider | null; models: number; onClose: () => void }) {
+  const remove = useDeleteProvider();
+  const toast = useToast();
+
+  async function confirm() {
+    if (!provider) return;
+    try {
+      await remove.mutateAsync(provider.id);
+      toast(`Dostawca „${provider.name}” został usunięty.`, "ok");
+      onClose();
+    } catch (error) {
+      toast(llmError(error, "Nie udało się usunąć dostawcy."), "error");
+    }
+  }
+
+  return (
+    <Dialog open={provider !== null} onClose={onClose} title={`Usuń dostawcę: ${provider?.name ?? ""}`}>
+      <div className="flex flex-col gap-3 text-sm">
+        <p>
+          Zniknie z listy razem z modelami ({models}). Zapisany klucz API zostanie usunięty
+          {provider?.private_data_cleared ? ", a dopuszczenie do danych prywatnych cofnięte" : ""}.
+        </p>
+        {provider?.removal_archives ? (
+          <p className="text-text-muted">
+            Dostawca był używany w dawnych rewizjach: zostanie zarchiwizowany, aby historia zmian pozostała kompletna. Tych
+            rewizji nie będzie można przywrócić.
+          </p>
+        ) : (
+          <p className="text-text-muted">Dostawca nie był używany w żadnej aktywowanej rewizji: zostanie usunięty całkowicie.</p>
+        )}
+        <div className="flex justify-end gap-2">
+          <Button variant="ghost" onClick={onClose}>
+            Anuluj
+          </Button>
+          <Button variant="danger" busy={remove.isPending} onClick={() => void confirm()}>
+            Usuń
+          </Button>
+        </div>
+      </div>
+    </Dialog>
   );
 }
 

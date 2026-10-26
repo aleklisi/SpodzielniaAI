@@ -10,6 +10,10 @@ enforced again by the database (migration 0012) and by the gateway at call time 
 - S2: cloud providers can be stored, but not activated unless ``llm.allow_cloud``.
 - S3/S4: base URLs must be on the endpoint allowlists; ``kind`` follows from the match.
 - S5: API keys are envelope-encrypted (AAD ``llm_provider:<id>``), write-only, never audited.
+- R1 (11.1): a provider is removed only when nothing running needs it (the ACTIVE revision, a
+  SERVING or BUILDING index generation, an open draft). One that no activated revision ever
+  used is deleted with its models; one that history names is archived (``deleted_at``): key
+  erased, clearance revoked, models disabled, hidden, and never routed to again (migration 0026).
 
 Revisions: a DRAFT holds ``llm_routing`` rows. Activation freezes the routes into a snapshot
 (``llm.snapshot``) and requires a passing probe, at most ``llm.probe_max_age_hours`` old, of
@@ -25,7 +29,7 @@ import re
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Any, Literal
-from uuid import UUID  # noqa: TC003 - pydantic resolves annotations at runtime
+from uuid import UUID
 
 from pydantic import BaseModel, Field, SecretStr, field_validator
 from sqlalchemy import func, select, text
@@ -34,12 +38,19 @@ from spoldzielnia_ai.audit.events import EventType
 from spoldzielnia_ai.audit.service import AuditService, AuditTarget
 from spoldzielnia_ai.core.logging import get_logger
 from spoldzielnia_ai.db.enums import (
+    IndexGenerationStatus,
     LlmCapability,
     LlmProviderKind,
     LlmRevisionStatus,
     LlmRoutePurpose,
 )
-from spoldzielnia_ai.db.models import LlmConfigRevision, LlmModel, LlmProvider, LlmRouting
+from spoldzielnia_ai.db.models import (
+    IndexGeneration,
+    LlmConfigRevision,
+    LlmModel,
+    LlmProvider,
+    LlmRouting,
+)
 from spoldzielnia_ai.llm.endpoints import (
     EndpointNotAllowed,
     classify,
@@ -172,6 +183,17 @@ class ModelPatch(BaseModel):
 
 
 @dataclass(frozen=True, slots=True)
+class Removal:
+    """Whether a provider can be removed now (R1), and how. ``blocked`` is the error code
+    ``delete_provider`` would answer with; ``archive`` means history names it, so it is
+    archived instead of deleted; ``draft`` is the open draft that uses it."""
+
+    blocked: str | None = None
+    archive: bool = False
+    draft: int | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class RevisionView:
     revision: LlmConfigRevision
     routing: dict[LlmRoutePurpose, UUID]
@@ -267,6 +289,22 @@ class LlmConfigService:
             raise ConfigError(f"{what}_not_found", 404)
         return row
 
+    @classmethod
+    async def _provider(cls, session: AsyncSession, provider_id: UUID) -> LlmProvider:
+        """A provider that was not removed (an archived one is gone for the admin, R1)."""
+        provider = await cls._get(session, LlmProvider, provider_id, "provider")
+        if provider.deleted_at is not None:
+            raise ConfigError("provider_not_found", 404)
+        return provider
+
+    @classmethod
+    async def _model(cls, session: AsyncSession, model_id: UUID) -> LlmModel:
+        model = await cls._get(session, LlmModel, model_id, "model")
+        provider = await session.get(LlmProvider, model.provider_id)
+        if provider is None or provider.deleted_at is not None:
+            raise ConfigError("model_not_found", 404)
+        return model
+
     @staticmethod
     async def _revision(session: AsyncSession, number: int) -> LlmConfigRevision:
         row = await session.scalar(
@@ -316,25 +354,34 @@ class LlmConfigService:
 
     async def providers(self) -> list[LlmProvider]:
         async with self._factory() as session:
-            return list(await session.scalars(select(LlmProvider).order_by(LlmProvider.name)))
+            return list(
+                await session.scalars(
+                    select(LlmProvider)
+                    .where(LlmProvider.deleted_at.is_(None))
+                    .order_by(LlmProvider.name)
+                )
+            )
 
     async def models(self) -> list[LlmModel]:
         async with self._factory() as session:
             return list(
                 await session.scalars(
-                    select(LlmModel).order_by(LlmModel.provider_id, LlmModel.model_name)
+                    select(LlmModel)
+                    .join(LlmProvider, LlmProvider.id == LlmModel.provider_id)
+                    .where(LlmProvider.deleted_at.is_(None))
+                    .order_by(LlmModel.provider_id, LlmModel.model_name)
                 )
             )
 
     async def model(self, model_id: UUID) -> tuple[LlmModel, LlmProvider]:
         async with self._factory() as session:
-            model = await self._get(session, LlmModel, model_id, "model")
-            provider = await self._get(session, LlmProvider, model.provider_id, "provider")
+            model = await self._model(session, model_id)
+            provider = await self._provider(session, model.provider_id)
             return model, provider
 
     async def provider(self, provider_id: UUID) -> LlmProvider:
         async with self._factory() as session:
-            return await self._get(session, LlmProvider, provider_id, "provider")
+            return await self._provider(session, provider_id)
 
     def api_key(self, provider: LlmProvider) -> str | None:
         return provider_api_key(
@@ -374,7 +421,10 @@ class LlmConfigService:
         if data.litellm_provider not in LITELLM_PROVIDERS:
             raise ConfigError("provider_type_not_allowed")
         async with self._factory() as session, session.begin():
-            if await session.scalar(select(LlmProvider.id).where(LlmProvider.name == data.name)):
+            taken = select(LlmProvider.id).where(
+                LlmProvider.name == data.name, LlmProvider.deleted_at.is_(None)
+            )
+            if await session.scalar(taken):
                 raise ConfigError("name_taken", 409)
             provider = LlmProvider(
                 name=data.name,
@@ -416,7 +466,7 @@ class LlmConfigService:
         fields = patch.model_fields_set
         async with self._factory() as session, session.begin():
             await self._lock(session)
-            provider = await self._get(session, LlmProvider, provider_id, "provider")
+            provider = await self._provider(session, provider_id)
             changes: dict[str, JsonValue] = {}
             if "base_url" in fields and patch.base_url is not None:
                 base_url = self._url(patch.base_url)
@@ -451,7 +501,7 @@ class LlmConfigService:
         """Allow private purposes to use the provider (P2/P3). The API checks step-up."""
         async with self._factory() as session, session.begin():
             await self._lock(session)
-            provider = await self._get(session, LlmProvider, provider_id, "provider")
+            provider = await self._provider(session, provider_id)
             if provider.disabled_at is not None:
                 raise ConfigError("provider_disabled", 409)
             kind = self.kind_of(provider.base_url)
@@ -485,7 +535,7 @@ class LlmConfigService:
         """Never blocked by routes: the purposes it served stop at once (no fallback, P5)."""
         async with self._factory() as session, session.begin():
             await self._lock(session)
-            provider = await self._get(session, LlmProvider, provider_id, "provider")
+            provider = await self._provider(session, provider_id)
             if not provider.private_data_cleared:
                 return provider
             provider.private_data_cleared = False
@@ -513,7 +563,7 @@ class LlmConfigService:
     ) -> LlmProvider:
         async with self._factory() as session, session.begin():
             await self._lock(session)
-            provider = await self._get(session, LlmProvider, provider_id, "provider")
+            provider = await self._provider(session, provider_id)
             snapshot = await self._active_snapshot(session)
             if (
                 disabled
@@ -530,13 +580,115 @@ class LlmConfigService:
             )
         return provider
 
+    async def removals(self) -> dict[UUID, Removal]:
+        """For the provider list: which providers can be removed now, and how (R1)."""
+        async with self._factory() as session:
+            return await self._removals(session)
+
+    async def _removals(self, session: AsyncSession) -> dict[UUID, Removal]:
+        snapshot = await self._active_snapshot(session)
+        in_use: set[UUID] = (
+            {d.provider_id for d in snapshot.deployments.values()} if snapshot else set()
+        )
+        live = IndexGeneration.status.in_(
+            (IndexGenerationStatus.SERVING, IndexGenerationStatus.BUILDING)
+        )
+        in_index: set[UUID] = set()
+        for deployment in await session.scalars(select(IndexGeneration.deployment).where(live)):
+            if deployment is not None and deployment.get("provider_id"):
+                in_index.add(UUID(str(deployment["provider_id"])))
+        drafts: dict[UUID, int] = {}
+        history: set[UUID] = set()
+        rows = await session.execute(
+            select(LlmModel.provider_id, LlmConfigRevision.number, LlmConfigRevision.status)
+            .join(LlmRouting, LlmRouting.model_id == LlmModel.id)
+            .join(LlmConfigRevision, LlmConfigRevision.id == LlmRouting.revision_id)
+        )
+        for provider_id, number, revision_status in rows:
+            if revision_status == LlmRevisionStatus.DRAFT:
+                drafts.setdefault(provider_id, number)
+            else:
+                history.add(provider_id)
+        # Revisions seeded from ``.env`` name their providers only in the snapshot.
+        for item in await session.scalars(
+            select(LlmConfigRevision.snapshot).where(LlmConfigRevision.snapshot.is_not(None))
+        ):
+            if item is not None:
+                old = ConfigSnapshot.model_validate(item)
+                history |= {d.provider_id for d in old.deployments.values()}
+        result: dict[UUID, Removal] = {}
+        for provider_id in await session.scalars(
+            select(LlmProvider.id).where(LlmProvider.deleted_at.is_(None))
+        ):
+            blocked = (
+                "provider_in_use"
+                if provider_id in in_use
+                else "provider_in_index"
+                if provider_id in in_index
+                else "provider_in_draft"
+                if provider_id in drafts
+                else None
+            )
+            result[provider_id] = Removal(blocked, provider_id in history, drafts.get(provider_id))
+        return result
+
+    async def delete_provider(
+        self, actor: UUID | None, provider_id: UUID
+    ) -> Literal["deleted", "archived"]:
+        """Remove a provider nothing running needs (R1): deleted with its models, or archived
+        when a past revision used it. No step-up: removing only narrows where data can go."""
+        async with self._factory() as session, session.begin():
+            await self._lock(session)
+            provider = await self._provider(session, provider_id)
+            removal = (await self._removals(session))[provider.id]
+            if removal.blocked is not None:
+                detail = {"draft": removal.draft} if removal.draft is not None else {}
+                raise ConfigError(removal.blocked, 409, **detail)
+            models = list(
+                await session.scalars(select(LlmModel).where(LlmModel.provider_id == provider.id))
+            )
+            was_cleared = provider.private_data_cleared
+            now = self._now()
+            mode: Literal["deleted", "archived"] = "archived" if removal.archive else "deleted"
+            await AuditService(session).record(
+                EventType.LLM_PROVIDER_DELETED,
+                actor,
+                AuditTarget(PROVIDER_TABLE, str(provider.id)),
+                {
+                    "name": provider.name,
+                    "kind": provider.kind.value,
+                    "base_url": provider.base_url,
+                    "mode": mode,
+                    "models": len(models),
+                    "was_cleared": was_cleared,
+                },
+            )
+            if mode == "deleted":
+                for model in models:
+                    await session.delete(model)
+                await session.flush()
+                await session.delete(provider)
+            else:
+                _set_key(provider, None, self._cipher)
+                provider.inherit_env_key = False
+                if was_cleared:
+                    provider.private_data_cleared = False
+                    provider.cleared_by, provider.cleared_at = actor, now
+                provider.disabled_at = provider.disabled_at or now
+                provider.deleted_at = now
+                for model in models:
+                    model.disabled_at = model.disabled_at or now
+        if was_cleared:
+            await self._publish_clearance()
+        return mode
+
     # --- models ---------------------------------------------------------------------------------
 
     async def create_model(self, actor: UUID | None, data: ModelIn) -> LlmModel:
         if data.embed_dimension is not None and data.capability not in _EMBEDS:
             raise ConfigError("embed_dimension_only_for_embed")
         async with self._factory() as session, session.begin():
-            provider = await self._get(session, LlmProvider, data.provider_id, "provider")
+            provider = await self._provider(session, data.provider_id)
             if provider.disabled_at is not None:
                 raise ConfigError("provider_disabled", 409)
             duplicate = await session.scalar(
@@ -576,7 +728,7 @@ class LlmConfigService:
     async def update_model(self, actor: UUID | None, model_id: UUID, patch: ModelPatch) -> LlmModel:
         fields = patch.model_fields_set
         async with self._factory() as session, session.begin():
-            model = await self._get(session, LlmModel, model_id, "model")
+            model = await self._model(session, model_id)
             if (
                 "embed_dimension" in fields
                 and patch.embed_dimension is not None
@@ -605,7 +757,7 @@ class LlmConfigService:
     ) -> LlmModel:
         async with self._factory() as session, session.begin():
             await self._lock(session)
-            model = await self._get(session, LlmModel, model_id, "model")
+            model = await self._model(session, model_id)
             snapshot = await self._active_snapshot(session)
             if (
                 disabled
@@ -626,7 +778,7 @@ class LlmConfigService:
         self, actor: UUID | None, model_id: UUID, ok: bool, report: dict[str, JsonValue]
     ) -> LlmModel:
         async with self._factory() as session, session.begin():
-            model = await self._get(session, LlmModel, model_id, "model")
+            model = await self._model(session, model_id)
             model.last_probe_at = self._now()
             model.last_probe_ok = ok
             model.last_probe_report = dict(report)
@@ -723,6 +875,8 @@ class LlmConfigService:
     def _check_route(
         self, purpose: LlmRoutePurpose, model: LlmModel, provider: LlmProvider
     ) -> LlmProviderKind:
+        if provider.deleted_at is not None:
+            raise ConfigError("provider_removed", 409, purpose=purpose.value)
         if model.capability != capability_for(purpose):
             raise ConfigError("capability_mismatch", purpose=purpose.value)
         if model.disabled_at is not None or provider.disabled_at is not None:

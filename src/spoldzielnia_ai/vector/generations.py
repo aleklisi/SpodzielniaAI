@@ -154,7 +154,12 @@ async def resolve_embed(
         return env if env.cleared else None
     item = SnapshotDeployment.model_validate(deployment)
     provider = await session.get(LlmProvider, item.provider_id)
-    if provider is None or provider.disabled_at is not None or provider.base_url != item.base_url:
+    if (
+        provider is None
+        or provider.disabled_at is not None
+        or provider.deleted_at is not None
+        or provider.base_url != item.base_url
+    ):
         return None
     route = LlmRoutePurpose(purpose.value)
     snapshot = ConfigSnapshot(routes={route: "embed"}, deployments={"embed": item})

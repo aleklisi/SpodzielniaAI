@@ -71,7 +71,7 @@ def resolve(
     names: dict[str, str] = {}  # snapshot key -> deployment name
     for key, item in snapshot.deployments.items():
         provider = providers.get(item.provider_id)
-        if provider is None:
+        if provider is None or provider.deleted_at is not None:  # removed (11.1)
             log.error(
                 "llm.config_provider_missing", revision=number, provider=str(item.provider_id)
             )

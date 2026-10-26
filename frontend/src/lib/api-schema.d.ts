@@ -386,7 +386,12 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        delete?: never;
+        /**
+         * Delete Provider
+         * @description Remove a provider nothing running needs (11.1): deleted, or archived if a past revision
+         *     used it. 409 ``provider_in_use`` / ``provider_in_index`` / ``provider_in_draft`` otherwise.
+         */
+        delete: operations["delete_provider_admin_llm_providers__provider_id__delete"];
         options?: never;
         head?: never;
         /** Update Provider */
@@ -3303,6 +3308,15 @@ export interface components {
             name: string;
             /** Private Data Cleared */
             private_data_cleared: boolean;
+            /**
+             * Removal Archives
+             * @default false
+             */
+            removal_archives: boolean;
+            /** Removal Blocked */
+            removal_blocked?: string | null;
+            /** Removal Draft */
+            removal_draft?: number | null;
             /** Structured Output */
             structured_output: string | null;
             /** Timeout Seconds */
@@ -4769,6 +4783,35 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ProviderOut"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_provider_admin_llm_providers__provider_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                provider_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

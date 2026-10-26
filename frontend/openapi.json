@@ -4159,6 +4159,33 @@
             "title": "Private Data Cleared",
             "type": "boolean"
           },
+          "removal_archives": {
+            "default": false,
+            "title": "Removal Archives",
+            "type": "boolean"
+          },
+          "removal_blocked": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Removal Blocked"
+          },
+          "removal_draft": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Removal Draft"
+          },
           "structured_output": {
             "anyOf": [
               {
@@ -7410,6 +7437,41 @@
       }
     },
     "/admin/llm/providers/{provider_id}": {
+      "delete": {
+        "description": "Remove a provider nothing running needs (11.1): deleted, or archived if a past revision\nused it. 409 ``provider_in_use`` / ``provider_in_index`` / ``provider_in_draft`` otherwise.",
+        "operationId": "delete_provider_admin_llm_providers__provider_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "provider_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Provider Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Provider",
+        "tags": [
+          "admin-llm"
+        ]
+      },
       "patch": {
         "operationId": "update_provider_admin_llm_providers__provider_id__patch",
         "parameters": [

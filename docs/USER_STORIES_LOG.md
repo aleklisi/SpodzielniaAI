@@ -18,7 +18,8 @@ committed, add the commit hash to the story's *Delivery* list.
 | [US-01](#us-01) | Administrator configures LLM models (local / cloud) in the UI and tests them | DONE | [07_LLM_MODEL_CONFIG.md](implementation/07_LLM_MODEL_CONFIG.md) · Etap 7 | 2026-10-20 |
 | [US-02](#us-02) | Administrator manages users: create accounts, reset passwords, block access, force password change, manage roles | DONE | [08_USER_MANAGEMENT.md](implementation/08_USER_MANAGEMENT.md) · Etap 8 | 2026-10-21 |
 | [US-03](#us-03) | Member adds photos with a description, marks and describes elements on them; experts verify; the atlas powers image recognition | DONE | [09_IMAGE_ATLAS.md](implementation/09_IMAGE_ATLAS.md) · Etap 9 | 2026-10-21 |
-| [US-04](#us-04) | Every model (LLM, embeddings, speech, OCR, image embeddings) is configured and provided over an API — local (LM Studio) or cloud; no built-in model required | IN PROGRESS | [10_MODEL_PROVIDERS_API.md](implementation/10_MODEL_PROVIDERS_API.md) · Etap 10 | 2026-10-22 |
+| [US-04](#us-04) | Every model (LLM, embeddings, speech, OCR, image embeddings) is configured and provided over an API — local (LM Studio) or cloud; no built-in model required | DONE | [10_MODEL_PROVIDERS_API.md](implementation/10_MODEL_PROVIDERS_API.md) · Etap 10 | 2026-10-22 |
+| [US-05](#us-05) | Administrator removes an LLM provider that is no longer used, so unused configurations and keys do not stay | DONE | [11_PROVIDER_REMOVAL.md](implementation/11_PROVIDER_REMOVAL.md) · Etap 11 | 2026-10-26 |
 
 ---
 
@@ -194,3 +195,27 @@ configurable and provided over an API: a model run locally (e.g. in LM Studio) o
   over an API or the built-in SigLIP, the atlas on index generations · `f339bf5` 10.7 no model
   server by default, API-only profile · 10.8 transparency page and banner, index panel, E2E
   scenario 12, security review (this commit).
+
+---
+
+## US-05
+
+**Story:** As an administrator I would like to remove an LLM provider, so that I don't have to
+keep unused configurations.
+
+- **Source:** product owner request, 2026-10-26. Test scenario given: "Given admin1 logged in,
+  when see list of LLM providers, then admin can remove config and gets refreshed list."
+- **Status:** DONE 2026-10-26.
+- **Plan:** [docs/implementation/11_PROVIDER_REMOVAL.md](implementation/11_PROVIDER_REMOVAL.md)
+- **Refinement decisions (accepted 2026-10-26):** a provider that a past revision used is
+  archived instead of deleted (history and rollback stay intact; the key is erased, the
+  clearance revoked, it can never be routed to again, its name is free); removal is refused
+  while the active revision, a serving/building index generation or an open draft uses it; no
+  MFA step-up, since removal only narrows where data can go.
+- **Acceptance criteria:**
+  1. admin1 sees „Usuń” next to each provider; confirming removes it and the list refreshes.
+  2. A provider in use has a disabled „Usuń” with the reason; the API answers 409.
+  3. A provider from older revisions is archived: hidden, no key, no clearance; History still
+     names it; rollback to those revisions is refused.
+  4. Every removal is audited (`LLM_PROVIDER_DELETED`), without the key.
+- **Delivery:** 11.1 (this commit).

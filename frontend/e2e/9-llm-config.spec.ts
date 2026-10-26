@@ -51,6 +51,8 @@ test("an admin switches the chat model, the API follows without a restart, and r
   const before = await activeRevision(admin);
   const rag = before.routes?.RAG;
   test.skip(!rag, "the stack has no chat model configured (LLM_CHAT_MODEL)");
+  // The test re-adds the chat model on the stack's local endpoint: it must be served there.
+  test.skip(rag?.kind !== "LOCAL", "the chat model is not on a local endpoint (e.g. a cloud API)");
   const chatModel = (rag?.name ?? "").split("/").slice(1).join("/");
   const local = (await status(admin)).local_endpoints[0];
   const provider = `local-e2e-${Date.now().toString(36)}`;

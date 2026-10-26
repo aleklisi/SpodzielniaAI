@@ -40,6 +40,7 @@ class EventType(StrEnum):
     LLM_PROVIDER_CHANGED = "LLM_PROVIDER_CHANGED"
     LLM_PROVIDER_CLEARED = "LLM_PROVIDER_CLEARED"
     LLM_PROVIDER_UNCLEARED = "LLM_PROVIDER_UNCLEARED"
+    LLM_PROVIDER_DELETED = "LLM_PROVIDER_DELETED"  # 11.1: deleted, or archived if history uses it
     LLM_MODEL_CHANGED = "LLM_MODEL_CHANGED"
     LLM_MODEL_PROBED = "LLM_MODEL_PROBED"
     # Text index generations (10.3): a model change re-embeds into a new version

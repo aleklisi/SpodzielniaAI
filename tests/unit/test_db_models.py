@@ -194,6 +194,7 @@ def test_migrations_form_a_single_linear_history() -> None:
         "0023_ocr_purpose",
         "0024_image_embed",
         "0025_processors_seen",
+        "0026_provider_removal",
     ]
 
 

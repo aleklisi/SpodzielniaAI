@@ -44,6 +44,7 @@ from spoldzielnia_ai.llm.config_service import (
     ModelPatch,
     ProviderIn,
     ProviderPatch,
+    Removal,
     RevisionView,
     capability_for,
 )
@@ -157,6 +158,11 @@ class ProviderOut(BaseModel):
     cleared_retention: str | None
     cleared_contract_ref: str | None
     cleared_at: datetime | None
+    # 11.1: why "Usuń" is unavailable now (the error code a DELETE would answer with), and
+    # whether removing archives it (a past revision used it) instead of deleting it.
+    removal_blocked: str | None = None
+    removal_archives: bool = False
+    removal_draft: int | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -260,8 +266,12 @@ def _allowed(provider: LlmProvider, service: LlmConfigService) -> bool:
 
 
 def _provider_out(
-    provider: LlmProvider, service: LlmConfigService, active: set[UUID]
+    provider: LlmProvider,
+    service: LlmConfigService,
+    active: set[UUID],
+    removal: Removal | None = None,
 ) -> ProviderOut:
+    removal = removal or Removal()
     return ProviderOut(
         id=provider.id,
         name=provider.name,
@@ -284,6 +294,9 @@ def _provider_out(
         if provider.private_data_cleared
         else None,
         cleared_at=provider.cleared_at,
+        removal_blocked=removal.blocked,
+        removal_archives=removal.archive,
+        removal_draft=removal.draft,
         created_at=provider.created_at,
         updated_at=provider.updated_at,
     )
@@ -380,7 +393,9 @@ async def get_status(request: Request, service: Service) -> StatusOut:
 @router.get("/providers", response_model=list[ProviderOut])
 async def get_providers(service: Service) -> list[ProviderOut]:
     active, _ = await _active_providers(service)
-    return [_provider_out(p, service, active) for p in await service.providers()]
+    removals = await service.removals()
+    providers = await service.providers()
+    return [_provider_out(p, service, active, removals.get(p.id)) for p in providers]
 
 
 @router.post("/providers", response_model=ProviderOut, status_code=status.HTTP_201_CREATED)
@@ -404,6 +419,17 @@ async def update_provider(
         raise _http(exc) from None
     active, _ = await _active_providers(service)
     return _provider_out(provider, service, active)
+
+
+@router.delete("/providers/{provider_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_provider(provider_id: UUID, service: Service, principal: CurrentUser) -> Response:
+    """Remove a provider nothing running needs (11.1): deleted, or archived if a past revision
+    used it. 409 ``provider_in_use`` / ``provider_in_index`` / ``provider_in_draft`` otherwise."""
+    try:
+        await service.delete_provider(principal.id, provider_id)
+    except ConfigError as exc:
+        raise _http(exc) from None
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.post("/providers/{provider_id}/disabled", response_model=ProviderOut)

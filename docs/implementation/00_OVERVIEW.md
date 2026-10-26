@@ -255,6 +255,9 @@ Each one is resolved (✅ = decision baked into the chunk plans) or needs your i
 - [x] 10.7 Compose: no model server by default, API-only profile
 - [x] 10.8 Admin UI, transparency page, E2E, security review & docs
 
+### Stage 11 — Removing a model provider (beyond the original plan, [US-05](../USER_STORIES_LOG.md#us-05))
+- [x] 11.1 Remove an LLM provider (deleted, or archived when history uses it), migration 0026, API, UI, E2E
+
 ---
 
 ## 5. Dependency Graph

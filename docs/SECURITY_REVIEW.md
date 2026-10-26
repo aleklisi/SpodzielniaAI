@@ -133,6 +133,18 @@ P1–P9 of `docs/implementation/10_MODEL_PROVIDERS_API.md` and their proof:
   its work waits. Multimodal embedding APIs are not standardised: one request shape is supported
   and an incompatible server fails the model probe before it can be activated.
 
+## Stage 11 additions (removing a model provider, US-05)
+
+| Control | Proof |
+|---|---|
+| R1 Removal never breaks what runs (API5): refused while the ACTIVE revision, a SERVING/BUILDING index generation or an open draft uses the provider (409 `provider_in_use`/`provider_in_index`/`provider_in_draft`); ADMIN + MFA session + CSRF like every `/admin/llm` write | `integration/test_provider_removal.py::test_a_provider_the_running_configuration_needs_is_not_removed`, `test_admin_removes_a_provider_and_gets_the_refreshed_list` |
+| Keys and clearance do not outlive the provider (P7): a deleted provider takes its encrypted key with it; an archived one has key, hint and clearance erased; the audit entry carries no key | `test_an_unused_provider_is_deleted_with_its_models`, `test_a_provider_history_names_is_archived` |
+| An archived provider never comes back (P1, P5): hidden from every lookup (404); rollback to a revision that used it is refused (`provider_removed`); config loading and index generations treat it as missing (no fallback); database triggers of 0026 refuse un-archiving, clearing, routing and activating a snapshot that names it | `test_an_archived_provider_never_resolves`, `test_the_database_keeps_an_archived_provider_out_of_use` |
+
+- **Accepted:** no step-up for removal, since it only narrows where data can go (like disabling).
+  The history of revisions keeps an archived provider's name and URL (no key), as the audit log
+  does.
+
 ## Chunk 6.8 additions (production deployment, backup and restore)
 
 | Control | Proof |

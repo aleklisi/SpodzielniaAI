@@ -56,6 +56,7 @@ function provider(id: string, name: string, kind: "LOCAL" | "CLOUD", overrides: 
     in_active: kind === "LOCAL", private_data_cleared: kind === "LOCAL", clearable: kind === "LOCAL",
     cleared_region: kind === "LOCAL" ? "serwer spółdzielni" : null, cleared_retention: kind === "LOCAL" ? "brak" : null,
     cleared_contract_ref: kind === "LOCAL" ? ".env" : null, cleared_at: kind === "LOCAL" ? NOW : null,
+    removal_blocked: kind === "LOCAL" ? "provider_in_use" : null, removal_archives: false, removal_draft: null,
     created_at: NOW, updated_at: NOW, ...overrides,
   };
 }
@@ -262,6 +263,63 @@ describe("providers", () => {
     const row = screen.getByRole("row", { name: /local/ });
     await userEvent.click(within(row).getByRole("button", { name: "Testuj połączenie" }));
     expect(await within(row).findByRole("status")).toHaveTextContent("Połączono (12 ms) · modele: bielik-11b, qwen3-32b");
+  });
+});
+
+describe("removal (11.1)", () => {
+  it("removes an unused provider and shows the refreshed list", async () => {
+    let providers = [...PROVIDERS];
+    let removed: string | null = null;
+    server.use(
+      http.delete(`${API}/admin/llm/providers/${CLOUD}`, () => {
+        removed = CLOUD;
+        providers = providers.filter((p) => p.id !== CLOUD);
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+    mount([revision(1, "ACTIVE", ROUTING)], status(), providers);
+    server.use(http.get(`${API}/admin/llm/providers`, () => HttpResponse.json(providers))); // reflects the removal
+    await userEvent.click(await screen.findByRole("tab", { name: "Dostawcy" }));
+    const row = screen.getByRole("row", { name: /cloud/ });
+    await userEvent.click(within(row).getByRole("button", { name: "Usuń dostawcę cloud" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText(/razem z modelami \(1\)/)).toBeInTheDocument();
+    expect(within(dialog).getByText(/zostanie usunięty całkowicie/)).toBeInTheDocument();
+    await userEvent.click(within(dialog).getByRole("button", { name: "Usuń" }));
+    await waitFor(() => expect(removed).toBe(CLOUD));
+    await waitFor(() => expect(screen.queryByRole("row", { name: /cloud/ })).toBeNull());
+    expect(screen.getByRole("row", { name: /local/ })).toBeInTheDocument();
+    expect(await screen.findByText("Dostawca „cloud” został usunięty.")).toBeInTheDocument();
+  });
+
+  it("explains why a provider in use cannot be removed", async () => {
+    const providers = [
+      provider(LOCAL, "local", "LOCAL"),
+      provider(CLOUD, "cloud", "CLOUD", { removal_blocked: "provider_in_draft", removal_draft: 4 }),
+    ];
+    mount([revision(1, "ACTIVE", ROUTING)], status(), providers);
+    await userEvent.click(await screen.findByRole("tab", { name: "Dostawcy" }));
+    const local = screen.getByRole("row", { name: /local/ });
+    expect(within(local).getByRole("button", { name: "Usuń dostawcę local" })).toBeDisabled();
+    expect(within(local).getByText("Używany przez aktywną konfigurację")).toBeInTheDocument();
+    const cloud = screen.getByRole("row", { name: /cloud/ });
+    expect(within(cloud).getByText("Używany w szkicu rewizji 4")).toBeInTheDocument();
+  });
+
+  it("says a provider from past revisions is archived, and shows a refusal", async () => {
+    server.use(
+      http.delete(`${API}/admin/llm/providers/${CLOUD}`, () =>
+        HttpResponse.json({ detail: { error: "provider_in_index" } }, { status: 409 }),
+      ),
+    );
+    const providers = [provider(LOCAL, "local", "LOCAL"), provider(CLOUD, "cloud", "CLOUD", { removal_archives: true })];
+    mount([revision(1, "ACTIVE", ROUTING)], status(), providers);
+    await userEvent.click(await screen.findByRole("tab", { name: "Dostawcy" }));
+    await userEvent.click(within(screen.getByRole("row", { name: /cloud/ })).getByRole("button", { name: "Usuń dostawcę cloud" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText(/zostanie zarchiwizowany/)).toBeInTheDocument();
+    await userEvent.click(within(dialog).getByRole("button", { name: "Usuń" }));
+    expect(await screen.findByText(/obsługuje indeks wyszukiwania/)).toBeInTheDocument();
   });
 });
 

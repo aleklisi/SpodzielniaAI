@@ -97,7 +97,7 @@ export function LlmConsole() {
         {tab === "routing" && (
           <RoutingPanel status={s} providers={providers.data} models={models.data} revisions={revisions.data} />
         )}
-        {tab === "providers" && <ProvidersPanel status={s} providers={providers.data} />}
+        {tab === "providers" && <ProvidersPanel status={s} providers={providers.data} models={models.data} />}
         {tab === "models" && <ModelsPanel status={s} providers={providers.data} models={models.data} />}
         {tab === "index" && <IndexPanel />}
         {tab === "playground" && <PlaygroundPanel status={s} providers={providers.data} models={models.data} />}

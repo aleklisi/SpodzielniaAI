@@ -56,6 +56,8 @@ test("a missing model turns a feature off, work waits, and resumes once an admin
   const before = await activeRevision(admin);
   const vlm = before.routes?.VLM;
   test.skip(!vlm, "the stack has no vision model configured (LLM_VLM_MODEL)");
+  // The test re-adds the vision model on the stack's local endpoint: it must be served there.
+  test.skip(vlm?.kind !== "LOCAL", "the vision model is not on a local endpoint (e.g. a cloud API)");
   const vlmModel = (vlm?.name ?? "").split("/").slice(1).join("/");
   const local = ((await (await apiCall(admin, "GET", "/admin/llm/status")).json()) as { local_endpoints: string[] })
     .local_endpoints[0];

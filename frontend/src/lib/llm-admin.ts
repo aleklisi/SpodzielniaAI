@@ -121,6 +121,31 @@ export function useUnclearProvider() {
   );
 }
 
+/** 11.1: deleted, or archived if a past revision used it; the list refreshes either way. */
+export function useDeleteProvider() {
+  return useLlmMutation(async (id: string) => {
+    const result = await api.DELETE("/admin/llm/providers/{provider_id}", { params: { path: { provider_id: id } } });
+    if (!result.response.ok) throw new ApiError(result.response.status, result.error);
+  });
+}
+
+/** Why "Usuń" is unavailable (``ProviderOut.removal_blocked``), shown next to the button. */
+export function removalBlocked(provider: Pick<Provider, "removal_blocked" | "removal_draft">): string | null {
+  switch (provider.removal_blocked) {
+    case null:
+    case undefined:
+      return null;
+    case "provider_in_use":
+      return "Używany przez aktywną konfigurację";
+    case "provider_in_index":
+      return "Używany przez indeks wyszukiwania";
+    case "provider_in_draft":
+      return provider.removal_draft ? `Używany w szkicu rewizji ${provider.removal_draft}` : "Używany w szkicu zmian";
+    default:
+      return "Nie można teraz usunąć";
+  }
+}
+
 export function useTestProvider() {
   return useMutation({
     mutationFn: async (id: string) =>
@@ -236,6 +261,9 @@ const ERRORS: Record<string, string> = {
   name_taken: "Ta nazwa jest już zajęta.",
   provider_type_not_allowed: "Ten typ dostawcy nie jest obsługiwany.",
   provider_in_use: "Dostawca jest używany przez aktywną konfigurację.",
+  provider_in_index: "Dostawca obsługuje indeks wyszukiwania (bieżący lub budowany): najpierw zmień model embeddingów.",
+  provider_in_draft: "Dostawca jest używany w szkicu zmian: zmień przypisania w szkicu albo go odrzuć.",
+  provider_removed: "Ta rewizja korzysta z usuniętego dostawcy, nie można jej przywrócić.",
   provider_disabled: "Dostawca jest wyłączony.",
   model_in_use: "Model jest używany przez aktywną konfigurację.",
   model_exists: "Ten model jest już dodany.",

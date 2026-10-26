@@ -251,3 +251,7 @@ Rejestr historyjek dodanych poza Etapami 1–6: [docs/USER_STORIES_LOG.md](docs/
 - [x] 10.6 Embeddingi obrazów przez API lub wbudowany SigLIP (opcjonalny), rozpoznawanie wyłączone bez modelu
 - [x] 10.7 Compose bez serwera modeli domyślnie (profil `ollama`, relay do LM Studio, profil „tylko API”)
 - [x] 10.8 Panel `/admin/llm`, strona „Gdzie przetwarzane są Twoje dane”, E2E, przegląd bezpieczeństwa i dokumentacja
+
+### Etap 11: Usuwanie dostawców modeli w panelu administratora (US-05)
+*Dokumentacja: [docs/implementation/11_PROVIDER_REMOVAL.md](docs/implementation/11_PROVIDER_REMOVAL.md)*
+- [x] 11.1 Usuwanie dostawcy LLM (usunięcie albo archiwizacja, gdy historia rewizji go używa; blokada, gdy używa go aktywna konfiguracja, indeks lub szkic; migracja 0026, API `DELETE`, przycisk „Usuń”, testy i E2E)
