@@ -266,3 +266,12 @@ Rejestr historyjek dodanych poza Etapami 1–6: [docs/USER_STORIES_LOG.md](docs/
 - [x] 12.6 Recenzje eksperckie (kolejka i szczegóły, jedno na raz na telefonie)
 - [x] 12.7 Konsole administratora (`/admin/llm`, `/admin/users`, `/admin/security`, `/admin/atlas`)
 - [x] 12.8 E2E na telefonie i tablecie (scenariusz 14), brak przewijania w poziomie przy 360px, axe, przegląd bezpieczeństwa i dokumentacja
+
+### Etap 13: Wygląd organizacji — nazwa, logo i kolory (US-07)
+*Dokumentacja: [docs/implementation/13_BRANDING.md](docs/implementation/13_BRANDING.md)*
+- [ ] 13.1 Model danych (migracja 0027, jeden wiersz, CHECK na kolory hex), wyprowadzanie palety z dwóch kolorów (OKLCH, kontrast WCAG AA, tryb ciemny), `BrandingService`, zdarzenia audytu
+- [ ] 13.2 Logo: tylko PNG/JPEG/WebP (SVG odrzucane), skan ClamAV, ponowne kodowanie Pillow, wersje logo i favicon, przechowywanie per wersja
+- [ ] 13.3 API: publiczne `GET /api/branding` i pliki logo/favicon (niezmienne adresy z wersją), zapis, podgląd, logo i reset dla ADMIN z MFA i CSRF
+- [ ] 13.4 Zastosowanie w aplikacji: `<style nonce>` z tokenami w layoucie (bez zmian CSP, bez mignięcia kolorów), tytuł i favicon, logo i nazwa w menu, pasku telefonu i na stronie głównej
+- [ ] 13.5 Strona `/admin/branding` („Wygląd”): nazwa, dwa kolory, podgląd jasny i ciemny z kontrastami, logo, przywracanie domyślnych
+- [ ] 13.6 E2E (scenariusz 15), przegląd bezpieczeństwa i dokumentacja

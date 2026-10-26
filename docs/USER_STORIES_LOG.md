@@ -21,6 +21,7 @@ committed, add the commit hash to the story's *Delivery* list.
 | [US-04](#us-04) | Every model (LLM, embeddings, speech, OCR, image embeddings) is configured and provided over an API — local (LM Studio) or cloud; no built-in model required | DONE | [10_MODEL_PROVIDERS_API.md](implementation/10_MODEL_PROVIDERS_API.md) · Etap 10 | 2026-10-22 |
 | [US-05](#us-05) | Administrator removes an LLM provider that is no longer used, so unused configurations and keys do not stay | DONE | [11_PROVIDER_REMOVAL.md](implementation/11_PROVIDER_REMOVAL.md) · Etap 11 | 2026-10-26 |
 | [US-06](#us-06) | The UI works like Open Notebook — menu on the left, workspace on the right — on desktops and phones | DONE | [12_APP_SHELL_RESPONSIVE.md](implementation/12_APP_SHELL_RESPONSIVE.md) · Etap 12 | 2026-10-26 |
+| [US-07](#us-07) | Administrator brands the UI: organisation name, logo (and favicon) and colours | PLANNED | [13_BRANDING.md](implementation/13_BRANDING.md) · Etap 13 | 2026-10-26 |
 
 ---
 
@@ -248,3 +249,29 @@ has to support mobile devices.
   6. No page scrolls sideways at 360px; touch targets are at least 44px; axe reports no serious
      or critical issues.
 - **Delivery:** `db3fc43` plan · 12.1–12.8 shell, building blocks, every page restyled, E2E scenario 14 on desktop, tablet and phone, axe (this commit).
+
+---
+
+## US-07
+
+**Story:** As an administrator I would like to be able to configure the UI, so that I can set up
+the logo of my organisation and change colours.
+
+- **Source:** product owner request, 2026-10-26.
+- **Status:** PLANNED 2026-10-26.
+- **Plan:** [docs/implementation/13_BRANDING.md](implementation/13_BRANDING.md)
+- **Refinement decisions (accepted 2026-10-26):** the organisation name, logo and a favicon
+  generated from it can be branded (the Keycloak sign-in page cannot, in this story); the admin
+  picks a brand and an accent colour and every other shade, including dark mode, is derived with
+  WCAG AA contrast enforced; background, text and status colours stay fixed; only PNG, JPEG or
+  WebP logos, re-encoded (SVG refused); colours reach the page through a nonced `<style>`, so the
+  CSP is unchanged.
+- **Acceptance criteria:**
+  1. admin1 (with MFA) sets the name, logo and two colours in `/admin/branding` with a light and
+     dark preview; after saving, every user sees them on the next page load without a flash of
+     the old colours; the tab title and favicon follow.
+  2. Colours that would make text unreadable are adjusted (and the admin is told) or refused.
+  3. SVG, GIF, oversized and disguised files are refused; stored images carry no metadata.
+  4. „Przywróć domyślne” restores the original look for everyone.
+  5. Only an ADMIN with MFA can change branding; anyone can read it. Every change is audited.
+- **Delivery:** plan.
