@@ -20,6 +20,7 @@ committed, add the commit hash to the story's *Delivery* list.
 | [US-03](#us-03) | Member adds photos with a description, marks and describes elements on them; experts verify; the atlas powers image recognition | DONE | [09_IMAGE_ATLAS.md](implementation/09_IMAGE_ATLAS.md) · Etap 9 | 2026-10-21 |
 | [US-04](#us-04) | Every model (LLM, embeddings, speech, OCR, image embeddings) is configured and provided over an API — local (LM Studio) or cloud; no built-in model required | DONE | [10_MODEL_PROVIDERS_API.md](implementation/10_MODEL_PROVIDERS_API.md) · Etap 10 | 2026-10-22 |
 | [US-05](#us-05) | Administrator removes an LLM provider that is no longer used, so unused configurations and keys do not stay | DONE | [11_PROVIDER_REMOVAL.md](implementation/11_PROVIDER_REMOVAL.md) · Etap 11 | 2026-10-26 |
+| [US-06](#us-06) | The UI works like Open Notebook — menu on the left, workspace on the right — on desktops and phones | PLANNED | [12_APP_SHELL_RESPONSIVE.md](implementation/12_APP_SHELL_RESPONSIVE.md) · Etap 12 | 2026-10-26 |
 
 ---
 
@@ -219,3 +220,31 @@ keep unused configurations.
      names it; rollback to those revisions is refused.
   4. Every removal is audited (`LLM_PROVIDER_DELETED`), without the key.
 - **Delivery:** 11.1 (this commit).
+
+---
+
+## US-06
+
+**Story:** Let's upgrade the UI. It should be like Open Notebook (github.com/lfnovo/open-notebook):
+the menu on the left side, the workspace on the right taking 2/3 of the visible window. The UI
+has to support mobile devices.
+
+- **Source:** product owner request, 2026-10-26.
+- **Status:** PLANNED 2026-10-26.
+- **Plan:** [docs/implementation/12_APP_SHELL_RESPONSIVE.md](implementation/12_APP_SHELL_RESPONSIVE.md)
+- **Refinement decisions (accepted 2026-10-26):** a fixed 16rem menu that collapses to an icon
+  rail, so the workspace gets at least 2/3 of the width (not a literal 1/3 menu); a new shell
+  plus a restyle of every page; a left drawer on phones; the note page uses Open Notebook's
+  Źródła | Notatka | Zapytaj columns (tabs on a phone); only the layout patterns are borrowed,
+  not code or branding; the CSP stays unchanged; no theme switch or command palette in this story.
+- **Acceptance criteria:**
+  1. On desktop the menu is on the left and the workspace takes at least 2/3 of the width; only
+     the workspace scrolls.
+  2. The menu collapses to an icon rail; the choice survives a reload without a layout jump.
+  3. Menu sections follow the account's roles (member, EXPERT, ADMIN).
+  4. On a phone a top bar opens the menu as a drawer that closes on navigation, Escape and the
+     backdrop.
+  5. The note page shows Źródła | Notatka | Zapytaj as columns on desktop and tabs on a phone.
+  6. No page scrolls sideways at 360px; touch targets are at least 44px; axe reports no serious
+     or critical issues.
+- **Delivery:** plan (this commit).
