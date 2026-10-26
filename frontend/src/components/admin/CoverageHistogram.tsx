@@ -44,7 +44,7 @@ export function CoverageHistogram({ users }: { users: UserCoverage[] }) {
     <figure className="flex flex-col gap-2">
       <figcaption className="text-sm font-medium">Konta według bliskości limitu pokrycia</figcaption>
       <div className="relative">
-        <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img" aria-label="Histogram kont według bliskości limitu pokrycia">
+        <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="group" aria-label="Histogram kont według bliskości limitu pokrycia">
           {ticks.map((t) => (
             <g key={t}>
               <line x1={M.left} x2={W - M.right} y1={y(t)} y2={y(t)} stroke="var(--viz-grid)" strokeWidth={1} />

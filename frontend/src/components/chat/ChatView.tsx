@@ -1,5 +1,6 @@
 "use client";
 
+import { MessagesSquare, SendHorizontal } from "lucide-react";
 import Link from "next/link";
 import { useRef, useState, type FormEvent } from "react";
 
@@ -8,7 +9,9 @@ import { SafeMarkdown } from "@/components/markdown/SafeMarkdown";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { cn } from "@/components/ui/cn";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { ModelMissing } from "@/components/ui/ModelMissing";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { loginUrl, NotAuthenticated } from "@/lib/api";
 import { isModelMissing, MODEL_MISSING, useFeature } from "@/lib/capabilities";
 import { askCooperative, type Ask, type Citation, type RagAnswer } from "@/lib/chat";
@@ -23,6 +26,7 @@ type Turn =
 
 const DATE = new Intl.DateTimeFormat("pl-PL", { dateStyle: "medium" });
 const MAX_CHARS = 1000;
+const EXAMPLES = ["Jak leczyć warrozę zimą?", "Kiedy poszerzać gniazdo wiosną?", "Jak rozpoznać zgniliznę?"];
 
 export type Solver = typeof solveInBackground;
 
@@ -99,29 +103,50 @@ export function ChatView({ ask = askCooperative, solve = solveInBackground }: { 
 
   if (locked) return <LockedNotice />;
   return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-6">
-      <div>
-        <h1 className="font-display text-2xl font-semibold">Zapytaj spółdzielnię</h1>
-        <p className="text-sm text-text-muted">
-          Odpowiedzi powstają wyłącznie na podstawie artykułów zatwierdzonych przez Radę Ekspertów, zawsze ze źródłami.
-        </p>
-      </div>
+    // A full-height conversation with the composer stuck to the bottom of the viewport (12.4).
+    <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-6">
+      <PageHeader
+        title="Zapytaj spółdzielnię"
+        description="Odpowiedzi powstają wyłącznie na podstawie artykułów zatwierdzonych przez Radę Ekspertów, zawsze ze źródłami."
+      />
       {!available && <ModelMissing what="Zadawanie pytań spółdzielni" />}
-      <ol className="flex flex-col gap-6" aria-label="Rozmowa">
-        {turns.map((turn) => (
-          <li key={turn.id} className="flex flex-col gap-3">
-            <p className="self-end rounded-2xl bg-primary/15 px-4 py-2 text-sm">{turn.question}</p>
-            <TurnBody turn={turn} />
-          </li>
-        ))}
-      </ol>
-      <form onSubmit={submit} className="flex flex-col gap-2">
+      {turns.length === 0 ? (
+        <EmptyState icon={MessagesSquare} title="Zadaj pierwsze pytanie">
+          <p>Rozmowa nie jest zapisywana: znika po opuszczeniu strony.</p>
+          <ul className="mt-3 flex flex-wrap justify-center gap-2" aria-label="Przykładowe pytania">
+            {EXAMPLES.map((example) => (
+              <li key={example}>
+                <button
+                  type="button"
+                  onClick={() => setQuestion(example)}
+                  className="rounded-full border border-border bg-surface px-3 py-1.5 text-xs text-text hover:border-primary pointer-coarse:min-h-10"
+                >
+                  {example}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </EmptyState>
+      ) : (
+        <ol className="flex flex-col gap-6" aria-label="Rozmowa">
+          {turns.map((turn) => (
+            <li key={turn.id} className="flex flex-col gap-3">
+              <p className="max-w-[85%] self-end rounded-2xl bg-primary/15 px-4 py-2 text-sm break-words">{turn.question}</p>
+              <TurnBody turn={turn} />
+            </li>
+          ))}
+        </ol>
+      )}
+      <form
+        onSubmit={submit}
+        className="sticky bottom-0 -mx-4 mt-auto flex flex-col gap-2 border-t border-border bg-bg px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] md:mx-0 md:rounded-t-xl md:border-x md:px-3"
+      >
         <label htmlFor="chat-question" className="sr-only">
           Twoje pytanie
         </label>
         <textarea
           id="chat-question"
-          rows={3}
+          rows={2}
           maxLength={MAX_CHARS}
           value={question}
           onChange={(event) => setQuestion(event.target.value)}
@@ -132,13 +157,14 @@ export function ChatView({ ask = askCooperative, solve = solveInBackground }: { 
             }
           }}
           placeholder="Np. jak leczyć warrozę zimą?"
-          className="rounded-xl border border-border bg-surface px-3 py-2"
+          className="resize-none rounded-xl border border-border bg-surface px-3 py-2 text-sm"
         />
         <div className="flex items-center justify-between text-xs text-text-muted">
           <span>
             {question.length}/{MAX_CHARS}
           </span>
           <Button type="submit" busy={busy} disabled={!available || question.trim().length < 3}>
+            <SendHorizontal aria-hidden className="size-4" />
             Zapytaj
           </Button>
         </div>
@@ -185,7 +211,7 @@ export function AnswerCard({ answer }: { answer: RagAnswer }) {
         <SafeMarkdown markdown={answer.answer_markdown} citations />
       )}
       {answer.citations.length > 0 && (
-        <ol className="grid gap-2 sm:grid-cols-2" aria-label="Źródła">
+        <ol className="grid gap-2 @2xl:grid-cols-2" aria-label="Źródła">
           {answer.citations.map((c, i) => (
             <CitationCard key={c.article_id} citation={c} number={i + 1} />
           ))}

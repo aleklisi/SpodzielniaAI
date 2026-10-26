@@ -4,6 +4,7 @@ import Link from "next/link";
 
 import { ArticleView } from "@/components/wiki/ArticleView";
 import { Button } from "@/components/ui/Button";
+import { Loading } from "@/components/ui/Skeleton";
 import { useToast } from "@/components/ui/Toast";
 import { ApiError, RateLimited, SecurityLocked } from "@/lib/api";
 import { useMe } from "@/lib/session";
@@ -17,7 +18,7 @@ export function ArticlePage({ articleId }: { articleId: string }) {
   const submit = useSubmit();
   const toast = useToast();
 
-  if (article.isPending) return <p className="text-text-muted">Ładowanie artykułu…</p>;
+  if (article.isPending) return <Loading label="Ładowanie artykułu…" />;
   if (article.isError) {
     const error = article.error;
     const message =
@@ -43,7 +44,7 @@ export function ArticlePage({ articleId }: { articleId: string }) {
   const data = article.data;
   const isAuthor = !!me.data && data.authors.some((a) => a.id === me.data.id);
   return (
-    <div className="flex max-w-4xl flex-col gap-6">
+    <div className="mx-auto flex w-full max-w-4xl flex-col gap-6">
       <Link href="/wiki" className="text-sm text-text-muted hover:text-text">
         ← Baza wiedzy
       </Link>

@@ -1,6 +1,7 @@
 @import "tailwindcss";
 
-/* Cooperative palette: honey (primary), heather (accent), meadow (ok), ember (danger). */
+/* Cooperative palette: honey (primary), heather (accent), meadow (ok), ember (danger). Light values
+   meet WCAG AA as text and badges (4.5:1) and white on --primary (12.8, axe). */
 :root {
   --bg: #fbf8f1;
   --surface: #ffffff;
@@ -8,13 +9,13 @@
   --text: #241f16;
   --text-muted: #6b6354;
   --border: #e3dccb;
-  --primary: #b7791f;
-  --primary-strong: #8f5b10;
+  --primary: #9a6414;
+  --primary-strong: #7a4d0d;
   --primary-contrast: #ffffff;
-  --accent: #7b5ea7;
-  --ok: #2f7d4f;
-  --warn: #b45309;
-  --danger: #b42318;
+  --accent: #6b4f96;
+  --ok: #276a43;
+  --warn: #9a4508;
+  --danger: #a3211a;
   --focus: #2563eb;
   /* Charts (6.6): validated series hue, recessive chrome, fixed status palette. */
   --viz-series: #2a78d6;
@@ -25,6 +26,9 @@
   --status-warning: #fab219;
   --status-serious: #ec835a;
   --status-critical: #d03b3b;
+  /* App shell (12.1): the menu sits one step off the workspace background. */
+  --sidebar: #f6f1e5;
+  --sidebar-accent: #ece4d1;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -46,6 +50,8 @@
     --viz-series: #3987e5;
     --viz-grid: #2c2c2a;
     --viz-axis: #383835;
+    --sidebar: #1a1813;
+    --sidebar-accent: #2e2920;
   }
 }
 
@@ -72,8 +78,22 @@
   --color-status-warning: var(--status-warning);
   --color-status-serious: var(--status-serious);
   --color-status-critical: var(--status-critical);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-accent: var(--sidebar-accent);
   --font-sans: var(--font-inter);
   --font-display: var(--font-outfit);
+}
+
+/* The menu shows its labels when expanded on lg+, and always in the phone drawer (12.1). */
+@custom-variant sb-wide {
+  @media (width >= 64rem) {
+    &:where([data-sidebar="expanded"], [data-sidebar="expanded"] *) {
+      @slot;
+    }
+  }
+  &:where([data-sidebar="drawer"], [data-sidebar="drawer"] *) {
+    @slot;
+  }
 }
 
 body {
@@ -84,4 +104,22 @@ body {
 :focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 2px;
+}
+
+/* iOS zooms into a focused field under 16px; outside a layer, this wins over text-sm (12.2). */
+@media (pointer: coarse) {
+  input,
+  select,
+  textarea {
+    font-size: max(16px, 1em);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
 }

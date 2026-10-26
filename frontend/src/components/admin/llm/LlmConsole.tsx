@@ -10,7 +10,8 @@ import { ModelsPanel, ProvidersPanel } from "@/components/admin/llm/Catalog";
 import { RoutingPanel } from "@/components/admin/llm/Routing";
 import { Badge } from "@/components/ui/Badge";
 import { Card } from "@/components/ui/Card";
-import { cn } from "@/components/ui/cn";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { TabPanel, Tabs } from "@/components/ui/Tabs";
 import { StepUpRequired } from "@/lib/api";
 import { PURPOSES, useLlmStatus, useModels, useProviders, useRevisions, type LlmStatus } from "@/lib/llm-admin";
 
@@ -52,48 +53,28 @@ export function LlmConsole() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="font-display text-2xl font-semibold">Modele AI</h1>
-          <p className="text-sm text-text-muted">
-            Które modele obsługują poszczególne funkcje. Zmiany wchodzą w życie bez restartu, po teście i aktywacji.
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2 text-sm" aria-label="Stan konfiguracji">
-          <Badge tone="primary">Aktywna rewizja: {s.active_revision ?? "—"}</Badge>
-          {s.process_revision !== s.active_revision && (
-            <Badge tone="warn" title="Ten proces API jeszcze nie przeładował konfiguracji">
-              Serwer używa: {s.process_revision === 0 ? ".env" : `rewizji ${s.process_revision}`}
-            </Badge>
-          )}
-          <Badge tone={s.allow_cloud ? "warn" : "ok"}>{s.allow_cloud ? "Chmura dozwolona" : "Tylko modele lokalne"}</Badge>
-          {s.config_source === "env" && <Badge tone="danger">Tryb .env: zmiany z panelu są ignorowane</Badge>}
-        </div>
-      </div>
+      <PageHeader
+        title="Modele AI"
+        description="Które modele obsługują poszczególne funkcje. Zmiany wchodzą w życie bez restartu, po teście i aktywacji."
+        actions={
+          <div className="flex flex-wrap gap-2 text-sm" aria-label="Stan konfiguracji">
+            <Badge tone="primary">Aktywna rewizja: {s.active_revision ?? "—"}</Badge>
+            {s.process_revision !== s.active_revision && (
+              <Badge tone="warn" title="Ten proces API jeszcze nie przeładował konfiguracji">
+                Serwer używa: {s.process_revision === 0 ? ".env" : `rewizji ${s.process_revision}`}
+              </Badge>
+            )}
+            <Badge tone={s.allow_cloud ? "warn" : "ok"}>{s.allow_cloud ? "Chmura dozwolona" : "Tylko modele lokalne"}</Badge>
+            {s.config_source === "env" && <Badge tone="danger">Tryb .env: zmiany z panelu są ignorowane</Badge>}
+          </div>
+        }
+      />
 
       <MissingModels status={s} />
 
-      <div role="tablist" aria-label="Sekcje" className="flex flex-wrap gap-1 border-b border-border">
-        {TABS.map((t) => (
-          <button
-            key={t.key}
-            id={`tab-${t.key}`}
-            type="button"
-            role="tab"
-            aria-selected={tab === t.key}
-            aria-controls={`panel-${t.key}`}
-            onClick={() => setTab(t.key)}
-            className={cn(
-              "-mb-px border-b-2 px-4 py-2 text-sm",
-              tab === t.key ? "border-primary font-medium text-text" : "border-transparent text-text-muted hover:text-text",
-            )}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
+      <Tabs tabs={TABS} value={tab} onChange={setTab} label="Sekcje" />
 
-      <section role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`}>
+      <TabPanel tab={tab} className="min-w-0">
         {tab === "routing" && (
           <RoutingPanel status={s} providers={providers.data} models={models.data} revisions={revisions.data} />
         )}
@@ -102,7 +83,7 @@ export function LlmConsole() {
         {tab === "index" && <IndexPanel />}
         {tab === "playground" && <PlaygroundPanel status={s} providers={providers.data} models={models.data} />}
         {tab === "history" && <HistoryPanel revisions={revisions.data} />}
-      </section>
+      </TabPanel>
     </div>
   );
 }

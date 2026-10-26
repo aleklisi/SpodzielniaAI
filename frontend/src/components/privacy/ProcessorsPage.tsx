@@ -2,6 +2,7 @@
 
 import { Badge } from "@/components/ui/Badge";
 import { Card } from "@/components/ui/Card";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { PURPOSE_TEXT, useProcessors, type Processor } from "@/lib/processors";
 
 const DATE = new Intl.DateTimeFormat("pl-PL", { dateStyle: "long" });
@@ -14,7 +15,7 @@ function ProcessorCard({ p }: { p: Processor }) {
         <Badge tone={p.on_server ? "primary" : "neutral"}>{p.on_server ? "Serwer spółdzielni" : "Chmura"}</Badge>
         <span className="text-xs text-text-muted">{p.host}</span>
       </div>
-      <dl className="grid grid-cols-[max-content_1fr] gap-x-4 gap-y-1 text-sm">
+      <dl className="grid grid-cols-[max-content_minmax(0,1fr)] gap-x-4 gap-y-1 text-sm break-words">
         <dt className="text-text-muted">Region</dt>
         <dd>{p.region ?? "—"}</dd>
         <dt className="text-text-muted">Przechowywanie</dt>
@@ -42,19 +43,15 @@ export function ProcessorsPage() {
   const data = processors.data;
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="font-display text-2xl font-semibold">Gdzie przetwarzane są Twoje dane</h1>
-        <p className="max-w-2xl text-sm text-text-muted">
-          Twoje notatki, nagrania, zdjęcia i dokumenty trafiają do modeli AI wyłącznie u dostawców dopuszczonych do danych
-          prywatnych przez administratora spółdzielni (w granicach ustalonych przez operatora serwera). Jeśli żaden dostawca nie
-          jest dopuszczony do danej funkcji, ta funkcja jest wyłączona: nic nie trafia gdzie indziej.
-        </p>
-      </div>
+      <PageHeader
+        title="Gdzie przetwarzane są Twoje dane"
+        description="Twoje notatki, nagrania, zdjęcia i dokumenty trafiają do modeli AI wyłącznie u dostawców dopuszczonych do danych prywatnych przez administratora spółdzielni (w granicach ustalonych przez operatora serwera). Jeśli żaden dostawca nie jest dopuszczony do danej funkcji, ta funkcja jest wyłączona: nic nie trafia gdzie indziej."
+      />
       {processors.isLoading && <p className="text-sm text-text-muted">Wczytywanie…</p>}
       {processors.isError && <p className="text-sm text-danger">Nie udało się wczytać listy.</p>}
       {data && (
         <>
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid gap-4 @3xl:grid-cols-2">
             {data.processors.map((p) => (
               <ProcessorCard key={p.name} p={p} />
             ))}

@@ -31,7 +31,9 @@ test("hostile Markdown in a canonical article stays inert", async ({ page }) => 
   await login(page, "member1", `/wiki/${article_id}`);
   const article = page.locator("article");
   await expect(article.getByText("kwasem szczawiowym")).toBeVisible();
-  expect(await article.locator("script, img, iframe, svg, object, embed").count()).toBe(0);
+  // The paragraphs' content, not the author margin (its icon is the page's own SVG).
+  const content = article.locator("section > :not(aside)");
+  expect(await content.locator("script, img, iframe, svg, object, embed").count()).toBe(0);
   for (const href of await article.locator("a").evaluateAll((as) => as.map((a) => a.getAttribute("href") ?? ""))) {
     expect(href).toMatch(/^(https:|\/|#)/);
   }

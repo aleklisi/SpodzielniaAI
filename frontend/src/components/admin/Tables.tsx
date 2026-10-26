@@ -5,6 +5,7 @@ import { useState } from "react";
 import { LevelBadge } from "@/components/admin/LevelBadge";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/components/ui/cn";
+import { DataTable, TBody, Td, Th, THead, Tr } from "@/components/ui/DataTable";
 import { EVENT_LABELS, useAuditPage, type AuditEntry, type AuditFilters, type UserCoverage } from "@/lib/admin";
 
 const TIME = new Intl.DateTimeFormat("pl-PL", { dateStyle: "short", timeStyle: "medium" });
@@ -22,59 +23,56 @@ export function UsersTable({
   onUnlock: (user: UserCoverage) => void;
 }) {
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-left text-sm">
-        <caption className="sr-only">Konta według ryzyka</caption>
-        <thead className="text-text-muted">
-          <tr>
-            <th className="py-2 pr-3 font-medium">Konto</th>
-            <th className="py-2 pr-3 font-medium">Ryzyko</th>
-            <th className="py-2 pr-3 text-right font-medium">24 h</th>
-            <th className="py-2 pr-3 text-right font-medium">7 dni</th>
-            <th className="py-2 pr-3 text-right font-medium">30 dni</th>
-            <th className="py-2 pr-3 text-right font-medium">Bloki (7 dni)</th>
-            <th className="py-2 font-medium">Stan</th>
-          </tr>
-        </thead>
-        <tbody className="tabular-nums">
-          {users.map((u) => (
-            <tr key={u.user_id} className={cn("border-t border-border", selected === u.user_id && "bg-surface-muted")}>
-              <td className="py-2 pr-3">
-                <button type="button" className="text-left hover:text-primary-strong" onClick={() => onSelect(u.user_id)}>
-                  {u.display_name ?? u.email ?? u.user_id.slice(0, 8)}
-                </button>
-                <a
-                  href={`/admin/users?user=${u.user_id}`}
-                  className="ml-2 text-xs text-text-muted hover:text-primary-strong"
-                  aria-label={`Konto: ${u.display_name ?? u.email ?? u.user_id.slice(0, 8)}`}
-                >
-                  konto
-                </a>
-              </td>
-              <td className="py-2 pr-3">
-                <LevelBadge level={u.level} /> <span className="text-xs text-text-muted">{u.risk.toFixed(2)}</span>
-              </td>
-              <td className="py-2 pr-3 text-right">{pct(u.ratios["24h"] ?? 0)}</td>
-              <td className="py-2 pr-3 text-right">{pct(u.ratios["7d"] ?? 0)}</td>
-              <td className="py-2 pr-3 text-right">{pct(u.ratios["30d"] ?? 0)}</td>
-              <td className="py-2 pr-3 text-right">{u.blocks["7d"] ?? 0}</td>
-              <td className="py-2">
-                {u.is_locked ? (
-                  <span className="inline-flex items-center gap-2">
-                    <span className="text-xs">Zablokowane ({u.locked_reason ?? "?"})</span>
-                    <Button variant="secondary" className="px-2 py-1 text-xs" onClick={() => onUnlock(u)}>
-                      Odblokuj
-                    </Button>
-                  </span>
-                ) : (
-                  <span className="text-xs text-text-muted">aktywne</span>
-                )}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+    <DataTable caption="Konta według ryzyka">
+      <THead>
+        <Tr>
+          <Th>Konto</Th>
+          <Th>Ryzyko</Th>
+          <Th align="right">24 h</Th>
+          <Th align="right">7 dni</Th>
+          <Th align="right">30 dni</Th>
+          <Th align="right">Bloki (7 dni)</Th>
+          <Th>Stan</Th>
+        </Tr>
+      </THead>
+      <TBody>
+        {users.map((u) => (
+          <Tr key={u.user_id} selected={selected === u.user_id}>
+            <Td primary>
+              <button type="button" className="text-left hover:text-primary-strong" onClick={() => onSelect(u.user_id)}>
+                {u.display_name ?? u.email ?? u.user_id.slice(0, 8)}
+              </button>
+              <a
+                href={`/admin/users?user=${u.user_id}`}
+                className="ml-2 text-xs text-text-muted hover:text-primary-strong"
+                aria-label={`Konto: ${u.display_name ?? u.email ?? u.user_id.slice(0, 8)}`}
+              >
+                konto
+              </a>
+            </Td>
+            <Td label="Ryzyko">
+              <LevelBadge level={u.level} /> <span className="text-xs text-text-muted">{u.risk.toFixed(2)}</span>
+            </Td>
+            <Td label="24 h" align="right">{pct(u.ratios["24h"] ?? 0)}</Td>
+            <Td label="7 dni" align="right">{pct(u.ratios["7d"] ?? 0)}</Td>
+            <Td label="30 dni" align="right">{pct(u.ratios["30d"] ?? 0)}</Td>
+            <Td label="Bloki (7 dni)" align="right">{u.blocks["7d"] ?? 0}</Td>
+            <Td label="Stan">
+              {u.is_locked ? (
+                <span className="inline-flex items-center gap-2">
+                  <span className="text-xs">Zablokowane ({u.locked_reason ?? "?"})</span>
+                  <Button variant="secondary" size="sm" onClick={() => onUnlock(u)}>
+                    Odblokuj
+                  </Button>
+                </span>
+              ) : (
+                <span className="text-xs text-text-muted">aktywne</span>
+              )}
+            </Td>
+          </Tr>
+        ))}
+      </TBody>
+    </DataTable>
   );
 }
 
@@ -168,36 +166,43 @@ export function AuditLog({ initialActor = "" }: { initialActor?: string }) {
             value={filters.actor}
             onChange={(event) => change({ actor: event.target.value })}
             placeholder="UUID"
-            className="w-80 rounded-lg border border-border bg-surface px-2 py-1.5 font-mono text-xs"
+            className="w-full rounded-lg border border-border bg-surface px-2 py-1.5 font-mono text-xs @xl:w-80"
           />
         </label>
       </div>
-      <div className={cn("overflow-x-auto transition-opacity", page.isFetching && page.isPlaceholderData && "opacity-50")}>
-        <table className="w-full text-left text-sm">
-          <caption className="sr-only">Wpisy dziennika audytu</caption>
-          <thead className="text-text-muted">
-            <tr>
-              <th className="py-2 pr-3 font-medium">#</th>
-              <th className="py-2 pr-3 font-medium">Czas</th>
-              <th className="py-2 pr-3 font-medium">Zdarzenie</th>
-              <th className="py-2 pr-3 font-medium">Konto</th>
-              <th className="py-2 font-medium">Szczegóły</th>
-            </tr>
-          </thead>
-          <tbody>
+      <div className={cn("transition-opacity", page.isFetching && page.isPlaceholderData && "opacity-50")}>
+        <DataTable caption="Wpisy dziennika audytu">
+          <THead>
+            <Tr>
+              <Th>#</Th>
+              <Th>Czas</Th>
+              <Th>Zdarzenie</Th>
+              <Th>Konto</Th>
+              <Th>Szczegóły</Th>
+            </Tr>
+          </THead>
+          <TBody>
             {page.data?.items.map((e) => (
-              <tr key={e.id} className="border-t border-border align-top">
-                <td className="py-2 pr-3 tabular-nums text-text-muted">{e.id}</td>
-                <td className="py-2 pr-3 whitespace-nowrap">{TIME.format(new Date(e.occurred_at))}</td>
-                <td className="py-2 pr-3">{EVENT_LABELS[e.event_type] ?? e.event_type}</td>
-                <td className="py-2 pr-3 font-mono text-xs">{e.actor_id?.slice(0, 8) ?? "–"}</td>
-                <td className="py-2">
+              <Tr key={e.id}>
+                <Td label="#" className="text-text-muted tabular-nums">
+                  {e.id}
+                </Td>
+                <Td label="Czas" className="md:whitespace-nowrap">
+                  {TIME.format(new Date(e.occurred_at))}
+                </Td>
+                <Td primary className="max-md:order-first">
+                  {EVENT_LABELS[e.event_type] ?? e.event_type}
+                </Td>
+                <Td label="Konto" className="font-mono text-xs">
+                  {e.actor_id?.slice(0, 8) ?? "–"}
+                </Td>
+                <Td label="Szczegóły" className="min-w-0 break-words">
                   <Payload payload={e.payload} />
-                </td>
-              </tr>
+                </Td>
+              </Tr>
             ))}
-          </tbody>
-        </table>
+          </TBody>
+        </DataTable>
         {page.data?.items.length === 0 && <p className="py-3 text-sm text-text-muted">Brak wpisów.</p>}
       </div>
       <div className="flex gap-2">

@@ -6,6 +6,7 @@ import { StepUpNotice } from "@/components/auth/RequireRole";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
+import { DataTable, TBody, Td, Th, THead, Tr } from "@/components/ui/DataTable";
 import { StepUpRequired } from "@/lib/api";
 import { useDomains, useLabels } from "@/lib/atlas";
 import { downloadUrl, EXPORT_STATUS, exportError, useCreateExport, useExports } from "@/lib/atlas-export";
@@ -143,37 +144,36 @@ export function ExportPanel() {
         </Card>
       )}
       {exports.data && exports.data.exports.length > 0 && (
-        <table className="w-full text-left text-sm">
-          <caption className="sr-only">Eksporty</caption>
-          <thead className="text-text-muted">
-            <tr>
-              <th className="py-1">Utworzony</th>
-              <th>Dziedzina</th>
-              <th>Format</th>
-              <th>Zdjęcia</th>
-              <th>Stan</th>
-              <th>
+        <DataTable caption="Eksporty">
+          <THead>
+            <Tr>
+              <Th>Utworzony</Th>
+              <Th>Dziedzina</Th>
+              <Th>Format</Th>
+              <Th>Zdjęcia</Th>
+              <Th>Stan</Th>
+              <Th>
                 <span className="sr-only">Pobierz</span>
-              </th>
-            </tr>
-          </thead>
-          <tbody>
+              </Th>
+            </Tr>
+          </THead>
+          <TBody>
             {exports.data.exports.map((e) => (
-              <tr key={e.id} className="border-t border-border">
-                <td className="py-2">
+              <Tr key={e.id}>
+                <Td primary>
                   {DATE.format(new Date(e.created_at))}
-                  <span className="block text-xs text-text-muted">{e.created_by_name}</span>
-                </td>
-                <td>{e.domain_name}</td>
-                <td>{e.format}</td>
-                <td>
+                  <span className="block text-xs font-normal text-text-muted">{e.created_by_name}</span>
+                </Td>
+                <Td label="Dziedzina">{e.domain_name}</Td>
+                <Td label="Format">{e.format}</Td>
+                <Td label="Zdjęcia">
                   {e.image_count} ({e.region_count} oznaczeń)
                   {e.revoked_since > 0 && <span className="block text-xs text-warn">wycofane od eksportu: {e.revoked_since}</span>}
-                </td>
-                <td>
+                </Td>
+                <Td label="Stan">
                   <Badge tone={e.status === "READY" ? "ok" : e.status === "FAILED" ? "danger" : "neutral"}>{EXPORT_STATUS[e.status]}</Badge>
-                </td>
-                <td>
+                </Td>
+                <Td>
                   {e.status === "READY" && tokens[e.id] ? (
                     <a
                       className="font-medium text-primary-strong underline"
@@ -185,11 +185,11 @@ export function ExportPanel() {
                   ) : e.status === "READY" ? (
                     <span className="text-xs text-text-muted">link pokazany przy tworzeniu</span>
                   ) : null}
-                </td>
-              </tr>
+                </Td>
+              </Tr>
             ))}
-          </tbody>
-        </table>
+          </TBody>
+        </DataTable>
       )}
     </section>
   );

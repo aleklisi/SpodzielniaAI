@@ -1,5 +1,6 @@
 "use client";
 
+import { HandHeart } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 
@@ -7,6 +8,10 @@ import { RevokeDialog } from "@/components/contributions/RevokeDialog";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
+import { DataTable, TBody, Td, Th, THead, Tr } from "@/components/ui/DataTable";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { Loading } from "@/components/ui/Skeleton";
 import { StatusPill } from "@/components/ui/StatusPill";
 import { useToast } from "@/components/ui/Toast";
 import { blocksWord, describeResult, useConsent, useHistory, type ConsentAction, type HistoryEntry } from "@/lib/contributions";
@@ -43,13 +48,10 @@ export function ContributionsPanel() {
   const live = rows.filter((c) => counts(c).ACTIVE + counts(c).SUSPENDED > 0);
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="font-display text-2xl font-semibold">Moje kontrybucje</h1>
-        <p className="max-w-2xl text-sm text-text-muted">
-          Twój wkład w bazę wiedzy pozostaje Twój. Możesz go w każdej chwili wstrzymać (ukryć i wyłączyć z odpowiedzi
-          asystenta) albo trwale usunąć.
-        </p>
-      </div>
+      <PageHeader
+        title="Moje kontrybucje"
+        description="Twój wkład w bazę wiedzy pozostaje Twój. Możesz go w każdej chwili wstrzymać (ukryć i wyłączyć z odpowiedzi asystenta) albo trwale usunąć."
+      />
       {live.length > 0 && (
         <div className="flex flex-wrap gap-2" aria-label="Wszystkie kontrybucje">
           <Button variant="secondary" busy={pending === "all:suspend"} onClick={() => act("suspend", null, "all:suspend")}>
@@ -66,78 +68,76 @@ export function ContributionsPanel() {
           </Button>
         </div>
       )}
-      {contributions.isPending && <p className="text-text-muted">Ładowanie…</p>}
-      {contributions.data?.length === 0 && <p className="text-text-muted">Nie masz jeszcze kontrybucji w bazie wiedzy.</p>}
+      {contributions.isPending && <Loading />}
+      {contributions.data?.length === 0 && <EmptyState icon={HandHeart} title="Nie masz jeszcze kontrybucji w bazie wiedzy." />}
       {rows.length > 0 && (
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead className="text-text-muted">
-              <tr>
-                <th className="py-2 pr-3 font-medium">Artykuł</th>
-                <th className="py-2 pr-3 font-medium">Status</th>
-                <th className="py-2 pr-3 font-medium">Twoje bloki</th>
-                <th className="py-2 font-medium">Działania</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((c) => {
-                const n = counts(c);
-                const key = c.article_id;
-                return (
-                  <tr key={key} className="border-t border-border align-top">
-                    <td className="py-3 pr-3">
-                      <Link href={`/wiki/${c.article_id}`} className="font-medium hover:text-primary-strong">
-                        {c.title}
-                      </Link>
-                      {c.co_authored && (
-                        <Badge tone="accent" className="ml-2">
-                          współtworzony
-                        </Badge>
+        <DataTable label="Kontrybucje">
+          <THead>
+            <Tr>
+              <Th>Artykuł</Th>
+              <Th>Status</Th>
+              <Th>Twoje bloki</Th>
+              <Th>Działania</Th>
+            </Tr>
+          </THead>
+          <TBody>
+            {rows.map((c) => {
+              const n = counts(c);
+              const key = c.article_id;
+              return (
+                <Tr key={key}>
+                  <Td primary className="md:py-3">
+                    <Link href={`/wiki/${c.article_id}`} className="font-medium hover:text-primary-strong">
+                      {c.title}
+                    </Link>
+                    {c.co_authored && (
+                      <Badge tone="accent" className="ml-2">
+                        współtworzony
+                      </Badge>
+                    )}
+                  </Td>
+                  <Td label="Status" className="md:py-3">
+                    <StatusPill status={c.status} />
+                  </Td>
+                  <Td label="Twoje bloki" className="md:py-3">
+                    {n.ACTIVE > 0 && <div>{n.ACTIVE} aktywne</div>}
+                    {n.SUSPENDED > 0 && <div className="text-warn">{n.SUSPENDED} wstrzymane</div>}
+                    {n.REVOKED > 0 && <div className="text-text-muted">{n.REVOKED} usunięte</div>}
+                  </Td>
+                  <Td className="md:py-3">
+                    <div className="flex flex-wrap gap-2 max-md:mt-1">
+                      {n.ACTIVE > 0 && (
+                        <Button variant="secondary" busy={pending === `${key}:suspend`} onClick={() => act("suspend", [key], `${key}:suspend`)}>
+                          Wstrzymaj
+                        </Button>
                       )}
-                    </td>
-                    <td className="py-3 pr-3">
-                      <StatusPill status={c.status} />
-                    </td>
-                    <td className="py-3 pr-3">
-                      {n.ACTIVE > 0 && <div>{n.ACTIVE} aktywne</div>}
-                      {n.SUSPENDED > 0 && <div className="text-warn">{n.SUSPENDED} wstrzymane</div>}
-                      {n.REVOKED > 0 && <div className="text-text-muted">{n.REVOKED} usunięte</div>}
-                    </td>
-                    <td className="py-3">
-                      <div className="flex flex-wrap gap-2">
-                        {n.ACTIVE > 0 && (
-                          <Button variant="secondary" busy={pending === `${key}:suspend`} onClick={() => act("suspend", [key], `${key}:suspend`)}>
-                            Wstrzymaj
-                          </Button>
-                        )}
-                        {n.SUSPENDED > 0 && (
-                          <Button variant="secondary" busy={pending === `${key}:resume`} onClick={() => act("resume", [key], `${key}:resume`)}>
-                            Wznów
-                          </Button>
-                        )}
-                        {n.ACTIVE + n.SUSPENDED > 0 && (
-                          <Button
-                            variant="ghost"
-                            className="text-danger"
-                            onClick={() =>
-                              setRevoke({
-                                ids: [key],
-                                label: `${n.ACTIVE + n.SUSPENDED} ${blocksWord(n.ACTIVE + n.SUSPENDED)} w „${c.title}”`,
-                                coAuthored: c.co_authored,
-                              })
-                            }
-                          >
-                            Usuń trwale
-                          </Button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                      {n.SUSPENDED > 0 && (
+                        <Button variant="secondary" busy={pending === `${key}:resume`} onClick={() => act("resume", [key], `${key}:resume`)}>
+                          Wznów
+                        </Button>
+                      )}
+                      {n.ACTIVE + n.SUSPENDED > 0 && (
+                        <Button
+                          variant="ghost"
+                          className="text-danger"
+                          onClick={() =>
+                            setRevoke({
+                              ids: [key],
+                              label: `${n.ACTIVE + n.SUSPENDED} ${blocksWord(n.ACTIVE + n.SUSPENDED)} w „${c.title}”`,
+                              coAuthored: c.co_authored,
+                            })
+                          }
+                        >
+                          Usuń trwale
+                        </Button>
+                      )}
+                    </div>
+                  </Td>
+                </Tr>
+              );
+            })}
+          </TBody>
+        </DataTable>
       )}
       <History />
       <RevokeDialog

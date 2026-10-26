@@ -6,6 +6,7 @@ import { StepUpNotice } from "@/components/auth/RequireRole";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
+import { DataTable, TBody, Td, Th, THead, Tr } from "@/components/ui/DataTable";
 import { Dialog } from "@/components/ui/Dialog";
 import { useToast } from "@/components/ui/Toast";
 import { StepUpRequired } from "@/lib/api";
@@ -105,78 +106,76 @@ export function ProvidersPanel({ status, providers, models }: { status: LlmStatu
       <div className="flex justify-end">
         <Button onClick={() => setEditing("new")}>Dodaj dostawcę</Button>
       </div>
-      <div className="overflow-x-auto">
-        <table className="w-full text-left text-sm">
-          <thead className="text-text-muted">
-            <tr>
-              <th className="py-2 pr-3">Nazwa</th>
-              <th className="py-2 pr-3">Rodzaj</th>
-              <th className="py-2 pr-3">Adres</th>
-              <th className="py-2 pr-3">Klucz API</th>
-              <th className="py-2 pr-3">Dane prywatne</th>
-              <th className="py-2 pr-3">Stan</th>
-              <th className="py-2">Akcje</th>
-            </tr>
-          </thead>
-          <tbody>
-            {providers.map((p) => {
-              const result = tests[p.id];
-              const blocked = removalBlocked(p);
-              return (
-                <tr key={p.id} className="border-t border-border align-top">
-                  <td className="py-2 pr-3 font-medium">{p.name}</td>
-                  <td className="py-2 pr-3">
-                    <KindBadge kind={p.kind} />
-                  </td>
-                  <td className="py-2 pr-3">
-                    <code className="break-all">{p.base_url}</code>
-                  </td>
-                  <td className="py-2 pr-3">{keyLabel(p)}</td>
-                  <td className="py-2 pr-3">
-                    <ClearanceCell provider={p} onClear={() => setClearing(p)} onUnclear={() => setUnclearing(p)} />
-                  </td>
-                  <td className="py-2 pr-3">
-                    <div className="flex flex-wrap gap-1">
-                      {p.in_active && <Badge tone="primary">W aktywnej konfiguracji</Badge>}
-                      {p.disabled && <Badge>Wyłączony</Badge>}
-                      {!p.allowed && <Badge tone="danger">Poza listą dozwolonych</Badge>}
-                    </div>
-                    {result !== undefined && <ConnectionResult result={result} />}
-                  </td>
-                  <td className="py-2">
-                    <div className="flex flex-wrap gap-1">
-                      <Button
-                        variant="secondary"
-                        busy={test.isPending && test.variables === p.id}
-                        disabled={p.kind === "CLOUD" && !status.allow_cloud}
-                        onClick={() => void runTest(p)}
-                      >
-                        Testuj połączenie
-                      </Button>
-                      <Button variant="ghost" onClick={() => setEditing(p)}>
-                        Edytuj
-                      </Button>
-                      <Button variant="ghost" disabled={p.in_active && !p.disabled} onClick={() => void toggle(p)}>
-                        {p.disabled ? "Włącz" : "Wyłącz"}
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        disabled={blocked !== null}
-                        title={blocked ?? undefined}
-                        aria-label={`Usuń dostawcę ${p.name}`}
-                        onClick={() => setRemoving(p)}
-                      >
-                        Usuń
-                      </Button>
-                    </div>
-                    {blocked && <p className="mt-1 text-xs text-text-muted">{blocked}</p>}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+      <DataTable>
+        <THead>
+          <Tr>
+            <Th>Nazwa</Th>
+            <Th>Rodzaj</Th>
+            <Th>Adres</Th>
+            <Th>Klucz API</Th>
+            <Th>Dane prywatne</Th>
+            <Th>Stan</Th>
+            <Th>Akcje</Th>
+          </Tr>
+        </THead>
+        <TBody>
+          {providers.map((p) => {
+            const result = tests[p.id];
+            const blocked = removalBlocked(p);
+            return (
+              <Tr key={p.id}>
+                <Td primary className="font-medium">{p.name}</Td>
+                <Td label="Rodzaj">
+                  <KindBadge kind={p.kind} />
+                </Td>
+                <Td label="Adres">
+                  <code className="break-all">{p.base_url}</code>
+                </Td>
+                <Td label="Klucz API">{keyLabel(p)}</Td>
+                <Td label="Dane prywatne">
+                  <ClearanceCell provider={p} onClear={() => setClearing(p)} onUnclear={() => setUnclearing(p)} />
+                </Td>
+                <Td label="Stan">
+                  <div className="flex flex-wrap gap-1">
+                    {p.in_active && <Badge tone="primary">W aktywnej konfiguracji</Badge>}
+                    {p.disabled && <Badge>Wyłączony</Badge>}
+                    {!p.allowed && <Badge tone="danger">Poza listą dozwolonych</Badge>}
+                  </div>
+                  {result !== undefined && <ConnectionResult result={result} />}
+                </Td>
+                <Td>
+                  <div className="flex flex-wrap gap-1">
+                    <Button
+                      variant="secondary"
+                      busy={test.isPending && test.variables === p.id}
+                      disabled={p.kind === "CLOUD" && !status.allow_cloud}
+                      onClick={() => void runTest(p)}
+                    >
+                      Testuj połączenie
+                    </Button>
+                    <Button variant="ghost" onClick={() => setEditing(p)}>
+                      Edytuj
+                    </Button>
+                    <Button variant="ghost" disabled={p.in_active && !p.disabled} onClick={() => void toggle(p)}>
+                      {p.disabled ? "Włącz" : "Wyłącz"}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      disabled={blocked !== null}
+                      title={blocked ?? undefined}
+                      aria-label={`Usuń dostawcę ${p.name}`}
+                      onClick={() => setRemoving(p)}
+                    >
+                      Usuń
+                    </Button>
+                  </div>
+                  {blocked && <p className="mt-1 text-xs text-text-muted">{blocked}</p>}
+                </Td>
+              </Tr>
+            );
+          })}
+        </TBody>
+      </DataTable>
       <ProviderDialog status={status} provider={editing} onClose={() => setEditing(null)} />
       <ClearanceDialog provider={clearing} onClose={() => setClearing(null)} />
       <UnclearDialog provider={unclearing} onClose={() => setUnclearing(null)} />
@@ -599,75 +598,73 @@ export function ModelsPanel({ status, providers, models }: { status: LlmStatus; 
   return (
     <div className="flex flex-col gap-4">
       <AddModel status={status} providers={providers} />
-      <div className="overflow-x-auto">
-        <table className="w-full text-left text-sm">
-          <thead className="text-text-muted">
-            <tr>
-              <th className="py-2 pr-3">Model</th>
-              <th className="py-2 pr-3">Typ</th>
-              <th className="py-2 pr-3">Parametry</th>
-              <th className="py-2 pr-3">Ostatni test</th>
-              <th className="py-2">Akcje</th>
-            </tr>
-          </thead>
-          <tbody>
-            {models.map((m) => {
-              const provider = byProvider.get(m.provider_id);
-              const cloudBlocked = provider?.kind === "CLOUD" && !status.allow_cloud;
-              return (
-                <tr key={m.id} className="border-t border-border align-top">
-                  <td className="py-2 pr-3">
-                    <div className="font-medium">
-                      {provider?.name}/{m.model_name}
-                    </div>
-                    <div className="mt-1 flex flex-wrap gap-1">
-                      {provider && <KindBadge kind={provider.kind} />}
-                      {m.in_active && <Badge tone="primary">W aktywnej konfiguracji</Badge>}
-                      {m.disabled && <Badge>Wyłączony</Badge>}
-                    </div>
-                  </td>
-                  <td className="py-2 pr-3">{CAPABILITIES[m.capability]}</td>
-                  <td className="py-2 pr-3 text-xs text-text-muted">
-                    {m.capability === "EMBED" || m.capability === "IMAGE_EMBED"
-                      ? `wymiar ${m.embed_dimension ?? "?"}`
-                      : m.capability === "TRANSCRIBE"
-                        ? "nagrania po polsku"
-                        : `temp. ${m.temperature ?? "dom."} · max ${m.max_tokens ?? "dom."} tok.`}
-                  </td>
-                  <td className="py-2 pr-3">
-                    {m.last_probe_at ? (
-                      <>
-                        <span className={m.last_probe_ok ? "text-ok" : "text-danger"}>
-                          {m.last_probe_ok ? "Zaliczony" : "Niezaliczony"}
-                        </span>{" "}
-                        <span className="text-xs text-text-muted">{new Date(m.last_probe_at).toLocaleString("pl-PL")}</span>
-                        {m.last_probe_report && <ProbeReport report={m.last_probe_report} />}
-                      </>
-                    ) : (
-                      <span className="text-text-muted">Nie testowano</span>
-                    )}
-                  </td>
-                  <td className="py-2">
-                    <div className="flex flex-wrap gap-1">
-                      <Button
-                        variant="secondary"
-                        busy={probe.isPending && probe.variables === m.id}
-                        disabled={cloudBlocked || m.disabled}
-                        onClick={() => void runProbe(m)}
-                      >
-                        Testuj model
-                      </Button>
-                      <Button variant="ghost" disabled={m.in_active && !m.disabled} onClick={() => void toggle(m)}>
-                        {m.disabled ? "Włącz" : "Wyłącz"}
-                      </Button>
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+      <DataTable>
+        <THead>
+          <Tr>
+            <Th>Model</Th>
+            <Th>Typ</Th>
+            <Th>Parametry</Th>
+            <Th>Ostatni test</Th>
+            <Th>Akcje</Th>
+          </Tr>
+        </THead>
+        <TBody>
+          {models.map((m) => {
+            const provider = byProvider.get(m.provider_id);
+            const cloudBlocked = provider?.kind === "CLOUD" && !status.allow_cloud;
+            return (
+              <Tr key={m.id}>
+                <Td primary>
+                  <div className="font-medium">
+                    {provider?.name}/{m.model_name}
+                  </div>
+                  <div className="mt-1 flex flex-wrap gap-1">
+                    {provider && <KindBadge kind={provider.kind} />}
+                    {m.in_active && <Badge tone="primary">W aktywnej konfiguracji</Badge>}
+                    {m.disabled && <Badge>Wyłączony</Badge>}
+                  </div>
+                </Td>
+                <Td label="Typ">{CAPABILITIES[m.capability]}</Td>
+                <Td label="Parametry" className="text-xs text-text-muted">
+                  {m.capability === "EMBED" || m.capability === "IMAGE_EMBED"
+                    ? `wymiar ${m.embed_dimension ?? "?"}`
+                    : m.capability === "TRANSCRIBE"
+                      ? "nagrania po polsku"
+                      : `temp. ${m.temperature ?? "dom."} · max ${m.max_tokens ?? "dom."} tok.`}
+                </Td>
+                <Td label="Ostatni test">
+                  {m.last_probe_at ? (
+                    <>
+                      <span className={m.last_probe_ok ? "text-ok" : "text-danger"}>
+                        {m.last_probe_ok ? "Zaliczony" : "Niezaliczony"}
+                      </span>{" "}
+                      <span className="text-xs text-text-muted">{new Date(m.last_probe_at).toLocaleString("pl-PL")}</span>
+                      {m.last_probe_report && <ProbeReport report={m.last_probe_report} />}
+                    </>
+                  ) : (
+                    <span className="text-text-muted">Nie testowano</span>
+                  )}
+                </Td>
+                <Td>
+                  <div className="flex flex-wrap gap-1">
+                    <Button
+                      variant="secondary"
+                      busy={probe.isPending && probe.variables === m.id}
+                      disabled={cloudBlocked || m.disabled}
+                      onClick={() => void runProbe(m)}
+                    >
+                      Testuj model
+                    </Button>
+                    <Button variant="ghost" disabled={m.in_active && !m.disabled} onClick={() => void toggle(m)}>
+                      {m.disabled ? "Włącz" : "Wyłącz"}
+                    </Button>
+                  </div>
+                </Td>
+              </Tr>
+            );
+          })}
+        </TBody>
+      </DataTable>
     </div>
   );
 }

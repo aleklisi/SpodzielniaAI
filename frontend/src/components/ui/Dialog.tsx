@@ -32,7 +32,8 @@ export function Dialog({
       ref={ref}
       onClose={onClose}
       aria-labelledby="dialog-title"
-      className="m-auto w-full max-w-lg rounded-xl border border-border bg-surface p-6 text-text backdrop:bg-black/50"
+      // A bottom sheet on a phone (12.2): full width, scrolls inside, clear of the home indicator.
+      className="m-auto max-h-[90dvh] w-full max-w-lg overflow-y-auto rounded-xl border border-border bg-surface p-6 text-text backdrop:bg-black/50 max-md:mb-0 max-md:max-w-none max-md:rounded-b-none max-md:pb-[max(1.5rem,env(safe-area-inset-bottom))]"
     >
       {open && (
         <>

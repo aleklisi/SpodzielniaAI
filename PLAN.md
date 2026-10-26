@@ -258,11 +258,11 @@ Rejestr historyjek dodanych poza Etapami 1–6: [docs/USER_STORIES_LOG.md](docs/
 
 ### Etap 12: Układ w stylu Open Notebook i obsługa urządzeń mobilnych (US-06)
 *Dokumentacja: [docs/implementation/12_APP_SHELL_RESPONSIVE.md](docs/implementation/12_APP_SHELL_RESPONSIVE.md)*
-- [ ] 12.1 Powłoka aplikacji: menu po lewej (sekcje, ikony, role, zwijanie do paska ikon zapamiętane w cookie), obszar roboczy po prawej, szuflada menu na telefonie
-- [ ] 12.2 Wspólne elementy interfejsu (`lucide-react`, `PageHeader`, `Tabs`, `DataTable`, `EmptyState`, `Skeleton`, okna dialogowe jako arkusz na telefonie, cele dotykowe 44px)
-- [ ] 12.3 Notatnik: lista notatek i obszar „Źródła | Notatka | Zapytaj” (kolumny na desktopie, zakładki na telefonie)
-- [ ] 12.4 Wiki, szkice i czat (kolumna do czytania, kompozytor przyklejony do dołu, cytowania na telefonie)
-- [ ] 12.5 Atlas, kontrybucje, „Twoje dane”, strona główna i strony błędów
-- [ ] 12.6 Recenzje eksperckie (kolejka i szczegóły, diff obok siebie albo jednolity)
-- [ ] 12.7 Konsole administratora (`/admin/llm`, `/admin/users`, `/admin/security`, `/admin/atlas`)
-- [ ] 12.8 E2E na telefonie i tablecie (scenariusz 14), brak przewijania w poziomie przy 360px, axe, przegląd bezpieczeństwa i dokumentacja
+- [x] 12.1 Powłoka aplikacji: menu po lewej (sekcje, ikony, role, zwijanie do paska ikon zapamiętane w cookie), obszar roboczy po prawej, szuflada menu na telefonie
+- [x] 12.2 Wspólne elementy interfejsu (`PageHeader`, `Tabs`, `DataTable`, `EmptyState`, `Skeleton`, okna dialogowe jako arkusz na telefonie, cele dotykowe 44px, `tailwind-merge`)
+- [x] 12.3 Notatnik: lista notatek i obszar „Źródła | Notatka | Zapytaj” (kolumny na desktopie, zakładki na telefonie)
+- [x] 12.4 Wiki, szkice i czat (kolumna do czytania, kompozytor przyklejony do dołu, przykładowe pytania)
+- [x] 12.5 Atlas, kontrybucje, „Twoje dane”, strona główna i strony błędów
+- [x] 12.6 Recenzje eksperckie (kolejka i szczegóły, jedno na raz na telefonie)
+- [x] 12.7 Konsole administratora (`/admin/llm`, `/admin/users`, `/admin/security`, `/admin/atlas`)
+- [x] 12.8 E2E na telefonie i tablecie (scenariusz 14), brak przewijania w poziomie przy 360px, axe, przegląd bezpieczeństwa i dokumentacja

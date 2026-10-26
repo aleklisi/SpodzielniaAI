@@ -61,7 +61,9 @@ test("note → wiki draft → expert approval → cited chat answer", async ({ b
 
   // A question about the approved article's first section (not a quote: the verbatim guard
   // would rightly refuse an answer that repeats the source).
-  const heading = (await member.locator("article section h2, article section h3").first().textContent())?.trim() || TOPIC;
+  // The model does not always write section headings: fall back to the topic instead of waiting.
+  const headings = member.locator("article section h2, article section h3");
+  const heading = ((await headings.count()) > 0 && (await headings.first().textContent())?.trim()) || TOPIC;
   const title = (await member.getByRole("heading", { level: 1 }).first().textContent())?.trim() || TOPIC;
   await member.goto("/chat");
   await member.getByLabel("Twoje pytanie").fill(`${title}: jakie są zalecenia spółdzielni w temacie: ${heading.toLowerCase()}?`);

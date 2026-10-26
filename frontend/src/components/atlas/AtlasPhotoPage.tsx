@@ -6,6 +6,7 @@ import { useState } from "react";
 import { ImageAnnotator, markColor } from "@/components/annotator/ImageAnnotator";
 import { Card } from "@/components/ui/Card";
 import { cn } from "@/components/ui/cn";
+import { Loading } from "@/components/ui/Skeleton";
 import { ApiError, RateLimited, SecurityLocked } from "@/lib/api";
 import { useAtlasPhoto } from "@/lib/atlas-gallery";
 import { atlasImageUrl } from "@/lib/atlas-submissions";
@@ -17,7 +18,7 @@ export function AtlasPhotoPage({ imageId }: { imageId: string }) {
   const photo = useAtlasPhoto(imageId);
   const [selected, setSelected] = useState<string | null>(null);
 
-  if (photo.isPending) return <p className="text-text-muted">Ładowanie zdjęcia…</p>;
+  if (photo.isPending) return <Loading label="Ładowanie zdjęcia…" rows={1} />;
   if (photo.isError || !photo.data) {
     const error = photo.error;
     const message =
@@ -44,7 +45,7 @@ export function AtlasPhotoPage({ imageId }: { imageId: string }) {
   const data = photo.data;
   const marks: Mark[] = data.regions.map((r) => ({ key: r.id, label: r.label, x: r.x, y: r.y, w: r.w, h: r.h, description: r.description ?? "", source: "USER" }));
   return (
-    <div className="grid gap-6 lg:grid-cols-[1fr_22rem]">
+    <div className="grid gap-6 @3xl:grid-cols-[minmax(0,1fr)_22rem]">
       <section aria-label="Zdjęcie" className="flex min-w-0 flex-col gap-3">
         <Link href="/atlas" className="text-sm text-text-muted hover:text-text">
           ← Atlas

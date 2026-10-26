@@ -57,7 +57,7 @@ export function RiskHistory({ entries }: { entries: AuditEntry[] }) {
     <figure className="flex flex-col gap-2">
       <figcaption className="text-sm font-medium">Wynik ryzyka w kolejnych decyzjach tarczy</figcaption>
       <div className="relative">
-        <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img" aria-label="Historia wyniku ryzyka konta">
+        <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="group" aria-label="Historia wyniku ryzyka konta">
           {THRESHOLDS.map((t) => (
             <g key={t.value}>
               <line x1={M.left} x2={W - M.right} y1={y(t.value)} y2={y(t.value)} stroke="var(--viz-grid)" strokeWidth={1} />

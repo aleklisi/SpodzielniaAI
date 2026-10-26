@@ -1,5 +1,6 @@
 "use client";
 
+import { UserRound } from "lucide-react";
 import Link from "next/link";
 
 import { SafeMarkdown } from "@/components/markdown/SafeMarkdown";
@@ -40,8 +41,8 @@ export function ArticleView({ article }: { article: Article }) {
           <StatusPill status={article.status} />
           <span className="text-xs text-text-muted">wersja {article.version}</span>
         </div>
-        <h1 className="font-display text-3xl font-semibold">{article.title}</h1>
-        <dl className="grid gap-x-6 gap-y-1 text-sm text-text-muted sm:grid-cols-[auto_1fr]">
+        <h1 className="font-display text-2xl font-semibold break-words md:text-3xl">{article.title}</h1>
+        <dl className="grid gap-x-6 gap-y-1 text-sm text-text-muted @lg:grid-cols-[auto_1fr]">
           <dt>Ostatnia weryfikacja</dt>
           <dd>{article.last_verified_at ? DATE.format(new Date(article.last_verified_at)) : "jeszcze nie zweryfikowano"}</dd>
           <dt>Autorzy</dt>
@@ -52,8 +53,10 @@ export function ArticleView({ article }: { article: Article }) {
       </header>
       <div className="flex flex-col gap-4">
         {article.blocks.map((block) => (
-          <section key={block.id} className="grid gap-3 sm:grid-cols-[10rem_1fr]" aria-label={`Akapit ${block.position + 1}`}>
-            <aside className="text-xs text-text-muted sm:border-r sm:border-border sm:pr-3 sm:text-right">
+          // The author in a side margin when there is room, above the paragraph on a phone (12.4).
+          <section key={block.id} className="grid gap-1 @2xl:grid-cols-[10rem_minmax(0,1fr)] @2xl:gap-3" aria-label={`Akapit ${block.position + 1}`}>
+            <aside className="flex items-center gap-1 text-xs text-text-muted @2xl:block @2xl:border-r @2xl:border-border @2xl:pr-3 @2xl:text-right">
+              <UserRound aria-hidden className="size-3 @2xl:hidden" />
               {authors.get(block.author_id) ?? name(null)}
             </aside>
             {block.withheld ? (

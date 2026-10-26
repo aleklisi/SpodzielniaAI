@@ -14,7 +14,7 @@ export function ProcessorsBanner() {
   if (!processors.data?.banner) return null;
   return (
     <div role="status" className="border-b border-border bg-surface-muted">
-      <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-3 px-4 py-2 text-sm">
+      <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-3 px-4 py-2 text-sm md:px-8">
         <span>
           Spółdzielnia dopuściła nowego dostawcę chmurowego do przetwarzania danych prywatnych.{" "}
           <Link href="/privacy" className="font-medium text-primary-strong underline">

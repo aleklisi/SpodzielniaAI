@@ -99,7 +99,7 @@ export function UserPanel({ userId, onClose }: { userId: string; onClose: () => 
         </Card>
       )}
 
-      <dl className="grid grid-cols-[max-content_1fr] gap-x-4 gap-y-1 text-sm">
+      <dl className="grid grid-cols-[max-content_minmax(0,1fr)] gap-x-4 gap-y-1 text-sm break-words">
         <dt className="text-text-muted">E-mail</dt>
         <dd>
           {u.idp?.email ?? u.email ?? "—"}

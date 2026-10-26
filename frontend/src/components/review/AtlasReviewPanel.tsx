@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
 
 import { ImageAnnotator, markColor } from "@/components/annotator/ImageAnnotator";
 import { LabelCombobox } from "@/components/atlas/LabelCombobox";
@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { cn } from "@/components/ui/cn";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { useToast } from "@/components/ui/Toast";
 import { StepUpRequired } from "@/lib/api";
 import { useDomains } from "@/lib/atlas";
@@ -37,51 +38,64 @@ export function AtlasReviewPanel() {
   const queue = useAtlasQueue();
   const domains = useDomains();
   const [selected, setSelected] = useState<string | null>(null);
+  const detail = useRef<HTMLElement>(null);
   const domainName = new Map((domains.data ?? []).map((d) => [d.id, d.name]));
 
   if (queue.error instanceof StepUpRequired) return <StepUpNotice stepUp={queue.error.stepUp} />;
   return (
-    <div className="grid gap-6 lg:grid-cols-[20rem_1fr]">
-      <section aria-labelledby="atlas-queue-title" className="flex flex-col gap-3">
-        <div className="flex items-baseline justify-between gap-2">
-          <h1 id="atlas-queue-title" className="font-display text-2xl font-semibold">
-            Atlas: recenzje
-          </h1>
-          <Link href="/review" className="text-sm text-primary-strong">
+    <div className="flex flex-col gap-6">
+      <PageHeader
+        title="Atlas: recenzje"
+        description="Zdjęcia przekazane do atlasu. Autorzy nie są pokazywani."
+        actions={
+          <Link href="/review" className="text-sm font-medium text-primary-strong">
             Artykuły
           </Link>
-        </div>
-        {queue.isPending && <p className="text-text-muted">Ładowanie kolejki…</p>}
-        {queue.data?.length === 0 && <p className="text-text-muted">Nie ma zdjęć do recenzji.</p>}
-        <ul className="flex flex-col gap-2">
-          {queue.data?.map((item) => (
-            <li key={item.id}>
-              <button
-                type="button"
-                onClick={() => setSelected(item.id)}
-                aria-current={item.id === selected}
-                className={cn("flex w-full gap-3 rounded-xl border bg-surface p-2 text-left", item.id === selected ? "border-primary" : "border-border")}
-              >
-                {/* eslint-disable-next-line @next/next/no-img-element -- authenticated same-origin bytes */}
-                <img src={atlasImageUrl(item.id, "thumb")} alt="" className="h-16 w-20 rounded object-cover" />
-                <span className="flex flex-col gap-1 text-xs">
-                  <span className="text-sm font-medium">{domainName.get(item.domain_id) ?? "Zdjęcie"}</span>
-                  <span>
-                    Oznaczenia: {item.regions} · zatwierdzenia {item.approvals}/{item.quorum}
+        }
+      />
+      {/* Queue and photo side by side when there is room; one at a time on a phone (12.6). */}
+      <div className="grid gap-6 @4xl:grid-cols-[20rem_minmax(0,1fr)]">
+        <section aria-label="Kolejka" className={cn("flex flex-col gap-3", selected && "@max-4xl:hidden")}>
+          {queue.isPending && <p className="text-text-muted">Ładowanie kolejki…</p>}
+          {queue.data?.length === 0 && <p className="text-text-muted">Nie ma zdjęć do recenzji.</p>}
+          <ul className="flex flex-col gap-2">
+            {queue.data?.map((item) => (
+              <li key={item.id}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelected(item.id);
+                    detail.current?.scrollIntoView?.({ block: "start" });
+                  }}
+                  aria-current={item.id === selected}
+                  className={cn("flex w-full gap-3 rounded-xl border bg-surface p-2 text-left", item.id === selected ? "border-primary" : "border-border")}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element -- authenticated same-origin bytes */}
+                  <img src={atlasImageUrl(item.id, "thumb")} alt="" className="h-16 w-20 rounded object-cover" />
+                  <span className="flex flex-col gap-1 text-xs">
+                    <span className="text-sm font-medium">{domainName.get(item.domain_id) ?? "Zdjęcie"}</span>
+                    <span>
+                      Oznaczenia: {item.regions} · zatwierdzenia {item.approvals}/{item.quorum}
+                    </span>
+                    {item.proposed_labels > 0 && <span className="text-warn">nowe etykiety: {item.proposed_labels}</span>}
+                    {item.privacy_flags.length > 0 && <span className="text-warn">uwaga: prywatność</span>}
+                    {item.is_own && <span className="text-text-muted">Twoje zdjęcie</span>}
                   </span>
-                  {item.proposed_labels > 0 && <span className="text-warn">nowe etykiety: {item.proposed_labels}</span>}
-                  {item.privacy_flags.length > 0 && <span className="text-warn">uwaga: prywatność</span>}
-                  {item.is_own && <span className="text-text-muted">Twoje zdjęcie</span>}
-                </span>
-              </button>
-            </li>
-          ))}
-        </ul>
-      </section>
-      <section aria-label="Recenzowane zdjęcie">
-        {!selected && <Card className="text-text-muted">Wybierz zdjęcie z kolejki.</Card>}
-        {selected && <ReviewedPhoto key={selected} id={selected} />}
-      </section>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+        <section ref={detail} aria-label="Recenzowane zdjęcie" className={cn("flex scroll-mt-20 flex-col gap-4", !selected && "@max-4xl:hidden")}>
+          {selected && (
+            <Button variant="ghost" className="self-start @4xl:hidden" onClick={() => setSelected(null)}>
+              ← Kolejka
+            </Button>
+          )}
+          {!selected && <Card className="text-text-muted">Wybierz zdjęcie z kolejki.</Card>}
+          {selected && <ReviewedPhoto key={selected} id={selected} />}
+        </section>
+      </div>
     </div>
   );
 }

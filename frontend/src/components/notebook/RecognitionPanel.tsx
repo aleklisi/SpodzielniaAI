@@ -95,10 +95,10 @@ export function RecognitionPanel({
                     {s.label_name} <span className="text-xs text-text-muted">({Math.round(s.confidence * 100)}%)</span>
                   </span>
                   <span className="flex gap-1">
-                    <Button className="px-2 py-1" onClick={() => onAccept(s)}>
+                    <Button size="sm" onClick={() => onAccept(s)}>
                       Przyjmij
                     </Button>
-                    <Button variant="ghost" className="px-2 py-1" onClick={() => onDismiss(s)}>
+                    <Button variant="ghost" size="sm" onClick={() => onDismiss(s)}>
                       Odrzuć
                     </Button>
                   </span>

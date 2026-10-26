@@ -36,6 +36,16 @@ async function askQuestion(text = "Jak leczyć warrozę zimą?") {
 }
 
 describe("ChatView", () => {
+  it("starts with an empty state whose example questions fill the composer (12.4)", async () => {
+    renderWithClient(<ChatView ask={async () => answer("Odpowiedź [1].")} />);
+    expect(screen.getByText("Zadaj pierwsze pytanie")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Kiedy poszerzać gniazdo wiosną?" }));
+    expect(screen.getByLabelText("Twoje pytanie")).toHaveValue("Kiedy poszerzać gniazdo wiosną?");
+    await userEvent.click(screen.getByRole("button", { name: "Zapytaj" }));
+    expect(await screen.findByRole("list", { name: "Rozmowa" })).toHaveTextContent("Kiedy poszerzać gniazdo wiosną?");
+    expect(screen.queryByText("Zadaj pierwsze pytanie")).not.toBeInTheDocument();
+  });
+
   it("renders the answer with citation cards", async () => {
     renderWithClient(<ChatView ask={async () => answer("Kwas szczawiowy podaje się zimą **w okresie bezczerwiowym** [1].")} />);
     await askQuestion();
@@ -56,11 +66,13 @@ describe("ChatView", () => {
     "[x](data:text/html;base64,PHNjcmlwdD4=)",
     "![piksel](https://evil.example/track.gif)",
   ])("keeps a hostile answer inert: %s", async (payload) => {
-    const { container } = renderWithClient(<ChatView ask={async () => answer(`Odpowiedź ${payload} [1]`)} />);
+    renderWithClient(<ChatView ask={async () => answer(`Odpowiedź ${payload} [1]`)} />);
     await askQuestion();
     await screen.findByRole("list", { name: "Źródła" });
-    expect(container.querySelector("img, script, iframe, svg, object, embed")).toBeNull();
-    for (const link of container.querySelectorAll("a")) {
+    // The conversation holds the answer; the page's own icons (svg) live outside it.
+    const conversation = screen.getByRole("list", { name: "Rozmowa" });
+    expect(conversation.querySelector("img, script, iframe, svg, object, embed")).toBeNull();
+    for (const link of conversation.querySelectorAll("a")) {
       expect(link.getAttribute("href") ?? "").toMatch(/^(#|\/|https:\/\/)/);
     }
   });

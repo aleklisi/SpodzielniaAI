@@ -1,13 +1,18 @@
 "use client";
 
+import { NotebookPen, Plus, Send } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
+import { cn } from "@/components/ui/cn";
 import { Dialog } from "@/components/ui/Dialog";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { ModelMissing } from "@/components/ui/ModelMissing";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { Loading } from "@/components/ui/Skeleton";
 import { useToast } from "@/components/ui/Toast";
 import { RateLimited } from "@/lib/api";
 import { isModelMissing, MODEL_MISSING, useFeature } from "@/lib/capabilities";
@@ -33,49 +38,67 @@ export function NotebookList() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="font-display text-2xl font-semibold">Mój notatnik</h1>
-          <p className="text-sm text-text-muted">Prywatny i zaszyfrowany. Nikt poza Tobą nie ma do niego dostępu.</p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="secondary" disabled={selected.size === 0} onClick={() => setPromoteOpen(true)}>
-            Utwórz wniosek do Wiki ({selected.size})
-          </Button>
-          <Button
-            busy={create.isPending}
-            onClick={async () => {
-              const note = await create.mutateAsync("Nowa notatka");
-              router.push(`/notebook/${note.id}`);
-            }}
-          >
-            Nowa notatka
-          </Button>
-        </div>
-      </div>
+      <PageHeader
+        title="Mój notatnik"
+        description="Prywatny i zaszyfrowany. Nikt poza Tobą nie ma do niego dostępu."
+        actions={
+          <>
+            <Button variant="secondary" disabled={selected.size === 0} onClick={() => setPromoteOpen(true)}>
+              <Send aria-hidden className="size-4" />
+              Utwórz wniosek do Wiki ({selected.size})
+            </Button>
+            <Button
+              busy={create.isPending}
+              onClick={async () => {
+                const note = await create.mutateAsync("Nowa notatka");
+                router.push(`/notebook/${note.id}`);
+              }}
+            >
+              <Plus aria-hidden className="size-4" />
+              Nowa notatka
+            </Button>
+          </>
+        }
+      />
 
       {promotionId && <PromotionStatus promotionId={promotionId} onDismiss={() => setPromotionId(null)} />}
 
-      {notes.isPending && <p className="text-text-muted">Ładowanie…</p>}
+      {notes.isPending && <Loading />}
       {notes.isError && <p role="alert" className="text-danger">Nie udało się wczytać notatek.</p>}
-      {notes.data?.length === 0 && <p className="text-text-muted">Nie masz jeszcze notatek.</p>}
+      {notes.data?.length === 0 && (
+        <EmptyState icon={NotebookPen} title="Nie masz jeszcze notatek.">
+          Zapisuj obserwacje z pasieki, wgrywaj zdjęcia, dokumenty i nagrania. Wszystko pozostaje prywatne.
+        </EmptyState>
+      )}
       {notes.data && notes.data.length > 0 && (
-        <ul className="flex flex-col gap-2">
+        <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3" aria-label="Notatki">
           {notes.data.map((note) => (
             <li key={note.id}>
-              <Card className="flex items-center gap-3 p-4">
+              <Card
+                className={cn(
+                  "relative flex h-full items-start gap-3 p-4 transition-colors hover:border-primary",
+                  selected.has(note.id) && "border-primary bg-primary/5",
+                )}
+              >
                 <input
                   type="checkbox"
                   checked={selected.has(note.id)}
                   onChange={() => toggle(note.id)}
                   aria-label={`Zaznacz: ${note.title}`}
+                  className="relative z-10 mt-1 size-4 accent-primary pointer-coarse:size-5"
                 />
-                <Link href={`/notebook/${note.id}`} className="flex-1 font-medium hover:text-primary-strong">
-                  {note.title}
-                </Link>
-                <time dateTime={note.updated_at} className="text-xs text-text-muted">
-                  {DATE.format(new Date(note.updated_at))}
-                </time>
+                <div className="flex min-w-0 flex-1 flex-col gap-1">
+                  {/* The link covers the card; the checkbox sits above it. */}
+                  <Link
+                    href={`/notebook/${note.id}`}
+                    className="font-medium break-words after:absolute after:inset-0 after:rounded-xl hover:text-primary-strong"
+                  >
+                    {note.title}
+                  </Link>
+                  <time dateTime={note.updated_at} className="text-xs text-text-muted">
+                    {DATE.format(new Date(note.updated_at))}
+                  </time>
+                </div>
               </Card>
             </li>
           ))}

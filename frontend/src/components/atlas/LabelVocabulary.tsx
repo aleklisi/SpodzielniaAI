@@ -1,5 +1,6 @@
 "use client";
 
+import { Plus } from "lucide-react";
 import Link from "next/link";
 import { useState, type FormEvent } from "react";
 
@@ -8,6 +9,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Dialog } from "@/components/ui/Dialog";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { useToast } from "@/components/ui/Toast";
 import { StepUpRequired } from "@/lib/api";
 import {
@@ -59,17 +61,23 @@ export function LabelVocabulary() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="font-display text-2xl font-semibold">Słownik etykiet</h1>
-          <p className="text-sm text-text-muted">
-            Etykiety oznaczeń na zdjęciach atlasu, osobno dla każdej dziedziny. <Link href="/review" className="underline">Wróć do recenzji</Link>
-          </p>
-        </div>
-        <Button onClick={() => setEditing("new")} disabled={!domainId}>
-          Nowa etykieta
-        </Button>
-      </div>
+      <PageHeader
+        title="Słownik etykiet"
+        description={
+          <>
+            Etykiety oznaczeń na zdjęciach atlasu, osobno dla każdej dziedziny.{" "}
+            <Link href="/review" className="underline">
+              Wróć do recenzji
+            </Link>
+          </>
+        }
+        actions={
+          <Button onClick={() => setEditing("new")} disabled={!domainId}>
+            <Plus aria-hidden className="size-4" />
+            Nowa etykieta
+          </Button>
+        }
+      />
       {domains.data?.length === 0 && (
         <Card className="text-text-muted">Nie ma jeszcze dziedzin. Administrator tworzy je w panelu „Dziedziny atlasu”.</Card>
       )}

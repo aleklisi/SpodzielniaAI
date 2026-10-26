@@ -43,7 +43,7 @@ Desktop ≥ 1024px (lg)                        Tablet 768–1023px (md)        P
 
 | Section | Items | Role |
 |---|---|---|
-| — | **+ Nowa notatka** (primary button; in the rail, a „+” with a tooltip) | member |
+| — | **+ Utwórz notatkę** (primary button; in the rail, a „+” with a tooltip). Not „Nowa notatka”: that is the notebook page's button, and E2E finds buttons by name | member |
 | Moja praca | Notatnik, Moje szkice, Moje kontrybucje | member |
 | Wiedza spółdzielni | Wiki, Atlas, Zapytaj spółdzielnię | member |
 | Rada Ekspertów | Recenzje (tekst, atlas, etykiety) | EXPERT |
@@ -116,7 +116,7 @@ Scenario: no horizontal scrolling
 
 ### 12.1 App shell: sidebar, rail, phone drawer
 - `components/shell/AppShell.tsx` (`flex h-dvh`; `main#content` scrolls by itself),
-  `Sidebar.tsx` (sections, icons, „+ Nowa notatka”, account footer, longest-prefix active link),
+  `Sidebar.tsx` (sections, `lucide-react` icons, „+ Utwórz notatkę”, account footer, longest-prefix active link),
   `MobileTopBar.tsx` and `MobileDrawer.tsx` (native `<dialog>`, closes on route change),
   `nav-items.ts` (one source of truth for desktop and phone, with roles).
 - `lib/sidebar.ts`: reading and writing the `sb` cookie; `layout.tsx` reads it through `cookies()`.
@@ -126,8 +126,9 @@ Scenario: no horizontal scrolling
   navigate and Escape, logout clears the cache.
 
 ### 12.2 Design building blocks
-- New dependency: `lucide-react`. Sidebar tokens in `globals.css` (`--sidebar`,
-  `--sidebar-accent`, light and dark).
+- Sidebar tokens in `globals.css` (`--sidebar`, `--sidebar-accent`, light and dark). `cn` now
+  uses `tailwind-merge`, so a class passed in overrides the component's own (`p-4` over `p-5`).
+- On touch screens form fields are at least 16px, so iOS does not zoom in on focus.
 - `ui/PageHeader` (title, description, actions; wraps on a phone), `ui/Tabs` (WAI-ARIA tabs,
   arrow keys; scrollable on a phone), `ui/DataTable` (a table on md+, a card list below),
   `ui/EmptyState`, `ui/Skeleton`.
@@ -137,11 +138,12 @@ Scenario: no horizontal scrolling
 - Tests (Vitest) for each building block: keyboard, ARIA, and the phone and desktop variants.
 
 ### 12.3 Notebook: list and the Źródła | Notatka | Zapytaj workspace
-- `/notebook`: `PageHeader` with „Nowa notatka”, notes as a `DataTable` or cards, `EmptyState`.
-- `/notebook/[id]`: xl, three columns `[18rem | 1fr | 22rem]`. lg, two columns with
-  „Zapytaj” in a collapsible right panel. Below lg, `Tabs` (Źródła: upload, links, photos,
-  derivatives; Notatka: title, editor, autosave state; Zapytaj: `AskPanel`). Each column scrolls
-  by itself. Autosave is unaffected by switching tabs: panels are hidden, not unmounted.
+- `/notebook`: `PageHeader` with „Nowa notatka”, notes as cards that can be selected, `EmptyState`.
+- `/notebook/[id]`: by the **workspace's** width (container queries, so the collapsed menu
+  counts): from 72rem three columns `[17rem | 1fr | 20rem]`, the side columns sticky and
+  scrolling by themselves; from 48rem the note beside a Źródła/Zapytaj tab panel; below that
+  three tabs (Źródła: upload, links, photos, derivatives; Notatka: title, editor, autosave state;
+  Zapytaj: `AskPanel`). Panels are hidden, not unmounted, so the editor keeps its state.
 - `/notebook/[id]/photos/[attachmentId]`: the annotator uses the whole workspace, and on a phone
   the label list goes below the image.
 - Tests: Vitest for the columns and tabs, and the existing `notebook.test.tsx` and
@@ -151,7 +153,7 @@ Scenario: no horizontal scrolling
 - Wiki list and article: a readable column (`max-w-3xl`), with block authorship shown as a side
   margin on lg and inline below lg. Drafts use `DataTable`.
 - Chat: a full-height conversation, a composer that sticks to the bottom (with safe-area and
-  keyboard space), and citations as an expandable list on a phone.
+  keyboard space), example questions in the empty state, and citations in one column on a phone.
 
 ### 12.5 Atlas, contributions, privacy, home
 - Atlas gallery: a responsive grid (2 columns on a phone, up to 5 on desktop). The atlas photo
@@ -162,8 +164,8 @@ Scenario: no horizontal scrolling
 
 ### 12.6 Expert review
 - `/review`, `/review/atlas`, `/review/labels`: a queue and detail view (side by side on lg,
-  with the queue first and then the detail and „← Kolejka” on a phone). `TextDiff` is side by
-  side on lg and unified below.
+  with the queue first and then the detail and „← Kolejka” on a phone). `TextDiff` stays a
+  unified word diff, which reads at any width.
 
 ### 12.7 Admin consoles
 - `/admin/llm` (Catalog, Routing, Playground, History, IndexPanel): `Tabs` (scrollable on a
@@ -173,15 +175,42 @@ Scenario: no horizontal scrolling
 - `/admin/atlas`: domains and export as `DataTable` and forms.
 
 ### 12.8 E2E on phones, accessibility, security review, documentation
-- Playwright projects: `chromium` (desktop, as today), `mobile` (Pixel 7) and `tablet` (iPad
-  Mini viewport). Scenario 14 `14-app-shell.spec.ts` covers the acceptance criteria above. A
-  sample of earlier scenarios (1 auth, 4 happy path, 11 atlas) also runs in `mobile`.
+- Playwright projects: `chromium` (desktop, as today), `mobile` (Pixel 7) and `tablet` (768×1024,
+  touch). Scenario 14 `14-app-shell.spec.ts` covers the acceptance criteria above. Scenarios 1
+  (auth) and 7 (headers, CSP) also run in `mobile`.
 - A check that no page scrolls sideways at 360px, across every route, for member1, expert1 and
   admin1.
 - `@axe-core/playwright` on the main routes for both projects: no serious or critical findings.
 - Security review entry: CSP unchanged, the `sb` cookie holds no data, the menu shows links only
   (the API enforces roles), the drawer does not survive logout.
-- README screenshots, this document, and the US-06 *Delivery* list.
+- This document, the security review and the US-06 *Delivery* list (no README screenshots: they would go stale with every page change).
+
+## Implementation
+
+| Area | Where |
+|---|---|
+| Shell | `components/shell/AppShell.tsx` (layout, phone top bar, drawer), `Sidebar.tsx`, `nav-items.ts`; `lib/sidebar.ts`; `app/layout.tsx` reads the cookie; `MainNav.tsx` removed |
+| Building blocks | `components/ui/PageHeader.tsx`, `Tabs.tsx`, `DataTable.tsx`, `EmptyState.tsx`, `Skeleton.tsx`; `Button` sizes; `Dialog` as a bottom sheet; `cn` with `tailwind-merge`; `sb-wide:` variant in `globals.css` |
+| Pages | `notebook/NoteWorkspace.tsx`, `NotebookList.tsx`; `wiki/*`; `chat/ChatView.tsx`; `atlas/*`; `contributions/ContributionsPanel.tsx`; `privacy/ProcessorsPage.tsx`; `home/HomeDashboard.tsx`; `review/*`; `admin/**` |
+
+axe (12.8) found white text on the honey buttons at 3.6:1 and status badges below 4.5:1: the light
+palette is a step darker (`--primary #9a6414`, `--primary-strong #7a4d0d`, `--accent`, `--ok`,
+`--warn`, `--danger`), now AA everywhere. Charts with focusable bars are `role="group"`, and the
+scrolling alerts card is focusable.
+
+The workspace is a size container (`@container`), so pages lay out by the space they actually
+have: the same page is three columns with the rail and two with the full menu.
+
+## Tests
+
+- Vitest: `shell/shell.test.tsx` (sections by role, active link, collapse and cookie, drawer,
+  creating a note, logout, home dashboard), `ui/ui.test.tsx` (tabs keyboard, data table roles and
+  labels, page header, empty state, button sizes, dialog), `notebook/workspace.test.tsx` (panels,
+  tabs, list), `chat.test.tsx` (empty state).
+- E2E `14-app-shell.spec.ts`: desktop layout and ⅔ workspace, the remembered rail rendered by the
+  server, role-based sections, three note columns; tablet rail and drawer; phone drawer (navigation,
+  Escape, focus return) and note tabs (writing, uploading, asking); no sideways scrolling at 360px
+  and no serious or critical axe finding on every route for member1, expert1 and admin1.
 
 ## Verification per chunk
 

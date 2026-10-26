@@ -6,6 +6,7 @@ import { KindBadge } from "@/components/admin/llm/Catalog";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
+import { DataTable, TBody, Td, Th, THead, Tr } from "@/components/ui/DataTable";
 import { Dialog } from "@/components/ui/Dialog";
 import { useToast } from "@/components/ui/Toast";
 import {
@@ -118,101 +119,99 @@ export function RoutingPanel({
         </div>
       </div>
 
-      <div className="overflow-x-auto">
-        <table className="w-full text-left text-sm">
-          <thead className="text-text-muted">
-            <tr>
-              <th className="py-2 pr-3">Funkcja</th>
-              <th className="py-2 pr-3">Obecnie</th>
-              {draft && <th className="py-2 pr-3">W szkicu</th>}
-              {draft && <th className="py-2">Test</th>}
-            </tr>
-          </thead>
-          <tbody>
-            {status.purposes
-              .slice()
-              .sort((a, b) => PURPOSE_ORDER.indexOf(a.purpose) - PURPOSE_ORDER.indexOf(b.purpose))
-              .map((p) => {
-                const current = active?.routes?.[p.purpose];
-                const selectedId = shown?.routing[p.purpose] ?? "";
-                const selected = models.find((m) => m.id === selectedId);
-                const options = eligibleModels(p, models, providers);
-                const changed = draft !== undefined && (active?.routing[p.purpose] ?? "") !== selectedId;
-                return (
-                  <tr key={p.purpose} className="border-t border-border align-top">
-                    <td className="py-2 pr-3">
-                      <div className="font-medium">{PURPOSES[p.purpose].label}</div>
-                      <div className="text-xs text-text-muted">{PURPOSES[p.purpose].hint}</div>
-                      {p.private_data && (
-                        <Badge tone="ok" className="mt-1" title="Dane prywatne: tylko dostawcy dopuszczeni do danych prywatnych">
-                          🔒 dane prywatne
-                        </Badge>
-                      )}
-                    </td>
-                    <td className="py-2 pr-3">
-                      {current ? (
-                        <span className="flex flex-wrap items-center gap-1">
-                          {current.name} <KindBadge kind={current.kind} />
-                        </span>
-                      ) : (
-                        <span className="text-text-muted">brak (funkcja niedostępna)</span>
-                      )}
-                    </td>
-                    {draft && (
-                      <td className="py-2 pr-3">
-                        <label className="sr-only" htmlFor={`route-${p.purpose}`}>
-                          Model dla: {PURPOSES[p.purpose].label}
-                        </label>
-                        <select
-                          id={`route-${p.purpose}`}
-                          className={`${INPUT} ${changed ? "border-primary" : ""}`}
-                          value={selectedId}
-                          disabled={setRouting.isPending}
-                          onChange={(e) =>
-                            void run(() =>
-                              setRouting.mutateAsync({ number: draft.number, routes: { [p.purpose]: e.target.value || null } }),
-                            )
-                          }
-                        >
-                          <option value="">— brak —</option>
-                          {selected && !options.includes(selected) && <option value={selected.id}>{modelLabel(selected, providers)}</option>}
-                          {options.map((m) => (
-                            <option key={m.id} value={m.id}>
-                              {modelLabel(m, providers)}
-                              {providers.find((pr) => pr.id === m.provider_id)?.kind === "CLOUD" ? " (chmura)" : ""}
-                            </option>
-                          ))}
-                        </select>
-                        {(p.purpose === "EMBED" || p.purpose === "IMAGE_EMBED") && (
-                          <p className="mt-1 text-xs text-text-muted">
-                            Po aktywacji indeks przebuduje się w tle (zakładka „Indeksy”); do końca działa stara wersja.
-                          </p>
-                        )}
-                      </td>
+      <DataTable>
+        <THead>
+          <Tr>
+            <Th>Funkcja</Th>
+            <Th>Obecnie</Th>
+            {draft && <Th>W szkicu</Th>}
+            {draft && <Th>Test</Th>}
+          </Tr>
+        </THead>
+        <TBody>
+          {status.purposes
+            .slice()
+            .sort((a, b) => PURPOSE_ORDER.indexOf(a.purpose) - PURPOSE_ORDER.indexOf(b.purpose))
+            .map((p) => {
+              const current = active?.routes?.[p.purpose];
+              const selectedId = shown?.routing[p.purpose] ?? "";
+              const selected = models.find((m) => m.id === selectedId);
+              const options = eligibleModels(p, models, providers);
+              const changed = draft !== undefined && (active?.routing[p.purpose] ?? "") !== selectedId;
+              return (
+                <Tr key={p.purpose}>
+                  <Td primary>
+                    <div className="font-medium">{PURPOSES[p.purpose].label}</div>
+                    <div className="text-xs text-text-muted">{PURPOSES[p.purpose].hint}</div>
+                    {p.private_data && (
+                      <Badge tone="ok" className="mt-1" title="Dane prywatne: tylko dostawcy dopuszczeni do danych prywatnych">
+                        🔒 dane prywatne
+                      </Badge>
                     )}
-                    {draft && (
-                      <td className="py-2">
-                        {selected &&
-                          changed &&
-                          (probeFresh(selected, status.probe_max_age_hours) ? (
-                            <span className="text-ok">✓ przetestowany</span>
-                          ) : (
-                            <Button
-                              variant="secondary"
-                              busy={probe.isPending && probe.variables === selected.id}
-                              onClick={() => void run(() => probe.mutateAsync(selected.id), "Test zakończony.")}
-                            >
-                              Testuj
-                            </Button>
-                          ))}
-                      </td>
+                  </Td>
+                  <Td label="Obecnie">
+                    {current ? (
+                      <span className="flex flex-wrap items-center gap-1">
+                        {current.name} <KindBadge kind={current.kind} />
+                      </span>
+                    ) : (
+                      <span className="text-text-muted">brak (funkcja niedostępna)</span>
                     )}
-                  </tr>
-                );
-              })}
-          </tbody>
-        </table>
-      </div>
+                  </Td>
+                  {draft && (
+                    <Td label="W szkicu">
+                      <label className="sr-only" htmlFor={`route-${p.purpose}`}>
+                        Model dla: {PURPOSES[p.purpose].label}
+                      </label>
+                      <select
+                        id={`route-${p.purpose}`}
+                        className={`${INPUT} ${changed ? "border-primary" : ""}`}
+                        value={selectedId}
+                        disabled={setRouting.isPending}
+                        onChange={(e) =>
+                          void run(() =>
+                            setRouting.mutateAsync({ number: draft.number, routes: { [p.purpose]: e.target.value || null } }),
+                          )
+                        }
+                      >
+                        <option value="">— brak —</option>
+                        {selected && !options.includes(selected) && <option value={selected.id}>{modelLabel(selected, providers)}</option>}
+                        {options.map((m) => (
+                          <option key={m.id} value={m.id}>
+                            {modelLabel(m, providers)}
+                            {providers.find((pr) => pr.id === m.provider_id)?.kind === "CLOUD" ? " (chmura)" : ""}
+                          </option>
+                        ))}
+                      </select>
+                      {(p.purpose === "EMBED" || p.purpose === "IMAGE_EMBED") && (
+                        <p className="mt-1 text-xs text-text-muted">
+                          Po aktywacji indeks przebuduje się w tle (zakładka „Indeksy”); do końca działa stara wersja.
+                        </p>
+                      )}
+                    </Td>
+                  )}
+                  {draft && (
+                    <Td label="Test">
+                      {selected &&
+                        changed &&
+                        (probeFresh(selected, status.probe_max_age_hours) ? (
+                          <span className="text-ok">✓ przetestowany</span>
+                        ) : (
+                          <Button
+                            variant="secondary"
+                            busy={probe.isPending && probe.variables === selected.id}
+                            onClick={() => void run(() => probe.mutateAsync(selected.id), "Test zakończony.")}
+                          >
+                            Testuj
+                          </Button>
+                        ))}
+                    </Td>
+                  )}
+                </Tr>
+              );
+            })}
+        </TBody>
+      </DataTable>
 
       {draft && (
         <ActivateDialog

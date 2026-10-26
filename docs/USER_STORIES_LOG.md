@@ -20,7 +20,7 @@ committed, add the commit hash to the story's *Delivery* list.
 | [US-03](#us-03) | Member adds photos with a description, marks and describes elements on them; experts verify; the atlas powers image recognition | DONE | [09_IMAGE_ATLAS.md](implementation/09_IMAGE_ATLAS.md) · Etap 9 | 2026-10-21 |
 | [US-04](#us-04) | Every model (LLM, embeddings, speech, OCR, image embeddings) is configured and provided over an API — local (LM Studio) or cloud; no built-in model required | DONE | [10_MODEL_PROVIDERS_API.md](implementation/10_MODEL_PROVIDERS_API.md) · Etap 10 | 2026-10-22 |
 | [US-05](#us-05) | Administrator removes an LLM provider that is no longer used, so unused configurations and keys do not stay | DONE | [11_PROVIDER_REMOVAL.md](implementation/11_PROVIDER_REMOVAL.md) · Etap 11 | 2026-10-26 |
-| [US-06](#us-06) | The UI works like Open Notebook — menu on the left, workspace on the right — on desktops and phones | PLANNED | [12_APP_SHELL_RESPONSIVE.md](implementation/12_APP_SHELL_RESPONSIVE.md) · Etap 12 | 2026-10-26 |
+| [US-06](#us-06) | The UI works like Open Notebook — menu on the left, workspace on the right — on desktops and phones | DONE | [12_APP_SHELL_RESPONSIVE.md](implementation/12_APP_SHELL_RESPONSIVE.md) · Etap 12 | 2026-10-26 |
 
 ---
 
@@ -230,7 +230,7 @@ the menu on the left side, the workspace on the right taking 2/3 of the visible 
 has to support mobile devices.
 
 - **Source:** product owner request, 2026-10-26.
-- **Status:** PLANNED 2026-10-26.
+- **Status:** DONE 2026-10-26 (12.1–12.8, one commit).
 - **Plan:** [docs/implementation/12_APP_SHELL_RESPONSIVE.md](implementation/12_APP_SHELL_RESPONSIVE.md)
 - **Refinement decisions (accepted 2026-10-26):** a fixed 16rem menu that collapses to an icon
   rail, so the workspace gets at least 2/3 of the width (not a literal 1/3 menu); a new shell
@@ -247,4 +247,4 @@ has to support mobile devices.
   5. The note page shows Źródła | Notatka | Zapytaj as columns on desktop and tabs on a phone.
   6. No page scrolls sideways at 360px; touch targets are at least 44px; axe reports no serious
      or critical issues.
-- **Delivery:** plan (this commit).
+- **Delivery:** `db3fc43` plan · 12.1–12.8 shell, building blocks, every page restyled, E2E scenario 14 on desktop, tablet and phone, axe (this commit).

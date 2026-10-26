@@ -106,7 +106,8 @@ function Editor({ noteId, attachmentId, photo, onReload }: { noteId: string; att
   const alt = caption.trim() || "Zdjęcie z notatki";
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[1fr_22rem]">
+    // Side by side once the workspace (not the window) is wide enough; details below on a phone (12.3).
+    <div className="grid gap-6 @3xl:grid-cols-[minmax(0,1fr)_22rem]">
       <section aria-label="Zdjęcie" className="flex min-w-0 flex-col gap-3">
         <div className="flex items-center justify-between gap-2">
           <Link
@@ -199,7 +200,7 @@ function Editor({ noteId, attachmentId, photo, onReload }: { noteId: string; att
                     {!archived && (
                       <Button
                         variant="ghost"
-                        className="px-2 py-1"
+                        size="sm"
                         aria-label={`Usuń oznaczenie ${index + 1}`}
                         onClick={() => {
                           change(marks.filter((m) => m.key !== mark.key));

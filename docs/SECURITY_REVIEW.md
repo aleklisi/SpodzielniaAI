@@ -145,6 +145,19 @@ P1–P9 of `docs/implementation/10_MODEL_PROVIDERS_API.md` and their proof:
   The history of revisions keeps an archived provider's name and URL (no key), as the audit log
   does.
 
+## Stage 12 additions (Open Notebook–style shell and mobile support, US-06)
+
+| Control | Proof |
+|---|---|
+| CSP unchanged (`style-src 'self' 'nonce-…'`, Trusted Types): the shell, rail, drawer and every restyled page use classes only; no `style=` attribute, no injected styles. Icons are bundled React SVG (`lucide-react`), not fetched from another origin and never written with `innerHTML` | E2E `14-app-shell` "the menu is on the left…" (`watchCsp` reports no violation); `7-headers` also runs in the `mobile` project |
+| The menu is a convenience, not a control: links follow the account's roles, and the API still enforces every role and MFA | Vitest `shell.test.tsx` role tests; E2E `14-app-shell` "menu sections follow the account's roles", `1-auth` (also on `mobile`) |
+| The `sb` cookie holds only `1` or `0` (menu collapsed), `SameSite=Lax`, `Secure` over HTTPS, no `HttpOnly` because the page writes it. The server only compares it with `"1"` | `lib/sidebar.ts`; Vitest "collapses to the rail and remembers it in the cookie" |
+| Logging out from the menu still clears the query cache before navigating; the phone drawer is only rendered while open | Vitest "logs out and forgets the account's cached data" |
+| Answers stay inert after the restyle: the chat XSS cases now look inside the conversation (the page's own icons are SVG) | Vitest `chat.test.tsx` "keeps a hostile answer inert" |
+
+- **New dependencies** (pinned exact, each release at least two weeks old): `lucide-react` 1.55.0,
+  `tailwind-merge` 3.7.0 (runtime, no dependencies); `@axe-core/playwright` 4.13.0 (dev).
+
 ## Chunk 6.8 additions (production deployment, backup and restore)
 
 | Control | Proof |
