@@ -1,11 +1,13 @@
 "use client";
 
-import { Hexagon, Menu } from "lucide-react";
+import { Menu } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
+import { useBranding } from "@/lib/branding-context";
 import { saveCollapsed } from "@/lib/sidebar";
 
+import { BrandMark } from "./BrandMark";
 import { Sidebar } from "./Sidebar";
 
 /**
@@ -24,6 +26,7 @@ export function AppShell({
 }) {
   const [collapsed, setCollapsed] = useState(initialCollapsed);
   const [drawer, setDrawer] = useState(false);
+  const { org_name } = useBranding();
   return (
     <div className="flex min-h-dvh md:h-dvh md:overflow-hidden">
       <div className="hidden md:flex">
@@ -48,9 +51,9 @@ export function AppShell({
           >
             <Menu aria-hidden className="size-6" />
           </button>
-          <Link href="/" className="flex items-center gap-2 font-display text-lg font-semibold text-primary-strong">
-            <Hexagon aria-hidden className="size-6 fill-primary/25 text-primary" />
-            Spółdzielnia AI
+          <Link href="/" className="flex min-w-0 items-center gap-2 font-display text-lg font-semibold text-primary-strong">
+            <BrandMark />
+            <span className="truncate">{org_name}</span>
           </Link>
         </header>
         <main id="content" tabIndex={-1} className="flex flex-1 flex-col outline-none md:overflow-y-auto">

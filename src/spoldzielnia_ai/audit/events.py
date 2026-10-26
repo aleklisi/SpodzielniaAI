@@ -80,3 +80,6 @@ class EventType(StrEnum):
     ATLAS_EXPORT_REQUESTED = "ATLAS_EXPORT_REQUESTED"
     ATLAS_EXPORTED = "ATLAS_EXPORTED"
     ATLAS_EXPORT_DOWNLOADED = "ATLAS_EXPORT_DOWNLOADED"
+    # Organisation branding (Stage 13): which fields changed and the version; never image bytes.
+    BRANDING_CHANGED = "BRANDING_CHANGED"
+    BRANDING_RESET = "BRANDING_RESET"

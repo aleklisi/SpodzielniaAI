@@ -1,6 +1,117 @@
 {
   "components": {
     "schemas": {
+      "AdminBrandingOut": {
+        "properties": {
+          "accent": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Accent"
+          },
+          "brand": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Brand"
+          },
+          "custom_name": {
+            "title": "Custom Name",
+            "type": "boolean"
+          },
+          "favicon_urls": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Favicon Urls"
+          },
+          "logo_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Logo Url"
+          },
+          "org_name": {
+            "title": "Org Name",
+            "type": "string"
+          },
+          "palette": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object"
+                },
+                "propertyNames": {
+                  "enum": [
+                    "light",
+                    "dark"
+                  ]
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Palette"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "org_name",
+          "custom_name",
+          "version",
+          "palette",
+          "logo_url",
+          "favicon_urls",
+          "brand",
+          "accent",
+          "updated_at"
+        ],
+        "title": "AdminBrandingOut",
+        "type": "object"
+      },
       "AnnotationSource": {
         "description": "Who drew a mark: the member, or a recognition suggestion they accepted (9.9).",
         "enum": [
@@ -591,6 +702,122 @@
         "title": "BlockReason",
         "type": "string"
       },
+      "BrandingIn": {
+        "properties": {
+          "accent": {
+            "anyOf": [
+              {
+                "maxLength": 16,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Accent"
+          },
+          "brand": {
+            "anyOf": [
+              {
+                "maxLength": 16,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Brand"
+          },
+          "org_name": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Org Name"
+          }
+        },
+        "title": "BrandingIn",
+        "type": "object"
+      },
+      "BrandingOut": {
+        "properties": {
+          "custom_name": {
+            "title": "Custom Name",
+            "type": "boolean"
+          },
+          "favicon_urls": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Favicon Urls"
+          },
+          "logo_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Logo Url"
+          },
+          "org_name": {
+            "title": "Org Name",
+            "type": "string"
+          },
+          "palette": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object"
+                },
+                "propertyNames": {
+                  "enum": [
+                    "light",
+                    "dark"
+                  ]
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Palette"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "org_name",
+          "custom_name",
+          "version",
+          "palette",
+          "logo_url",
+          "favicon_urls"
+        ],
+        "title": "BrandingOut",
+        "type": "object"
+      },
       "CanaryOut": {
         "properties": {
           "block_id": {
@@ -685,6 +912,43 @@
           "breaks"
         ],
         "title": "ChainOut",
+        "type": "object"
+      },
+      "CheckOut": {
+        "properties": {
+          "against": {
+            "title": "Against",
+            "type": "string"
+          },
+          "mode": {
+            "enum": [
+              "light",
+              "dark"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
+          "ratio": {
+            "title": "Ratio",
+            "type": "number"
+          },
+          "required": {
+            "title": "Required",
+            "type": "number"
+          },
+          "token": {
+            "title": "Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "mode",
+          "token",
+          "against",
+          "ratio",
+          "required"
+        ],
+        "title": "CheckOut",
         "type": "object"
       },
       "Citation": {
@@ -802,6 +1066,26 @@
           "contract_ref"
         ],
         "title": "ClearanceIn",
+        "type": "object"
+      },
+      "ColoursIn": {
+        "properties": {
+          "accent": {
+            "maxLength": 16,
+            "title": "Accent",
+            "type": "string"
+          },
+          "brand": {
+            "maxLength": 16,
+            "title": "Brand",
+            "type": "string"
+          }
+        },
+        "required": [
+          "brand",
+          "accent"
+        ],
+        "title": "ColoursIn",
         "type": "object"
       },
       "ConnectionOut": {
@@ -3689,6 +3973,50 @@
           "structured"
         ],
         "title": "PresetOut",
+        "type": "object"
+      },
+      "PreviewOut": {
+        "properties": {
+          "adjusted": {
+            "items": {
+              "enum": [
+                "brand",
+                "accent"
+              ],
+              "type": "string"
+            },
+            "title": "Adjusted",
+            "type": "array"
+          },
+          "checks": {
+            "items": {
+              "$ref": "#/components/schemas/CheckOut"
+            },
+            "title": "Checks",
+            "type": "array"
+          },
+          "dark": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Dark",
+            "type": "object"
+          },
+          "light": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Light",
+            "type": "object"
+          }
+        },
+        "required": [
+          "light",
+          "dark",
+          "adjusted",
+          "checks"
+        ],
+        "title": "PreviewOut",
         "type": "object"
       },
       "ProbeOut": {
@@ -6854,6 +7182,189 @@
         ]
       }
     },
+    "/admin/branding": {
+      "get": {
+        "operationId": "get_admin_branding_admin_branding_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminBrandingOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Admin Branding",
+        "tags": [
+          "admin-branding"
+        ]
+      },
+      "put": {
+        "operationId": "update_branding_admin_branding_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BrandingIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminBrandingOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Branding",
+        "tags": [
+          "admin-branding"
+        ]
+      }
+    },
+    "/admin/branding/logo": {
+      "delete": {
+        "operationId": "delete_logo_admin_branding_logo_delete",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminBrandingOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Delete Logo",
+        "tags": [
+          "admin-branding"
+        ]
+      },
+      "post": {
+        "description": "Multipart field ``file``: PNG, JPEG or WebP up to 2 MB. SVG is refused.",
+        "operationId": "upload_logo_admin_branding_logo_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "properties": {
+                  "file": {
+                    "format": "binary",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "file"
+                ],
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminBrandingOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Upload Logo",
+        "tags": [
+          "admin-branding"
+        ]
+      }
+    },
+    "/admin/branding/preview": {
+      "post": {
+        "description": "The palette these colours would give, with every contrast ratio. Saves nothing.",
+        "operationId": "preview_branding_admin_branding_preview_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ColoursIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PreviewOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Preview Branding",
+        "tags": [
+          "admin-branding"
+        ]
+      }
+    },
+    "/admin/branding/reset": {
+      "post": {
+        "description": "Back to the default name, logo and colours.",
+        "operationId": "reset_branding_admin_branding_reset_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminBrandingOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Reset Branding",
+        "tags": [
+          "admin-branding"
+        ]
+      }
+    },
     "/admin/coverage": {
       "get": {
         "operationId": "coverage_admin_coverage_get",
@@ -9937,6 +10448,82 @@
         "summary": "Logout",
         "tags": [
           "auth"
+        ]
+      }
+    },
+    "/branding": {
+      "get": {
+        "description": "The look of the cooperative, for every page (signed in or not).",
+        "operationId": "get_public_branding_branding_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BrandingOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Public Branding",
+        "tags": [
+          "branding"
+        ]
+      }
+    },
+    "/branding/files/{version}/{name}": {
+      "get": {
+        "description": "A file of the current logo (``logo.png``, ``favicon-32.png``, ``favicon-180.png``).",
+        "operationId": "get_branding_file_branding_files__version___name__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "version",
+            "required": true,
+            "schema": {
+              "title": "Version",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              },
+              "image/png": {}
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "Not the current logo"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Branding File",
+        "tags": [
+          "branding"
         ]
       }
     },

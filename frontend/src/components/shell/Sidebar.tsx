@@ -1,16 +1,18 @@
 "use client";
 
 import { useQueryClient } from "@tanstack/react-query";
-import { Hexagon, LogIn, LogOut, PanelLeftClose, PanelLeftOpen, Plus, X, type LucideIcon } from "lucide-react";
+import { LogIn, LogOut, PanelLeftClose, PanelLeftOpen, Plus, X, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import type { ReactNode } from "react";
 
 import { cn } from "@/components/ui/cn";
 import { api, ApiError, loginUrl } from "@/lib/api";
+import { useBranding } from "@/lib/branding-context";
 import { useCreateNote } from "@/lib/notebook";
 import { useMe } from "@/lib/session";
 
+import { BrandMark } from "./BrandMark";
 import { activeHref, PRIVACY_ITEM, visibleSections, type NavItem } from "./nav-items";
 
 export type SidebarMode = "desktop" | "drawer";
@@ -38,6 +40,7 @@ export function Sidebar({
 }) {
   const me = useMe();
   const path = usePathname();
+  const { org_name, logo_url } = useBranding();
   const sections = visibleSections(me.data);
   const hrefs = [...sections.flatMap((s) => s.items), PRIVACY_ITEM].map((i) => i.href);
   const current = activeHref(path, hrefs);
@@ -57,11 +60,12 @@ export function Sidebar({
         <Link
           href="/"
           onClick={onClose}
-          className="group/link relative flex items-center gap-2 rounded-lg font-display text-base font-semibold text-primary-strong"
+          className="group/link relative flex min-w-0 items-center gap-2 rounded-lg font-display text-base font-semibold text-primary-strong"
         >
-          <Hexagon aria-hidden className="size-7 shrink-0 fill-primary/25 text-primary" />
-          <span className="sr-only sb-wide:not-sr-only">Spółdzielnia AI</span>
-          <Tip>Spółdzielnia AI</Tip>
+          <BrandMark rail />
+          {/* With a logo, the name gets its own line below (it would not fit beside the toggle). */}
+          <span className={cn("truncate", logo_url ? "sr-only" : "sr-only sb-wide:not-sr-only")}>{org_name}</span>
+          <Tip>{org_name}</Tip>
         </Link>
         {mode === "desktop" && (
           <>
@@ -80,6 +84,11 @@ export function Sidebar({
         )}
         {mode === "drawer" && <IconButton label="Zamknij menu" icon={X} onClick={onClose} />}
       </div>
+      {logo_url && (
+        <p aria-hidden className="-mt-2 hidden truncate px-4 pb-2 font-display text-sm font-semibold text-primary-strong sb-wide:block">
+          {org_name}
+        </p>
+      )}
 
       {me.data && <CreateNote onDone={onClose} />}
 

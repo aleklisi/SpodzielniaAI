@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { AtlasContributions } from "@/components/contributions/AtlasContributions";
 import { ContributionsPanel } from "@/components/contributions/ContributionsPanel";
 
-export const metadata: Metadata = { title: "Moje kontrybucje · Spółdzielnia AI" };
+export const metadata: Metadata = { title: "Moje kontrybucje" };
 
 export default function ContributionsPage() {
   return (

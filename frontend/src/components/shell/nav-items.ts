@@ -9,6 +9,7 @@ import {
   LockKeyhole,
   MessagesSquare,
   NotebookPen,
+  Palette,
   ShieldCheck,
   Tags,
   Users,
@@ -64,6 +65,7 @@ export const SECTIONS: NavSection[] = [
       { href: "/admin/llm", label: "Modele AI", icon: Bot },
       { href: "/admin/users", label: "Użytkownicy", icon: Users },
       { href: "/admin/atlas", label: "Atlas (admin)", icon: Database },
+      { href: "/admin/branding", label: "Wygląd", icon: Palette },
     ],
   },
 ];

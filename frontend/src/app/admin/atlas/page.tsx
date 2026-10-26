@@ -5,7 +5,7 @@ import { ExportPanel } from "@/components/admin/atlas/ExportPanel";
 import { RequireRole } from "@/components/auth/RequireRole";
 import { PageHeader } from "@/components/ui/PageHeader";
 
-export const metadata: Metadata = { title: "Atlas · Spółdzielnia AI" };
+export const metadata: Metadata = { title: "Atlas" };
 
 export default function AdminAtlasPage() {
   return (

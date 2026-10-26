@@ -72,7 +72,7 @@ implementation, on the server.
 
 - The root layout already renders per request. It reads the branding from the API
   (`GET /api/branding`, server to server through `API_INTERNAL_URL`, cached in the Next.js server
-  for 30 s and keyed by the branding `version`) and renders **one `<style nonce={nonce}>`** with
+  for 10 s, stale while revalidating) and renders **one `<style nonce={nonce}>`** with
   `:root { --primary: …; … }` and the same in the two dark-mode selectors. The CSP already allows
   nonced styles, so it stays unchanged and there is no flash of the default colours.
 - Every value in that style block comes from the derived palette, which contains only
@@ -95,9 +95,10 @@ implementation, on the server.
   `logo.png` (fits 512×128, transparency kept), `favicon-32.png`, `favicon-180.png` (square,
   padded on transparent). The original is never stored. Stored in object storage under
   `branding/<version>/`.
-- Served at `GET /api/branding/logo/<version>.png` and `/api/branding/favicon/<size>/<version>.png`:
-  public, `image/png`, `nosniff`, `Cache-Control: public, max-age=31536000, immutable` (the
-  version in the URL changes on every save), with the API's deny-all CSP.
+- Served at `GET /api/branding/files/<version>/{logo,favicon-32,favicon-180}.png`: public,
+  `image/png`, `nosniff`, `Cache-Control: public, max-age=31536000, immutable` (a new logo has a
+  new version in its URL; older versions answer 404 and their files are deleted), with the API's
+  deny-all CSP. The files are public, so they are stored unencrypted (MinIO's SSE still applies).
 
 ### Storage, audit and access
 
@@ -155,6 +156,49 @@ implementation, on the server.
   axe passes with custom colours.
 - Security review entry (CSS injection, SVG, image parsing, public endpoint, impersonation note),
   this document, the US-07 *Delivery* list.
+
+## Implementation
+
+| Area | Where |
+|---|---|
+| Palette | `branding/palette.py`: OKLCH, WCAG contrast, `derive()`, `is_valid_tokens()` |
+| Logo | `branding/images.py`: `render_logo()` (content validation, limits, Pillow re-encode, favicons) |
+| Service | `branding/service.py`: `BrandingService` (get, update, set/remove logo, reset, files), `clean_name()` |
+| Data | `db/models/branding.py`, migration `0027_branding` (singleton, hex and palette CHECKs) |
+| Audit | `BRANDING_CHANGED` `{fields, version, adjusted \| logo_sha256}`, `BRANDING_RESET` `{version}` |
+| API | `api/branding.py`: public `GET /branding`, `GET /branding/files/{version}/{name}`; `/admin/branding` GET, PUT, `POST /preview`, `POST`/`DELETE /logo`, `POST /reset` |
+| App | `lib/branding.ts` (server fetch), `lib/branding-css.ts` (`brandingCss`, `sanitizeBranding`), `lib/branding-context.tsx`, `app/layout.tsx` (nonced `<style>`, `generateMetadata`), `shell/BrandMark.tsx`, `Sidebar`, phone top bar, `HomeDashboard` |
+| Console | `/admin/branding`, `components/admin/branding/BrandingConsole.tsx`, `lib/branding-admin.ts` (`applyLive`: the admin's own tab changes at once) |
+| Compose | `frontend.environment.API_INTERNAL_URL: http://api:8000` (over `edge`) |
+
+Changes from the plan, found while building it:
+
+- **10 s cache instead of 30 s:** Next.js revalidates stale-while-revalidate, so members see a
+  change within about 10 s; the admin's own tab applies it at once through the CSSOM.
+- **The menu puts the name under the logo:** a 512×128 logo and the name do not fit beside the
+  collapse button in 16rem.
+- **A logo change keeps unsaved edits:** the console is not re-mounted by the new version.
+- **Each preview panel sets every token of its mode** (the defaults when there are no own
+  colours), so the dark panel never inherits the page's light colours (found by axe in E2E).
+- **`contrast_unreachable` is effectively theoretical** for the brand and accent: some lightness
+  of every hue reaches the ratios against these surfaces. The code path is there and unit tested.
+
+## Tests
+
+- Unit `test_branding_palette.py`: WCAG reference ratios, OKLCH round trip, hex parsing (CSS
+  injection attempts refused), the honey palette unchanged, a light yellow darkened, every
+  derived pair meeting its ratio in both modes for seven palettes, tampered palettes invalid.
+- Integration `test_branding.py`: defaults for visitors; ADMIN + MFA + CSRF; name and colours,
+  idempotent saves, audit; validation (bidi, control characters, too long, half a pair); preview
+  without saving; the logo re-encoded (no text chunk, no EXIF, sizes, versioned immutable URLs,
+  old files deleted); SVG, GIF, HEIC, an executable, 3 MB and 5000 px refused; infected and
+  scanner down (fail closed); reset; rate limit; the database CHECKs.
+- Vitest `branding.test.tsx`: `brandingCss` only for valid palettes, `sanitizeBranding` drops
+  foreign logo URLs, `BrandMark` fallbacks, the console (server preview, CSSOM, save and live
+  apply, refused colours, SVG message, unsaved edits kept, reset, MFA step-up).
+- E2E `15-branding.spec.ts`: admin1 brands the app through „Wygląd”; member1 sees the name in the
+  menu, the tab title, the favicon, the logo and `--primary`, with no CSP violation and no serious
+  axe finding; an SVG is refused; a member gets 403; reset brings the defaults back.
 
 ## Risks and notes
 

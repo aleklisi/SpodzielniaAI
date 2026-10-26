@@ -21,7 +21,7 @@ committed, add the commit hash to the story's *Delivery* list.
 | [US-04](#us-04) | Every model (LLM, embeddings, speech, OCR, image embeddings) is configured and provided over an API — local (LM Studio) or cloud; no built-in model required | DONE | [10_MODEL_PROVIDERS_API.md](implementation/10_MODEL_PROVIDERS_API.md) · Etap 10 | 2026-10-22 |
 | [US-05](#us-05) | Administrator removes an LLM provider that is no longer used, so unused configurations and keys do not stay | DONE | [11_PROVIDER_REMOVAL.md](implementation/11_PROVIDER_REMOVAL.md) · Etap 11 | 2026-10-26 |
 | [US-06](#us-06) | The UI works like Open Notebook — menu on the left, workspace on the right — on desktops and phones | DONE | [12_APP_SHELL_RESPONSIVE.md](implementation/12_APP_SHELL_RESPONSIVE.md) · Etap 12 | 2026-10-26 |
-| [US-07](#us-07) | Administrator brands the UI: organisation name, logo (and favicon) and colours | PLANNED | [13_BRANDING.md](implementation/13_BRANDING.md) · Etap 13 | 2026-10-26 |
+| [US-07](#us-07) | Administrator brands the UI: organisation name, logo (and favicon) and colours | DONE | [13_BRANDING.md](implementation/13_BRANDING.md) · Etap 13 | 2026-10-26 |
 
 ---
 
@@ -258,7 +258,7 @@ has to support mobile devices.
 the logo of my organisation and change colours.
 
 - **Source:** product owner request, 2026-10-26.
-- **Status:** PLANNED 2026-10-26.
+- **Status:** DONE 2026-10-26 (13.1–13.6, one commit).
 - **Plan:** [docs/implementation/13_BRANDING.md](implementation/13_BRANDING.md)
 - **Refinement decisions (accepted 2026-10-26):** the organisation name, logo and a favicon
   generated from it can be branded (the Keycloak sign-in page cannot, in this story); the admin
@@ -274,4 +274,4 @@ the logo of my organisation and change colours.
   3. SVG, GIF, oversized and disguised files are refused; stored images carry no metadata.
   4. „Przywróć domyślne” restores the original look for everyone.
   5. Only an ADMIN with MFA can change branding; anyone can read it. Every change is audited.
-- **Delivery:** plan.
+- **Delivery:** `4033c26` plan · 13.1–13.6 palette derivation, migration 0027, logo pipeline, API, branded layout and menu, „Wygląd” console, E2E scenario 15 (this commit).

@@ -7,6 +7,7 @@ import { visibleSections } from "@/components/shell/nav-items";
 import { Card } from "@/components/ui/Card";
 import { Loading } from "@/components/ui/Skeleton";
 import { ApiError, loginUrl } from "@/lib/api";
+import { useBranding } from "@/lib/branding-context";
 import { useMe } from "@/lib/session";
 
 const TEXT: Record<string, string> = {
@@ -23,6 +24,7 @@ const TEXT: Record<string, string> = {
   "/admin/llm": "Dostawcy, modele i przypisania funkcji.",
   "/admin/users": "Konta, role, hasła i blokady.",
   "/admin/atlas": "Dziedziny atlasu i eksport zbioru danych.",
+  "/admin/branding": "Nazwa, logo i kolory spółdzielni.",
 };
 
 /** The start page: the menu's sections as cards, for the account's roles (12.5). */
@@ -31,10 +33,11 @@ export function HomeDashboard() {
   const signedOut = me.error instanceof ApiError && me.error.status === 401;
   const sections = visibleSections(me.data);
   const name = me.data?.display_name ?? me.data?.email;
+  const { org_name } = useBranding();
   return (
     <div className="flex flex-col gap-8">
       <section className="flex flex-col gap-2">
-        <h1 className="font-display text-3xl font-semibold">{name ? `Dzień dobry, ${name}` : "Spółdzielnia AI"}</h1>
+        <h1 className="font-display text-3xl font-semibold">{name ? `Dzień dobry, ${name}` : org_name}</h1>
         <p className="max-w-2xl text-text-muted">Wspólna, zweryfikowana wiedza pszczelarska – z poszanowaniem prywatności i praw autorów.</p>
         {signedOut && (
           <a

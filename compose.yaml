@@ -580,6 +580,8 @@ services:
     mem_limit: 512m
     environment:
       NODE_ENV: production
+      # The root layout reads the organisation's branding server to server (13.4), over `edge`.
+      API_INTERNAL_URL: http://api:8000
     healthcheck:
       test: ["CMD", "/nodejs/bin/node", "-e", "fetch('http://127.0.0.1:3000/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 10s

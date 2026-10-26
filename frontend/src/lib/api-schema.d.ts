@@ -135,6 +135,85 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/branding": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Admin Branding */
+        get: operations["get_admin_branding_admin_branding_get"];
+        /** Update Branding */
+        put: operations["update_branding_admin_branding_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/branding/logo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Upload Logo
+         * @description Multipart field ``file``: PNG, JPEG or WebP up to 2 MB. SVG is refused.
+         */
+        post: operations["upload_logo_admin_branding_logo_post"];
+        /** Delete Logo */
+        delete: operations["delete_logo_admin_branding_logo_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/branding/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Preview Branding
+         * @description The palette these colours would give, with every contrast ratio. Saves nothing.
+         */
+        post: operations["preview_branding_admin_branding_preview_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/branding/reset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reset Branding
+         * @description Back to the default name, logo and colours.
+         */
+        post: operations["reset_branding_admin_branding_reset_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/coverage": {
         parameters: {
             query?: never;
@@ -1172,6 +1251,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/branding": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Public Branding
+         * @description The look of the cooperative, for every page (signed in or not).
+         */
+        get: operations["get_public_branding_branding_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/branding/files/{version}/{name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Branding File
+         * @description A file of the current logo (``logo.png``, ``favicon-32.png``, ``favicon-180.png``).
+         */
+        get: operations["get_branding_file_branding_files__version___name__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/capabilities": {
         parameters: {
             query?: never;
@@ -1855,6 +1974,33 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** AdminBrandingOut */
+        AdminBrandingOut: {
+            /** Accent */
+            accent: string | null;
+            /** Brand */
+            brand: string | null;
+            /** Custom Name */
+            custom_name: boolean;
+            /** Favicon Urls */
+            favicon_urls: {
+                [key: string]: string;
+            } | null;
+            /** Logo Url */
+            logo_url: string | null;
+            /** Org Name */
+            org_name: string;
+            /** Palette */
+            palette: {
+                [key: string]: {
+                    [key: string]: string;
+                };
+            } | null;
+            /** Updated At */
+            updated_at: string | null;
+            /** Version */
+            version: number;
+        };
         /**
          * AnnotationSource
          * @description Who drew a mark: the member, or a recognition suggestion they accepted (9.9).
@@ -2074,6 +2220,36 @@ export interface components {
          * @enum {string}
          */
         BlockReason: "left_cooperative" | "security" | "policy_violation" | "other" | "idp_disabled";
+        /** BrandingIn */
+        BrandingIn: {
+            /** Accent */
+            accent?: string | null;
+            /** Brand */
+            brand?: string | null;
+            /** Org Name */
+            org_name?: string | null;
+        };
+        /** BrandingOut */
+        BrandingOut: {
+            /** Custom Name */
+            custom_name: boolean;
+            /** Favicon Urls */
+            favicon_urls: {
+                [key: string]: string;
+            } | null;
+            /** Logo Url */
+            logo_url: string | null;
+            /** Org Name */
+            org_name: string;
+            /** Palette */
+            palette: {
+                [key: string]: {
+                    [key: string]: string;
+                };
+            } | null;
+            /** Version */
+            version: number;
+        };
         /** CanaryOut */
         CanaryOut: {
             /**
@@ -2110,6 +2286,22 @@ export interface components {
             ok: boolean;
             /** Rows */
             rows: number;
+        };
+        /** CheckOut */
+        CheckOut: {
+            /** Against */
+            against: string;
+            /**
+             * Mode
+             * @enum {string}
+             */
+            mode: "light" | "dark";
+            /** Ratio */
+            ratio: number;
+            /** Required */
+            required: number;
+            /** Token */
+            token: string;
         };
         /** Citation */
         Citation: {
@@ -2152,6 +2344,13 @@ export interface components {
             region: string;
             /** Retention */
             retention: string;
+        };
+        /** ColoursIn */
+        ColoursIn: {
+            /** Accent */
+            accent: string;
+            /** Brand */
+            brand: string;
         };
         /** ConnectionOut */
         ConnectionOut: {
@@ -3139,6 +3338,21 @@ export interface components {
             structured: boolean;
             /** Title */
             title: string;
+        };
+        /** PreviewOut */
+        PreviewOut: {
+            /** Adjusted */
+            adjusted: ("brand" | "accent")[];
+            /** Checks */
+            checks: components["schemas"]["CheckOut"][];
+            /** Dark */
+            dark: {
+                [key: string]: string;
+            };
+            /** Light */
+            light: {
+                [key: string]: string;
+            };
         };
         /** ProbeOut */
         ProbeOut: {
@@ -4343,6 +4557,159 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ChainOut"];
+                };
+            };
+        };
+    };
+    get_admin_branding_admin_branding_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminBrandingOut"];
+                };
+            };
+        };
+    };
+    update_branding_admin_branding_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BrandingIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminBrandingOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    upload_logo_admin_branding_logo_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "multipart/form-data": {
+                    /** Format: binary */
+                    file: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminBrandingOut"];
+                };
+            };
+        };
+    };
+    delete_logo_admin_branding_logo_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminBrandingOut"];
+                };
+            };
+        };
+    };
+    preview_branding_admin_branding_preview_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ColoursIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PreviewOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reset_branding_admin_branding_reset_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminBrandingOut"];
                 };
             };
         };
@@ -6369,6 +6736,66 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["LogoutResponse"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_public_branding_branding_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BrandingOut"];
+                };
+            };
+        };
+    };
+    get_branding_file_branding_files__version___name__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                version: number;
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                    "image/png": unknown;
+                };
+            };
+            /** @description Not the current logo */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

@@ -158,6 +158,19 @@ P1–P9 of `docs/implementation/10_MODEL_PROVIDERS_API.md` and their proof:
 - **New dependencies** (pinned exact, each release at least two weeks old): `lucide-react` 1.55.0,
   `tailwind-merge` 3.7.0 (runtime, no dependencies); `@axe-core/playwright` 4.13.0 (dev).
 
+## Stage 13 additions (organisation branding, US-07)
+
+| Control | Proof |
+|---|---|
+| R2 No admin input reaches CSS but `#rrggbb`: colours are parsed to `#rrggbb`, the palette is derived on the server and holds only known tokens, migration 0027's CHECKs refuse anything else (including in `palette` via `jsonb_path_exists`), and the frontend drops the whole palette on any odd value. The style block carries the request's nonce: the CSP is unchanged | `test_branding_palette.py::test_anything_but_a_hex_colour_is_refused`, `test_branding.py::test_the_database_refuses_what_could_reach_css`, Vitest `brandingCss (rule R2)`, E2E `15-branding` (`watchCsp` empty) |
+| R3 Logos are plain images: PNG/JPEG/WebP by content (SVG, GIF, HEIC, executables refused), ≤ 2 MB and 4096 px (decompression bombs refused before decoding), ClamAV (fail closed), re-encoded from pixels only; the original is never stored | `test_anything_but_a_plain_image_is_refused`, `test_a_logo_is_re_encoded_into_versioned_files`, `test_an_infected_logo_is_refused_and_a_down_scanner_fails_closed` |
+| Public endpoints expose nothing sensitive: `GET /branding` and the current logo files only; any other file name or version is 404; the page accepts only same-origin `/api/branding/files/…` URLs | `test_everyone_reads_the_default_branding`, Vitest `sanitizeBranding` |
+| Changes are ADMIN + MFA + CSRF, rate limited (30/h), audited without image bytes; the name is NFC with no control, format or bidi characters | `test_only_an_admin_with_mfa_changes_branding`, `test_unreadable_or_malformed_values_are_refused`, `test_writes_are_rate_limited_per_admin` |
+
+- **Accepted:** an administrator can brand the cooperative to resemble another organisation; that
+  is within their authority, every change is audited with the author, and the Keycloak sign-in page
+  stays unbranded. Pillow parses admin uploads in the API process (bounded as above).
+
 ## Chunk 6.8 additions (production deployment, backup and restore)
 
 | Control | Proof |

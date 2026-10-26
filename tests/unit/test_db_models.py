@@ -69,6 +69,7 @@ def test_tables_registered() -> None:
         "atlas_region",
         "atlas_review",
         "atlas_export",
+        "branding",
         "model_wait",
         "index_generation",
     }
@@ -195,6 +196,7 @@ def test_migrations_form_a_single_linear_history() -> None:
         "0024_image_embed",
         "0025_processors_seen",
         "0026_provider_removal",
+        "0027_branding",
     ]
 
 
