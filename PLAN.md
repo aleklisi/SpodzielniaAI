@@ -275,3 +275,12 @@ Rejestr historyjek dodanych poza Etapami 1–6: [docs/USER_STORIES_LOG.md](docs/
 - [x] 13.4 Zastosowanie w aplikacji: `<style nonce>` z tokenami w layoucie (bez zmian CSP, bez mignięcia kolorów), tytuł i favicon, logo i nazwa w menu, pasku telefonu i na stronie głównej
 - [x] 13.5 Strona `/admin/branding` („Wygląd”): nazwa, dwa kolory, podgląd jasny i ciemny z kontrastami, logo, przywracanie domyślnych
 - [x] 13.6 E2E (scenariusz 15), przegląd bezpieczeństwa i dokumentacja
+
+### Etap 14: Język interfejsu — polski i angielski (US-08)
+*Dokumentacja: [docs/implementation/14_UI_LANGUAGE.md](docs/implementation/14_UI_LANGUAGE.md)*
+- [ ] 14.1 Język na koncie (migracja 0028 `users.locale`, `review_alert` jako kod), `GET /me` z językiem, `PUT /me/locale` (CSRF, limit, cookie `lang`), cookie ustawiane lub przejmowane przy logowaniu, katalog tekstów serwera (`spoldzielnia_ai/i18n`)
+- [ ] 14.2 Podstawy i18n we frontendzie (`next-intl` bez routingu, katalogi `pl`/`en`, `<html lang>`, formaty dat i liczb), przełącznik języka w menu, szufladzie i pasku ikon (zapis → cookie → przeładowanie), powłoka, strona główna i strony błędów
+- [ ] 14.3 Strony członka w katalogu: notatnik, wiki, czat, atlas, kontrybucje, „Twoje dane”, mapy kodów błędów, liczba mnoga ICU
+- [ ] 14.4 Recenzje i konsole administratora w katalogu; kontrola braku tekstów na sztywno (diakrytyki + ESLint `no-literal-string`)
+- [ ] 14.5 Odpowiedzi czatu po angielsku bez osłabienia ochrony przed destylacją (angielskie sloty znaku wodnego, wielojęzyczna kontrola dosłowności przez embeddingi, bez modelu embeddingów odpowiedź po polsku, angielskie frazy ekstrakcji i injection)
+- [ ] 14.6 E2E (scenariusz 16), przegląd bezpieczeństwa i dokumentacja
