@@ -4,6 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { LogIn, LogOut, PanelLeftClose, PanelLeftOpen, Plus, X, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import type { ReactNode } from "react";
 
 import { cn } from "@/components/ui/cn";
@@ -13,13 +14,14 @@ import { useCreateNote } from "@/lib/notebook";
 import { useMe } from "@/lib/session";
 
 import { BrandMark } from "./BrandMark";
+import { LanguageSwitch } from "./LanguageSwitch";
 import { activeHref, PRIVACY_ITEM, visibleSections, type NavItem } from "./nav-items";
 
 export type SidebarMode = "desktop" | "drawer";
 
 /**
  * The menu (12.1). On the desktop it is 16rem wide or a 4rem icon rail (`collapsed`); between md
- * and lg it is always the rail and "Rozwiń menu" opens the drawer over the workspace. In the
+ * and lg it is always the rail and "Expand menu" opens the drawer over the workspace. In the
  * drawer it always shows its labels. `sb-wide:` (globals.css) styles the labelled state.
  */
 export function Sidebar({
@@ -38,6 +40,7 @@ export function Sidebar({
   /** The drawer: close it (also after a link or an action is used). */
   onClose?: () => void;
 }) {
+  const t = useTranslations("shell");
   const me = useMe();
   const path = usePathname();
   const { org_name, logo_url } = useBranding();
@@ -72,17 +75,17 @@ export function Sidebar({
             {/* Wrappers carry the breakpoint: `cn` does not resolve conflicting display classes. */}
             <span className="hidden lg:contents">
               <IconButton
-                label={collapsed ? "Rozwiń menu" : "Zwiń menu"}
+                label={collapsed ? t("expandMenu") : t("collapseMenu")}
                 icon={collapsed ? PanelLeftOpen : PanelLeftClose}
                 onClick={onToggle}
               />
             </span>
             <span className="contents lg:hidden">
-              <IconButton label="Rozwiń menu" icon={PanelLeftOpen} onClick={onExpand} />
+              <IconButton label={t("expandMenu")} icon={PanelLeftOpen} onClick={onExpand} />
             </span>
           </>
         )}
-        {mode === "drawer" && <IconButton label="Zamknij menu" icon={X} onClick={onClose} />}
+        {mode === "drawer" && <IconButton label={t("closeMenu")} icon={X} onClick={onClose} />}
       </div>
       {logo_url && (
         <p aria-hidden className="-mt-2 hidden truncate px-4 pb-2 font-display text-sm font-semibold text-primary-strong sb-wide:block">
@@ -92,14 +95,14 @@ export function Sidebar({
 
       {me.data && <CreateNote onDone={onClose} />}
 
-      <nav aria-label="Główna" className="flex-1 px-2 pb-2 sb-wide:overflow-y-auto">
+      <nav aria-label={t("mainNav")} className="flex-1 px-2 pb-2 sb-wide:overflow-y-auto">
         {sections.map((section, index) => (
-          <div key={section.title}>
+          <div key={section.key}>
             <p className="hidden px-3 pt-4 pb-1 text-xs font-semibold tracking-wide text-text-muted uppercase sb-wide:block">
-              {section.title}
+              {t(`sections.${section.key}`)}
             </p>
             {index > 0 && <hr aria-hidden className="mx-2 my-2 border-border sb-wide:hidden" />}
-            <ul aria-label={section.title} className="flex flex-col gap-0.5">
+            <ul aria-label={t(`sections.${section.key}`)} className="flex flex-col gap-0.5">
               {section.items.map((item) => (
                 <li key={item.href}>
                   <NavLink item={item} active={current === item.href} onNavigate={onClose} />
@@ -112,12 +115,25 @@ export function Sidebar({
 
       <div className="flex flex-col gap-0.5 border-t border-border px-2 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
         {me.data && <NavLink item={PRIVACY_ITEM} active={current === PRIVACY_ITEM.href} onNavigate={onClose} />}
-        {me.data && <Account name={me.data.display_name ?? me.data.email ?? "konto"} onDone={onClose} />}
+        {mode === "drawer" ? (
+          <LanguageSwitch />
+        ) : (
+          <>
+            {/* The rail offers the choice behind a globe button; the labelled menu shows it. */}
+            <div className="sb-wide:hidden">
+              <LanguageSwitch rail />
+            </div>
+            <div className="hidden sb-wide:block">
+              <LanguageSwitch />
+            </div>
+          </>
+        )}
+        {me.data && <Account name={me.data.display_name ?? me.data.email ?? t("account")} onDone={onClose} />}
         {signedOut && (
           <a href={loginUrl(path)} className={cn(ITEM, "font-medium text-primary-strong")}>
             <LogIn aria-hidden className="size-5 shrink-0" />
-            <span className="sr-only sb-wide:not-sr-only">Zaloguj się</span>
-            <Tip>Zaloguj się</Tip>
+            <span className="sr-only sb-wide:not-sr-only">{t("signIn")}</span>
+            <Tip>{t("signIn")}</Tip>
           </a>
         )}
       </div>
@@ -129,7 +145,9 @@ const ITEM =
   "group/link relative flex min-h-10 items-center justify-center gap-3 rounded-lg px-3 py-2 text-sm pointer-coarse:min-h-11 hover:bg-sidebar-accent sb-wide:justify-start";
 
 function NavLink({ item, active, onNavigate }: { item: NavItem; active: boolean; onNavigate?: () => void }) {
+  const t = useTranslations("shell.nav");
   const Icon = item.icon;
+  const label = t(item.key);
   return (
     <Link
       href={item.href}
@@ -138,13 +156,14 @@ function NavLink({ item, active, onNavigate }: { item: NavItem; active: boolean;
       className={cn(ITEM, active ? "bg-sidebar-accent font-medium text-text" : "text-text-muted hover:text-text")}
     >
       <Icon aria-hidden className={cn("size-5 shrink-0", active && "text-primary-strong")} />
-      <span className="sr-only truncate sb-wide:not-sr-only">{item.label}</span>
-      <Tip>{item.label}</Tip>
+      <span className="sr-only truncate sb-wide:not-sr-only">{label}</span>
+      <Tip>{label}</Tip>
     </Link>
   );
 }
 
 function CreateNote({ onDone }: { onDone?: () => void }) {
+  const t = useTranslations("shell");
   const create = useCreateNote();
   const router = useRouter();
   return (
@@ -154,21 +173,22 @@ function CreateNote({ onDone }: { onDone?: () => void }) {
         disabled={create.isPending}
         aria-busy={create.isPending || undefined}
         onClick={async () => {
-          const note = await create.mutateAsync("Nowa notatka");
+          const note = await create.mutateAsync(t("newNoteTitle"));
           onDone?.();
           router.push(`/notebook/${note.id}`);
         }}
         className="group/link relative flex min-h-10 w-full items-center justify-center gap-2 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-contrast hover:bg-primary-strong disabled:opacity-50 pointer-coarse:min-h-11"
       >
         <Plus aria-hidden className="size-5 shrink-0" />
-        <span className="sr-only sb-wide:not-sr-only">Utwórz notatkę</span>
-        <Tip>Utwórz notatkę</Tip>
+        <span className="sr-only sb-wide:not-sr-only">{t("createNote")}</span>
+        <Tip>{t("createNote")}</Tip>
       </button>
     </div>
   );
 }
 
 function Account({ name, onDone }: { name: string; onDone?: () => void }) {
+  const t = useTranslations("shell");
   const router = useRouter();
   const client = useQueryClient();
   return (
@@ -181,7 +201,7 @@ function Account({ name, onDone }: { name: string; onDone?: () => void }) {
       </span>
       <span className="sr-only min-w-0 flex-1 truncate text-sm sb-wide:not-sr-only">{name}</span>
       <IconButton
-        label="Wyloguj"
+        label={t("signOut")}
         icon={LogOut}
         onClick={async () => {
           await api.POST("/auth/logout").catch(() => undefined);

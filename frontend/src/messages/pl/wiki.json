@@ -1,0 +1,57 @@
+{
+  "list": {
+    "title": "Baza wiedzy",
+    "description": "Artykuły zatwierdzone przez Radę Ekspertów spółdzielni.",
+    "loadFailed": "Nie udało się wczytać artykułów.",
+    "empty": "Brak zatwierdzonych artykułów.",
+    "verified": " · zweryfikowano {date}"
+  },
+  "member": "Członek spółdzielni",
+  "page": {
+    "loading": "Ładowanie artykułu…",
+    "rateLimited": "Przeczytałeś dziś bardzo dużo artykułów. Spróbuj ponownie za jakiś czas.",
+    "locked": "Twoje konto zostało zablokowane. Skontaktuj się z administratorem spółdzielni.",
+    "notFound": "Ten artykuł nie istnieje albo nie masz do niego dostępu.",
+    "loadFailed": "Nie udało się wczytać artykułu.",
+    "unavailable": "Artykuł niedostępny",
+    "back": "Wróć do bazy wiedzy",
+    "backShort": "← Baza wiedzy",
+    "submitted": "Artykuł trafił do recenzji Rady Ekspertów.",
+    "submitFailed": "Nie udało się wysłać.",
+    "submit": "Wyślij do recenzji"
+  },
+  "article": {
+    "superseded": "Ten artykuł został zastąpiony nowszą wersją.",
+    "current": "Przejdź do aktualnego artykułu",
+    "version": "wersja {version}",
+    "lastVerified": "Ostatnia weryfikacja",
+    "notVerified": "jeszcze nie zweryfikowano",
+    "authors": "Autorzy",
+    "approvedBy": "Zatwierdzili",
+    "paragraph": "Akapit {n}",
+    "withheld": {
+      "SUSPENDED": "Treść wstrzymana przez autora",
+      "REVOKED": "Treść wycofana przez autora"
+    }
+  },
+  "drafts": {
+    "title": "Moje szkice",
+    "description": "Artykuły z Twoich wniosków przed zatwierdzeniem przez Radę Ekspertów.",
+    "emptyTitle": "Nie masz otwartych szkiców.",
+    "emptyBody": "Zaznacz notatki w notatniku i utwórz wniosek do Wiki, a szkic pojawi się tutaj.",
+    "table": "Szkice",
+    "article": "Artykuł",
+    "status": "Status"
+  },
+  "reviewErrors": {
+    "version_conflict": "Artykuł zmienił się w międzyczasie. Odśwież widok i oceń aktualną wersję.",
+    "invalid_transition": "Tej decyzji nie można podjąć dla artykułu w obecnym stanie.",
+    "own_article": "Nie możesz recenzować artykułu, którego jesteś współautorem.",
+    "no_content": "Artykuł nie ma treści do zatwierdzenia.",
+    "supersedes_not_found": "Wskazany artykuł do zastąpienia nie istnieje.",
+    "supersedes_not_canonical": "Zastąpić można tylko artykuł kanoniczny.",
+    "supersedes_self": "Artykuł nie może zastąpić samego siebie.",
+    "supersedes_requires_approve": "Zastąpienie jest możliwe tylko przy zatwierdzeniu.",
+    "not_found": "Artykuł nie istnieje."
+  }
+}

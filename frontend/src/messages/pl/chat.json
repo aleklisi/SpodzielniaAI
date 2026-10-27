@@ -1,0 +1,33 @@
+{
+  "title": "Zapytaj spółdzielnię",
+  "description": "Odpowiedzi powstają wyłącznie na podstawie artykułów zatwierdzonych przez Radę Ekspertów, zawsze ze źródłami.",
+  "feature": "Zadawanie pytań spółdzielni",
+  "emptyTitle": "Zadaj pierwsze pytanie",
+  "notSaved": "Rozmowa nie jest zapisywana: znika po opuszczeniu strony.",
+  "examplesLabel": "Przykładowe pytania",
+  "examples": {
+    "varroa": "Jak leczyć warrozę zimą?",
+    "brood": "Kiedy poszerzać gniazdo wiosną?",
+    "foulbrood": "Jak rozpoznać zgniliznę?"
+  },
+  "conversation": "Rozmowa",
+  "question": "Twoje pytanie",
+  "placeholder": "Np. jak leczyć warrozę zimą?",
+  "submit": "Zapytaj",
+  "throttled": "Zadałeś dziś bardzo wiele pytań. Spróbuj ponownie za {minutes} min.",
+  "powFailed": "Weryfikacja nie powiodła się. Spróbuj ponownie.",
+  "modelMissing": "Model nie jest skonfigurowany: odpowiedzi spółdzielni są wyłączone.",
+  "failed": "Nie udało się uzyskać odpowiedzi. Spróbuj ponownie za chwilę.",
+  "searching": "Szukam w bazie wiedzy…",
+  "solving": "Weryfikacja bezpieczeństwa w toku… To potrwa chwilę.",
+  "tried": "Sprawdzono {tried, number} z ok. {total, number} kombinacji",
+  "mfa": "Aby kontynuować rozmowę, potwierdź swoją tożsamość drugim składnikiem logowania.",
+  "noPosition": "Brak oficjalnego stanowiska ekspertów",
+  "sources": "Źródła",
+  "verified": "Zweryfikowano {date}",
+  "notVerified": "Bez daty weryfikacji",
+  "authors": "Autorzy: {names}",
+  "approvedBy": "Zatwierdzili: {names}",
+  "lockedTitle": "Konto zostało zablokowane",
+  "lockedBody": "Ze względów bezpieczeństwa dostęp do bazy wiedzy został wstrzymany. Skontaktuj się z administratorem spółdzielni, aby wyjaśnić sytuację."
+}

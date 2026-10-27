@@ -1,18 +1,20 @@
 "use client";
 
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { useState, type FormEvent } from "react";
 
 import { SafeMarkdown } from "@/components/markdown/SafeMarkdown";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { ModelMissing } from "@/components/ui/ModelMissing";
-import { isModelMissing, MODEL_MISSING, useFeature } from "@/lib/capabilities";
+import { isModelMissing, useFeature } from "@/lib/capabilities";
 import { useAskNotebook } from "@/lib/notebook";
 
-/** "Zapytaj mój notatnik": private RAG over the member's own notes (5.1), models cleared for
+/** "Ask your notebook": private RAG over the member's own notes (5.1), models cleared for
  * private data only (10.1); off without one (10.2). */
 export function AskPanel() {
+  const t = useTranslations("notebook.ask");
   const [question, setQuestion] = useState("");
   const ask = useAskNotebook();
   const available = useFeature("notebook_answers");
@@ -24,11 +26,11 @@ export function AskPanel() {
 
   return (
     <Card className="flex flex-col gap-3">
-      <h2 className="font-display text-lg font-semibold">Zapytaj swój notatnik</h2>
-      {!available && <ModelMissing what="Zadawanie pytań do notatnika" />}
+      <h2 className="font-display text-lg font-semibold">{t("title")}</h2>
+      {!available && <ModelMissing what={t("feature")} />}
       <form onSubmit={submit} className="flex flex-col gap-2">
         <label className="sr-only" htmlFor="ask-notebook">
-          Pytanie do notatnika
+          {t("label")}
         </label>
         <textarea
           id="ask-notebook"
@@ -36,16 +38,16 @@ export function AskPanel() {
           maxLength={1000}
           value={question}
           onChange={(event) => setQuestion(event.target.value)}
-          placeholder="Np. kiedy ostatnio leczyłem rodzinę nr 3?"
+          placeholder={t("placeholder")}
           className="rounded-lg border border-border bg-surface px-3 py-2 text-sm"
         />
         <Button type="submit" busy={ask.isPending} disabled={!available || question.trim().length < 3}>
-          Zapytaj
+          {t("submit")}
         </Button>
       </form>
       {ask.isError && (
         <p role="alert" className="text-sm text-danger">
-          {isModelMissing(ask.error) ? `${MODEL_MISSING}.` : "Nie udało się uzyskać odpowiedzi."}
+          {isModelMissing(ask.error) ? t("modelMissing") : t("failed")}
         </p>
       )}
       {ask.data && (

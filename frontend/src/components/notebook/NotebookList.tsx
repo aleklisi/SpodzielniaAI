@@ -3,6 +3,7 @@
 import { NotebookPen, Plus, Send } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useFormatter, useTranslations } from "next-intl";
 import { useState, type FormEvent } from "react";
 
 import { Button } from "@/components/ui/Button";
@@ -15,12 +16,12 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { Loading } from "@/components/ui/Skeleton";
 import { useToast } from "@/components/ui/Toast";
 import { RateLimited } from "@/lib/api";
-import { isModelMissing, MODEL_MISSING, useFeature } from "@/lib/capabilities";
+import { isModelMissing, useFeature } from "@/lib/capabilities";
 import { useCreateNote, useNotes, usePromote, usePromotion } from "@/lib/notebook";
 
-const DATE = new Intl.DateTimeFormat("pl-PL", { dateStyle: "medium", timeStyle: "short" });
-
 export function NotebookList() {
+  const t = useTranslations("notebook.list");
+  const format = useFormatter();
   const notes = useNotes();
   const create = useCreateNote();
   const router = useRouter();
@@ -39,23 +40,23 @@ export function NotebookList() {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        title="Mój notatnik"
-        description="Prywatny i zaszyfrowany. Nikt poza Tobą nie ma do niego dostępu."
+        title={t("title")}
+        description={t("description")}
         actions={
           <>
             <Button variant="secondary" disabled={selected.size === 0} onClick={() => setPromoteOpen(true)}>
               <Send aria-hidden className="size-4" />
-              Utwórz wniosek do Wiki ({selected.size})
+              {t("promote", { count: selected.size })}
             </Button>
             <Button
               busy={create.isPending}
               onClick={async () => {
-                const note = await create.mutateAsync("Nowa notatka");
+                const note = await create.mutateAsync(t("newNote"));
                 router.push(`/notebook/${note.id}`);
               }}
             >
               <Plus aria-hidden className="size-4" />
-              Nowa notatka
+              {t("newNote")}
             </Button>
           </>
         }
@@ -64,14 +65,14 @@ export function NotebookList() {
       {promotionId && <PromotionStatus promotionId={promotionId} onDismiss={() => setPromotionId(null)} />}
 
       {notes.isPending && <Loading />}
-      {notes.isError && <p role="alert" className="text-danger">Nie udało się wczytać notatek.</p>}
+      {notes.isError && <p role="alert" className="text-danger">{t("loadFailed")}</p>}
       {notes.data?.length === 0 && (
-        <EmptyState icon={NotebookPen} title="Nie masz jeszcze notatek.">
-          Zapisuj obserwacje z pasieki, wgrywaj zdjęcia, dokumenty i nagrania. Wszystko pozostaje prywatne.
+        <EmptyState icon={NotebookPen} title={t("emptyTitle")}>
+          {t("emptyBody")}
         </EmptyState>
       )}
       {notes.data && notes.data.length > 0 && (
-        <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3" aria-label="Notatki">
+        <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3" aria-label={t("notes")}>
           {notes.data.map((note) => (
             <li key={note.id}>
               <Card
@@ -84,7 +85,7 @@ export function NotebookList() {
                   type="checkbox"
                   checked={selected.has(note.id)}
                   onChange={() => toggle(note.id)}
-                  aria-label={`Zaznacz: ${note.title}`}
+                  aria-label={t("select", { title: note.title })}
                   className="relative z-10 mt-1 size-4 accent-primary pointer-coarse:size-5"
                 />
                 <div className="flex min-w-0 flex-1 flex-col gap-1">
@@ -96,7 +97,7 @@ export function NotebookList() {
                     {note.title}
                   </Link>
                   <time dateTime={note.updated_at} className="text-xs text-text-muted">
-                    {DATE.format(new Date(note.updated_at))}
+                    {format.dateTime(new Date(note.updated_at), "dateTime")}
                   </time>
                 </div>
               </Card>
@@ -130,6 +131,8 @@ function PromoteDialog({
   onClose: () => void;
   onPromoted: (promotionId: string) => void;
 }) {
+  const t = useTranslations("notebook.promote");
+  const common = useTranslations("common");
   const [titleHint, setTitleHint] = useState("");
   const promote = usePromote();
   const available = useFeature("promotion");
@@ -139,30 +142,27 @@ function PromoteDialog({
     event.preventDefault();
     try {
       const result = await promote.mutateAsync({ noteIds, titleHint });
-      toast("Wniosek przyjęty. Przygotowujemy szkic artykułu.", "ok");
+      toast(t("accepted"), "ok");
       onPromoted(result.promotion_id);
     } catch (error) {
       toast(
         error instanceof RateLimited
-          ? "Dzienny limit wniosków został wyczerpany."
+          ? t("rateLimited")
           : isModelMissing(error)
-            ? `${MODEL_MISSING}: wnioski do Wiki są wyłączone.`
-            : "Nie udało się utworzyć wniosku.",
+            ? t("modelMissing")
+            : t("failed"),
         "error",
       );
     }
   }
 
   return (
-    <Dialog open={open} onClose={onClose} title="Wniosek do Wiki">
+    <Dialog open={open} onClose={onClose} title={t("title")}>
       <form onSubmit={submit} className="flex flex-col gap-3 text-sm">
-        <p>
-          Z zaznaczonych notatek ({noteIds.length}) model dopuszczony do danych prywatnych przygotuje szkic artykułu. Dane
-          osobowe (imiona, PESEL, adresy, numery działek…) zostaną usunięte, a szkic trafi do Rady Ekspertów.
-        </p>
-        {!available && <ModelMissing what="Tworzenie wniosków do Wiki" />}
+        <p>{t("body", { count: noteIds.length })}</p>
+        {!available && <ModelMissing what={t("feature")} />}
         <label className="flex flex-col gap-1">
-          Proponowany tytuł (opcjonalnie)
+          {t("titleHint")}
           <input
             value={titleHint}
             maxLength={200}
@@ -172,10 +172,10 @@ function PromoteDialog({
         </label>
         <div className="flex justify-end gap-2">
           <Button variant="ghost" onClick={onClose}>
-            Anuluj
+            {common("cancel")}
           </Button>
           <Button type="submit" busy={promote.isPending} disabled={!available}>
-            Utwórz wniosek
+            {t("submit")}
           </Button>
         </div>
       </form>
@@ -183,32 +183,27 @@ function PromoteDialog({
   );
 }
 
-const PROMOTION_STATUS: Record<string, string> = {
-  PENDING: "Wniosek w kolejce…",
-  RUNNING: "Przygotowywanie szkicu…",
-  DONE: "Szkic gotowy",
-  FAILED: "Nie udało się przygotować szkicu",
-};
-
 function PromotionStatus({ promotionId, onDismiss }: { promotionId: string; onDismiss: () => void }) {
+  const t = useTranslations("notebook.promote");
+  const common = useTranslations("common");
   const promotion = usePromotion(promotionId);
   const data = promotion.data;
   return (
     <Card role="status" className="flex flex-wrap items-center justify-between gap-3">
       <div className="text-sm">
-        <p className="font-medium">{data ? PROMOTION_STATUS[data.status] : "Sprawdzanie wniosku…"}</p>
+        <p className="font-medium">{data ? t(`status.${data.status}`) : t("status.checking")}</p>
         {data?.status === "DONE" && (
           <p className="text-text-muted">
-            Usunięte dane osobowe: {Object.values(data.pii_stats as Record<string, number>).reduce((a, b) => a + b, 0)}.{" "}
+            {t("piiRemoved", { count: Object.values(data.pii_stats as Record<string, number>).reduce((a, b) => a + b, 0) })}{" "}
             <Link href={`/wiki/${data.article_id}`} className="text-primary-strong underline">
-              Zobacz szkic
+              {t("viewDraft")}
             </Link>
           </p>
         )}
-        {data?.status === "FAILED" && <p className="text-danger">Spróbuj ponownie później.</p>}
+        {data?.status === "FAILED" && <p className="text-danger">{t("retryLater")}</p>}
       </div>
       <Button variant="ghost" onClick={onDismiss}>
-        Zamknij
+        {common("close")}
       </Button>
     </Card>
   );

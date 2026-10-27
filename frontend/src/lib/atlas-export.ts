@@ -6,7 +6,9 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { api, API_BASE, ApiError } from "@/lib/api";
 import type { components } from "@/lib/api-schema";
+import { apiErrorCode, knownCode } from "@/lib/messages";
 import { unwrap } from "@/lib/query";
+import type { Messages } from "@/messages";
 
 export type AtlasExport = components["schemas"]["ExportOut"];
 export type ExportInput = components["schemas"]["ExportIn"];
@@ -33,25 +35,14 @@ export function downloadUrl(id: string, token: string): string {
   return `${API_BASE}/admin/atlas/exports/${encodeURIComponent(id)}/download?token=${encodeURIComponent(token)}`;
 }
 
-export const EXPORT_STATUS: Record<AtlasExport["status"], string> = {
-  PENDING: "Przygotowywany…",
-  READY: "Gotowy do pobrania",
-  FAILED: "Błąd",
-  DOWNLOADED: "Pobrany",
-  EXPIRED: "Wygasł",
-};
+export type ExportErrorKey = keyof Messages["adminAtlas"]["export"]["errors"];
 
-const ERRORS: Record<string, string> = {
-  export_disabled: "Eksport jest wyłączony w konfiguracji serwera.",
-  rate_limited: "Dzienny limit eksportów został wyczerpany.",
-  domain_not_found: "Nie znaleziono dziedziny.",
-};
+const CODES = ["export_disabled", "rate_limited", "domain_not_found"] as const satisfies readonly ExportErrorKey[];
 
-export function exportError(error: unknown): string {
-  if (!(error instanceof ApiError)) return "Nie udało się utworzyć eksportu.";
-  const detail = (error.detail as { detail?: unknown } | null)?.detail ?? error.detail;
-  const code = detail && typeof detail === "object" && "error" in detail && typeof detail.error === "string" ? detail.error : null;
-  if (code && ERRORS[code]) return ERRORS[code];
-  if (error.status === 429) return ERRORS.rate_limited;
-  return "Nie udało się utworzyć eksportu.";
+/** The key in `adminAtlas.export.errors`. Statuses are in `adminAtlas.export.status`. */
+export function exportErrorKey(error: unknown): ExportErrorKey {
+  const code = knownCode(CODES, apiErrorCode(error));
+  if (code) return code;
+  if (error instanceof ApiError && error.status === 429) return "rate_limited";
+  return "failed";
 }

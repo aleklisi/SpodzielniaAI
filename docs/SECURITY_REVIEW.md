@@ -171,6 +171,26 @@ P1–P9 of `docs/implementation/10_MODEL_PROVIDERS_API.md` and their proof:
   is within their authority, every change is audited with the author, and the Keycloak sign-in page
   stays unbranded. Pillow parses admin uploads in the API process (bounded as above).
 
+## Stage 14 additions (UI language: Polish and English, US-08)
+
+| Control | Proof |
+|---|---|
+| R1 The `lang` cookie and the account carry `pl` or `en` only: the API accepts exactly those two codes (`PUT /me/locale` 422 otherwise, never case-folded or trimmed), migration 0028's CHECK refuses anything else, and every reader (API, Next.js layout, the global error page) treats any other value as Polish. The cookie never reaches HTML except as `<html lang>` from a fixed map | `test_i18n.py::test_anything_but_the_two_codes_is_polish`, `test_ui_language.py::test_only_the_two_codes_are_accepted`, `::test_a_forged_cookie_is_ignored_at_sign_in`, `::test_the_database_refuses_another_locale`, E2E `16-language` (forged cookie → `lang="pl"`) |
+| The choice is a preference, not an authority: `PUT /me/locale` needs a session and CSRF like every write, is rate limited (30/h, fails open: a display preference), and is not audited. The cookie is readable by the page (a signed-out visitor's switch) and carries nothing sensitive | `test_ui_language.py::test_a_write_needs_csrf_and_a_session`, `::test_changes_are_rate_limited` |
+| Translation is not a way around anti-distillation (AGENTS.md rule 3). English answers keep the word-level verbatim checks and add a cross-language check: answer and source sentences are compared by meaning with the configured embedding model, and a source whose words are mostly matched is refused (`reason: translation`, audited, risk added). If that check cannot run, the answer is written again in Polish and checked as usual: an English answer is never returned unchecked. Asking for a full translation ("przetłumacz całość", "translate the entire article") counts as extraction intent (strict prompt, risk) | `test_output_verifier.py::test_extraction_intent`, `test_translation.py`, `test_answer_language.py::test_a_translated_source_is_refused_in_english_and_audited`, `::test_an_uncheckable_english_answer_is_given_in_polish` |
+| The per-account watermark covers English answers: its own table of interchangeable English forms (slots prefixed `en:`, Polish slot names unchanged so earlier answers are still attributed), detection observes both tables | `test_watermark.py::test_english_detector_singles_out_the_account`, `::test_polish_slots_keep_their_names` |
+| No new data leaves for a provider: English answers use the model already configured for RAG (or for private notes); only the prompt's language rule changes. The private-data rule (AGENTS.md rule 4) is unchanged | `test_rag.py::test_the_answer_language_is_the_askers` |
+| Messages are text, never HTML: the catalogues are rendered as React text, rich text (`<strong>`, links) only through `t.rich` with components chosen in code; CSP and Trusted Types are unchanged | E2E `16-language` (`watchCsp` empty, axe clean in English); Vitest `messages.test.ts` (ICU parses, same arguments in both languages) |
+
+- **Accepted:** the English watermark table is smaller than the Polish one (54 pairs against
+  180), because many English words are both a noun and a verb and a swap must never change the
+  grammar or the meaning. English answers carry fewer slots each, so attributing a leak needs a
+  few more of them.
+- **Accepted:** the cross-language thresholds (`verbatim_xlang_similarity` 0.86, share 0.5, at
+  least 20 words) are a strict starting point, calibrated on test pairs only. A faithful but
+  close English summary of a short block can be refused; that errs on the side of the knowledge
+  base. Re-check on real English answers.
+
 ## Chunk 6.8 additions (production deployment, backup and restore)
 
 | Control | Proof |

@@ -2,6 +2,7 @@
 
 import { HandHeart } from "lucide-react";
 import Link from "next/link";
+import { useFormatter, useTranslations } from "next-intl";
 import { useState } from "react";
 
 import { RevokeDialog } from "@/components/contributions/RevokeDialog";
@@ -14,10 +15,8 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { Loading } from "@/components/ui/Skeleton";
 import { StatusPill } from "@/components/ui/StatusPill";
 import { useToast } from "@/components/ui/Toast";
-import { blocksWord, describeResult, useConsent, useHistory, type ConsentAction, type HistoryEntry } from "@/lib/contributions";
+import { describeResult, useConsent, useHistory, type ConsentAction } from "@/lib/contributions";
 import { useContributions, type Contribution } from "@/lib/wiki";
-
-const DATE = new Intl.DateTimeFormat("pl-PL", { dateStyle: "medium", timeStyle: "short" });
 
 function counts(c: Contribution) {
   const by = { ACTIVE: 0, SUSPENDED: 0, REVOKED: 0 };
@@ -26,6 +25,7 @@ function counts(c: Contribution) {
 }
 
 export function ContributionsPanel() {
+  const t = useTranslations("contributions");
   const contributions = useContributions();
   const consent = useConsent();
   const toast = useToast();
@@ -36,9 +36,9 @@ export function ContributionsPanel() {
     setPending(key);
     try {
       const result = await consent.mutateAsync({ action, articleIds: ids });
-      toast(describeResult(action, result), "ok");
+      toast(describeResult(t, action, result), "ok");
     } catch {
-      toast("Nie udało się zmienić zgody. Spróbuj ponownie.", "error");
+      toast(t("failed"), "error");
     } finally {
       setPending(null);
     }
@@ -49,35 +49,35 @@ export function ContributionsPanel() {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        title="Moje kontrybucje"
-        description="Twój wkład w bazę wiedzy pozostaje Twój. Możesz go w każdej chwili wstrzymać (ukryć i wyłączyć z odpowiedzi asystenta) albo trwale usunąć."
+        title={t("title")}
+        description={t("description")}
       />
       {live.length > 0 && (
-        <div className="flex flex-wrap gap-2" aria-label="Wszystkie kontrybucje">
+        <div className="flex flex-wrap gap-2" aria-label={t("all")}>
           <Button variant="secondary" busy={pending === "all:suspend"} onClick={() => act("suspend", null, "all:suspend")}>
-            Wstrzymaj wszystko
+            {t("suspendAll")}
           </Button>
           <Button variant="secondary" busy={pending === "all:resume"} onClick={() => act("resume", null, "all:resume")}>
-            Wznów wszystko
+            {t("resumeAll")}
           </Button>
           <Button
             variant="danger"
-            onClick={() => setRevoke({ ids: null, label: "cały swój wkład we wszystkich artykułach", coAuthored: rows.some((c) => c.co_authored) })}
+            onClick={() => setRevoke({ ids: null, label: t("revokeAllScope"), coAuthored: rows.some((c) => c.co_authored) })}
           >
-            Usuń trwale wszystko
+            {t("revokeAll")}
           </Button>
         </div>
       )}
       {contributions.isPending && <Loading />}
-      {contributions.data?.length === 0 && <EmptyState icon={HandHeart} title="Nie masz jeszcze kontrybucji w bazie wiedzy." />}
+      {contributions.data?.length === 0 && <EmptyState icon={HandHeart} title={t("empty")} />}
       {rows.length > 0 && (
-        <DataTable label="Kontrybucje">
+        <DataTable label={t("table")}>
           <THead>
             <Tr>
-              <Th>Artykuł</Th>
-              <Th>Status</Th>
-              <Th>Twoje bloki</Th>
-              <Th>Działania</Th>
+              <Th>{t("article")}</Th>
+              <Th>{t("status")}</Th>
+              <Th>{t("yourBlocks")}</Th>
+              <Th>{t("actions")}</Th>
             </Tr>
           </THead>
           <TBody>
@@ -92,28 +92,28 @@ export function ContributionsPanel() {
                     </Link>
                     {c.co_authored && (
                       <Badge tone="accent" className="ml-2">
-                        współtworzony
+                        {t("coAuthored")}
                       </Badge>
                     )}
                   </Td>
-                  <Td label="Status" className="md:py-3">
+                  <Td label={t("status")} className="md:py-3">
                     <StatusPill status={c.status} />
                   </Td>
-                  <Td label="Twoje bloki" className="md:py-3">
-                    {n.ACTIVE > 0 && <div>{n.ACTIVE} aktywne</div>}
-                    {n.SUSPENDED > 0 && <div className="text-warn">{n.SUSPENDED} wstrzymane</div>}
-                    {n.REVOKED > 0 && <div className="text-text-muted">{n.REVOKED} usunięte</div>}
+                  <Td label={t("yourBlocks")} className="md:py-3">
+                    {n.ACTIVE > 0 && <div>{t("active", { count: n.ACTIVE })}</div>}
+                    {n.SUSPENDED > 0 && <div className="text-warn">{t("suspended", { count: n.SUSPENDED })}</div>}
+                    {n.REVOKED > 0 && <div className="text-text-muted">{t("revoked", { count: n.REVOKED })}</div>}
                   </Td>
                   <Td className="md:py-3">
                     <div className="flex flex-wrap gap-2 max-md:mt-1">
                       {n.ACTIVE > 0 && (
                         <Button variant="secondary" busy={pending === `${key}:suspend`} onClick={() => act("suspend", [key], `${key}:suspend`)}>
-                          Wstrzymaj
+                          {t("suspend")}
                         </Button>
                       )}
                       {n.SUSPENDED > 0 && (
                         <Button variant="secondary" busy={pending === `${key}:resume`} onClick={() => act("resume", [key], `${key}:resume`)}>
-                          Wznów
+                          {t("resume")}
                         </Button>
                       )}
                       {n.ACTIVE + n.SUSPENDED > 0 && (
@@ -123,12 +123,12 @@ export function ContributionsPanel() {
                           onClick={() =>
                             setRevoke({
                               ids: [key],
-                              label: `${n.ACTIVE + n.SUSPENDED} ${blocksWord(n.ACTIVE + n.SUSPENDED)} w „${c.title}”`,
+                              label: t("revokeScope", { count: n.ACTIVE + n.SUSPENDED, title: c.title }),
                               coAuthored: c.co_authored,
                             })
                           }
                         >
-                          Usuń trwale
+                          {t("revoke")}
                         </Button>
                       )}
                     </div>
@@ -148,44 +148,39 @@ export function ContributionsPanel() {
         coAuthored={revoke?.coAuthored ?? false}
         onDone={(result) => {
           setRevoke(null);
-          toast(describeResult("revoke", result), "ok");
+          toast(describeResult(t, "revoke", result), "ok");
         }}
       />
     </div>
   );
 }
 
-const EVENT_LABEL: Record<HistoryEntry["event"], string> = {
-  SUSPEND: "Wstrzymanie",
-  RESUME: "Wznowienie",
-  REVOKE: "Trwałe usunięcie",
-  ARTICLE_DEGRADED: "Artykuł wrócił do recenzji",
-};
-
 function History() {
+  const t = useTranslations("contributions.history");
+  const format = useFormatter();
   const history = useHistory();
   if (!history.data?.length) return null;
   return (
     <Card>
-      <h2 className="mb-3 font-display text-lg font-semibold">Historia zmian zgód</h2>
+      <h2 className="mb-3 font-display text-lg font-semibold">{t("title")}</h2>
       <ol className="flex flex-col gap-2 text-sm">
         {history.data.map((e, i) => (
           <li key={i} className="flex flex-wrap justify-between gap-2 border-b border-border pb-2 last:border-0">
             <span>
-              {EVENT_LABEL[e.event]}
-              {e.blocks != null && e.event !== "ARTICLE_DEGRADED" && ` · ${e.blocks} ${blocksWord(e.blocks)}`}
-              {e.scope === "all" && " · wszystkie artykuły"}
+              {t(e.event)}
+              {e.blocks != null && e.event !== "ARTICLE_DEGRADED" && t("blocks", { count: e.blocks })}
+              {e.scope === "all" && t("allArticles")}
               {e.article_id && (
                 <>
                   {" · "}
                   <Link href={`/wiki/${e.article_id}`} className="underline">
-                    artykuł
+                    {t("article")}
                   </Link>
                 </>
               )}
             </span>
             <time dateTime={e.occurred_at} className="text-text-muted">
-              {DATE.format(new Date(e.occurred_at))}
+              {format.dateTime(new Date(e.occurred_at), "dateTime")}
             </time>
           </li>
         ))}

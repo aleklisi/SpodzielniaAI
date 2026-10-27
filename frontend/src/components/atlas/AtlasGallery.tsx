@@ -2,6 +2,7 @@
 
 import { Images } from "lucide-react";
 import Link from "next/link";
+import { useFormatter, useTranslations } from "next-intl";
 import { useState } from "react";
 
 import { Button } from "@/components/ui/Button";
@@ -12,10 +13,10 @@ import { PAGE_SIZE, useGallery, type GalleryFilters } from "@/lib/atlas-gallery"
 import { atlasImageUrl } from "@/lib/atlas-submissions";
 
 const INPUT = "w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm @4xl:min-w-48";
-const DATE = new Intl.DateTimeFormat("pl-PL", { dateStyle: "medium" });
-
-/** „Atlas”: photos verified by the experts, by domain and label. */
+/** "Atlas": photos verified by the experts, by domain and label. */
 export function AtlasGallery() {
+  const t = useTranslations("atlas.gallery");
+  const format = useFormatter();
   const domains = useDomains();
   const [filters, setFilters] = useState<GalleryFilters>({ domainId: "", labelId: "", q: "", offset: 0 });
   const labels = useLabels(filters.domainId || null, "");
@@ -30,15 +31,15 @@ export function AtlasGallery() {
   return (
     <div className="flex flex-col gap-4">
       <PageHeader
-        title="Atlas"
-        description="Zdjęcia z oznaczonymi elementami, sprawdzone przez ekspertów spółdzielni. Swoje zdjęcia dodajesz z notatnika („Oznacz”, potem „Przekaż do atlasu”)."
+        title={t("title")}
+        description={t("description")}
       />
       {/* One filter per row on a phone, side by side when there is room (12.5). */}
       <div className="grid gap-3 text-sm @xl:grid-cols-3 @4xl:flex @4xl:flex-wrap" role="search">
         <label className="flex flex-col gap-1">
-          Dziedzina
+          {t("domain")}
           <select className={INPUT} value={filters.domainId} onChange={(e) => set({ domainId: e.target.value, labelId: "" })}>
-            <option value="">Wszystkie</option>
+            <option value="">{t("all")}</option>
             {domains.data?.map((d) => (
               <option key={d.id} value={d.id}>
                 {d.name}
@@ -47,9 +48,9 @@ export function AtlasGallery() {
           </select>
         </label>
         <label className="flex flex-col gap-1">
-          Etykieta
+          {t("label")}
           <select className={INPUT} value={filters.labelId} disabled={!filters.domainId} onChange={(e) => set({ labelId: e.target.value })}>
-            <option value="">Wszystkie</option>
+            <option value="">{t("all")}</option>
             {labels.data
               ?.filter((l) => l.status === "ACTIVE")
               .map((l) => (
@@ -60,17 +61,17 @@ export function AtlasGallery() {
           </select>
         </label>
         <label className="flex flex-col gap-1">
-          Szukaj
-          <input className={INPUT} type="search" placeholder="np. matka, matecznik" value={filters.q} onChange={(e) => set({ q: e.target.value })} />
+          {t("search")}
+          <input className={INPUT} type="search" placeholder={t("placeholder")} value={filters.q} onChange={(e) => set({ q: e.target.value })} />
         </label>
       </div>
       {page.isError && (
         <p role="alert" className="text-danger">
-          Nie udało się wczytać atlasu.
+          {t("loadFailed")}
         </p>
       )}
-      {page.data?.items.length === 0 && <EmptyState icon={Images} title="Brak zdjęć dla tych filtrów." />}
-      <ul className="grid grid-cols-2 gap-3 @2xl:grid-cols-3 @4xl:grid-cols-4 @6xl:grid-cols-5 @md:gap-4" aria-label="Zdjęcia atlasu">
+      {page.data?.items.length === 0 && <EmptyState icon={Images} title={t("empty")} />}
+      <ul className="grid grid-cols-2 gap-3 @2xl:grid-cols-3 @4xl:grid-cols-4 @6xl:grid-cols-5 @md:gap-4" aria-label={t("photos")}>
         {page.data?.items.map((photo) => (
           <li key={photo.id}>
             <Link
@@ -82,8 +83,8 @@ export function AtlasGallery() {
               <div className="flex flex-1 flex-col gap-1 p-3 text-sm">
                 <span className="font-medium break-words group-hover:underline">{photo.labels.join(", ")}</span>
                 <span className="text-xs text-text-muted">
-                  {domainName.get(photo.domain_id) ?? ""} · {photo.author_name ?? "Członek spółdzielni"}
-                  {photo.verified_at && ` · ${DATE.format(new Date(photo.verified_at))}`}
+                  {domainName.get(photo.domain_id) ?? ""} · {photo.author_name ?? t("member")}
+                  {photo.verified_at && ` · ${format.dateTime(new Date(photo.verified_at), "medium")}`}
                 </span>
               </div>
             </Link>
@@ -93,13 +94,13 @@ export function AtlasGallery() {
       {total > PAGE_SIZE && (
         <div className="flex items-center justify-between gap-2 text-sm">
           <Button variant="secondary" disabled={filters.offset === 0} onClick={() => setFilters((f) => ({ ...f, offset: Math.max(0, f.offset - PAGE_SIZE) }))}>
-            Poprzednie
+            {t("previous")}
           </Button>
           <span className="text-text-muted">
-            {filters.offset + 1}–{Math.min(filters.offset + PAGE_SIZE, total)} z {total}
+            {t("range", { from: filters.offset + 1, to: Math.min(filters.offset + PAGE_SIZE, total), total })}
           </span>
           <Button variant="secondary" disabled={filters.offset + PAGE_SIZE >= total} onClick={() => setFilters((f) => ({ ...f, offset: f.offset + PAGE_SIZE }))}>
-            Następne
+            {t("next")}
           </Button>
         </div>
       )}

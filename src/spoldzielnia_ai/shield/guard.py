@@ -24,7 +24,7 @@ from __future__ import annotations
 import asyncio
 import secrets
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Any
 
 from fastapi import HTTPException, status
@@ -33,11 +33,13 @@ from spoldzielnia_ai.audit.events import EventType
 from spoldzielnia_ai.audit.service import AuditService, AuditTarget
 from spoldzielnia_ai.core.ids import uuid7
 from spoldzielnia_ai.core.logging import get_logger
+from spoldzielnia_ai.i18n import t
 from spoldzielnia_ai.rag.synthesis import Style
 from spoldzielnia_ai.shield.coverage import CoverageExceeded, CoverageLevel
 from spoldzielnia_ai.shield.deps import coverage_refusal, security_lock
 from spoldzielnia_ai.shield.output_verifier import extraction_intent
 from spoldzielnia_ai.shield.risk import RiskLevel
+from spoldzielnia_ai.shield.translation import TranslationUncheckable
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
@@ -47,6 +49,7 @@ if TYPE_CHECKING:
 
     from spoldzielnia_ai.core.settings import RagSettings, ShieldSettings
     from spoldzielnia_ai.db.session import SessionFactory
+    from spoldzielnia_ai.i18n import Locale
     from spoldzielnia_ai.rag.schemas import RagAnswer
     from spoldzielnia_ai.rag.service import RAGService, Retrieval
     from spoldzielnia_ai.shield.challenge import PowChallenges
@@ -71,6 +74,7 @@ class Asker:
     mfa_satisfied: bool
     auth_time: int | None
     step_up_url: str
+    locale: Locale = "pl"  # the answer's language (14.5)
 
     def fresh_mfa(self, max_age_seconds: int) -> bool:
         return (
@@ -150,15 +154,16 @@ class AntiDistillationGuard:
         self._rag_settings = rag_settings
         self._sleep = sleep
 
-    def _plan(self, level: RiskLevel, strict: bool) -> Plan:
+    def _plan(self, level: RiskLevel, strict: bool, language: Locale = "pl") -> Plan:
         s, r = self._settings, self._rag_settings
         match level:
             case RiskLevel.NORMAL:
-                return Plan(r.top_k, Style(strict, r.answer_max_words), delay=False)
+                return Plan(r.top_k, Style(strict, r.answer_max_words, language), delay=False)
             case RiskLevel.ELEVATED:
-                return Plan(s.elevated_top_k, Style(strict, s.elevated_max_words), delay=True)
+                style = Style(strict, s.elevated_max_words, language)
+                return Plan(s.elevated_top_k, style, delay=True)
             case _:
-                return Plan(s.high_top_k, Style(strict, s.elevated_max_words), delay=True)
+                return Plan(s.high_top_k, Style(strict, s.elevated_max_words, language), delay=True)
 
     async def ask(self, asker: Asker, question: str, pow_solution: str | None = None) -> RagAnswer:
         s = self._settings
@@ -190,7 +195,8 @@ class AntiDistillationGuard:
         if assessment.level == RiskLevel.HIGH:
             await self._step_up(asker, pow_solution, request_id, features)
 
-        plan = self._plan(assessment.level, strict=bool(intent))
+        locale = asker.locale
+        plan = self._plan(assessment.level, strict=bool(intent), language=locale)
         gate = _Gate(self, user, question)
         outcome = await self.rag.ask(
             question, top_k=plan.top_k, style=plan.style, gate=gate, vector=query
@@ -199,13 +205,31 @@ class AntiDistillationGuard:
             await self._sleep(_jitter(*s.elevated_delay_ms))
         blocked = False
         if outcome.draft is None:
-            answer = self.rag.no_position(request_id)
+            answer = self.rag.no_position(request_id, locale)
         else:
-            checked = await self.output.check(
-                user, request_id, outcome.draft.answer_markdown, outcome.sources
-            )
-            blocked = checked.blocked
-            answer = await self.rag.answer(outcome, checked.text, request_id)
+            note = ""
+            try:
+                checked = await self.output.check(
+                    user, request_id, outcome.draft.answer_markdown, outcome.sources, locale
+                )
+            except TranslationUncheckable as exc:
+                # Never an unchecked English answer (14.5): the same sources, in Polish.
+                log.warning("shield.translation_uncheckable", user_id=str(user), error=str(exc))
+                outcome = await self.rag.redraft(
+                    outcome, question, replace(plan.style, language="pl")
+                )
+                checked = None
+                if outcome.draft is not None:
+                    note = t("rag.answered_in_polish", locale)
+                    checked = await self.output.check(
+                        user, request_id, outcome.draft.answer_markdown, outcome.sources
+                    )
+            if checked is None:
+                answer = self.rag.no_position(request_id, locale)
+            else:
+                blocked = checked.blocked
+                text = f"{note}\n\n{checked.text}" if note and not blocked else checked.text
+                answer = await self.rag.answer(outcome, text, request_id, locale)
         if assessment.level != RiskLevel.NORMAL:
             await self._decision(
                 user,

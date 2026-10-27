@@ -1,6 +1,7 @@
 "use client";
 
 import { useQueryClient } from "@tanstack/react-query";
+import { useFormatter, useTranslations } from "next-intl";
 import { useState, type FormEvent, type ReactNode } from "react";
 
 import { UnlockDialog } from "@/components/admin/UnlockDialog";
@@ -13,15 +14,14 @@ import { Dialog } from "@/components/ui/Dialog";
 import { useToast } from "@/components/ui/Toast";
 import { StepUpRequired } from "@/lib/api";
 import {
-  actionsLabel,
   BLOCK_REASONS,
-  blockReasonLabel,
+  blockReasonKey,
   displayName,
   grantsElevated,
   lockoutReason,
-  ROLE_LABEL,
+  requiredActionKey,
   ROLES,
-  STATUS,
+  STATUS_TONE,
   useBlock,
   usePasswordReset,
   useRequirePasswordChange,
@@ -29,18 +29,18 @@ import {
   useSignOut,
   useUnblock,
   useUser,
-  usersError,
+  usersErrorKey,
   type BlockReason,
+  type Lockout,
   type PasswordMode,
   type Role,
   type UserDetail,
 } from "@/lib/users-admin";
 
 const INPUT = "rounded-lg border border-border bg-surface px-3 py-2";
-const DATE = new Intl.DateTimeFormat("pl-PL", { dateStyle: "medium", timeStyle: "short" });
-
-function when(value: string | null | undefined): string {
-  return value ? DATE.format(new Date(value)) : "—";
+function useWhen() {
+  const format = useFormatter();
+  return (value: string | null | undefined) => (value ? format.dateTime(new Date(value), "dateTime") : "—");
 }
 
 type Open = "roles" | "block" | "unblock" | "reset" | "force" | "signout" | "unlock" | null;
@@ -48,6 +48,8 @@ type Open = "roles" | "block" | "unblock" | "reset" | "force" | "signout" | "unl
 /** Detail of one user and every action on them. The backend re-checks every rule. The parent
  * keys it by user id, so switching users starts with a clean state. */
 export function UserPanel({ userId, onClose }: { userId: string; onClose: () => void }) {
+  const t = useTranslations("adminUsers");
+  const when = useWhen();
   const user = useUser(userId);
   const [stepUp, setStepUp] = useState<string | null>(null);
   const [open, setOpen] = useState<Open>(null);
@@ -61,65 +63,70 @@ export function UserPanel({ userId, onClose }: { userId: string; onClose: () => 
       return true;
     } catch (error) {
       if (error instanceof StepUpRequired) setStepUp(error.stepUp);
-      else toast(usersError(error), "error");
+      else toast(t(`errors.${usersErrorKey(error)}`), "error");
       return false;
     }
   }
 
-  if (user.isPending) return <PanelShell onClose={onClose}>Ładowanie…</PanelShell>;
+  if (user.isPending) return <PanelShell onClose={onClose}>{t("panel.loading")}</PanelShell>;
   if (!user.data) {
     return (
       <PanelShell onClose={onClose}>
-        <p role="alert">{usersError(user.error, "Nie udało się wczytać użytkownika.")}</p>
+        <p role="alert">{t(`errors.${usersErrorKey(user.error, "loadUser")}`)}</p>
       </PanelShell>
     );
   }
   const u = user.data;
-  const status = STATUS[u.status];
   const lockout = lockoutReason(u);
+  const lockoutText = lockout ? t(`lockout.${lockout}`) : null;
+  const reasonKey = blockReasonKey(u.blocked_reason);
+  const actions = (u.idp?.required_actions ?? u.required_actions).map((a) => {
+    const key = requiredActionKey(a);
+    return key ? t(`actions.${key}`) : a;
+  });
   const external = (u.idp?.identity_providers.length ?? 0) > 0;
 
   return (
     <PanelShell onClose={onClose} title={displayName(u)}>
       <div className="flex flex-wrap items-center gap-2 text-sm">
         <span className="text-text-muted">{u.username ?? "—"}</span>
-        <Badge tone={status.tone}>{status.label}</Badge>
-        {u.is_self && <Badge>To Ty</Badge>}
+        <Badge tone={STATUS_TONE[u.status]}>{t(`statuses.${u.status}`)}</Badge>
+        {u.is_self && <Badge>{t("panel.you")}</Badge>}
       </div>
 
       {stepUp && (
         <StepUpNotice
           stepUp={stepUp}
-          reason="Nadanie roli eksperta lub administratora i odblokowanie konta wymagają świeżego logowania z drugim składnikiem."
+          reason={t("panel.stepUp")}
         />
       )}
       {u.idp === null && (
         <Card role="status" className="border-warn p-3 text-sm">
-          Keycloak jest niedostępny: pokazujemy zapisaną kopię danych. Akcje mogą się nie udać.
+          {t("panel.idpDown")}
         </Card>
       )}
 
       <dl className="grid grid-cols-[max-content_minmax(0,1fr)] gap-x-4 gap-y-1 text-sm break-words">
-        <dt className="text-text-muted">E-mail</dt>
+        <dt className="text-text-muted">{t("panel.email")}</dt>
         <dd>
           {u.idp?.email ?? u.email ?? "—"}
-          {u.idp?.email && !u.idp.email_verified && <span className="text-text-muted"> (niepotwierdzony)</span>}
+          {u.idp?.email && !u.idp.email_verified && <span className="text-text-muted">{t("panel.unverified")}</span>}
         </dd>
-        <dt className="text-text-muted">Ostatnie logowanie</dt>
+        <dt className="text-text-muted">{t("panel.lastLogin")}</dt>
         <dd>{when(u.last_login_at)}</dd>
-        <dt className="text-text-muted">Konto od</dt>
+        <dt className="text-text-muted">{t("panel.since")}</dt>
         <dd>{when(u.created_at)}</dd>
-        <dt className="text-text-muted">MFA</dt>
-        <dd>{u.idp ? (u.idp.totp ? "aplikacja do kodów skonfigurowana" : "brak") : "—"}</dd>
-        {(u.idp?.required_actions.length ?? u.required_actions.length) > 0 && (
+        <dt className="text-text-muted">{t("panel.mfa")}</dt>
+        <dd>{u.idp ? (u.idp.totp ? t("panel.totp") : t("panel.noTotp")) : "—"}</dd>
+        {actions.length > 0 && (
           <>
-            <dt className="text-text-muted">Przy logowaniu</dt>
-            <dd>{actionsLabel(u.idp?.required_actions ?? u.required_actions)}</dd>
+            <dt className="text-text-muted">{t("panel.atLogin")}</dt>
+            <dd>{actions.join(", ")}</dd>
           </>
         )}
         {external && (
           <>
-            <dt className="text-text-muted">Logowanie przez</dt>
+            <dt className="text-text-muted">{t("panel.via")}</dt>
             <dd>{u.idp?.identity_providers.join(", ")}</dd>
           </>
         )}
@@ -127,17 +134,17 @@ export function UserPanel({ userId, onClose }: { userId: string; onClose: () => 
 
       {u.status === "blocked" && (
         <Card className="border-danger p-3 text-sm">
-          <p className="font-medium">Zablokowane: {blockReasonLabel(u.blocked_reason)}</p>
+          <p className="font-medium">{t("panel.blocked", { reason: reasonKey ? t(`blockReasons.${reasonKey}`) : (u.blocked_reason ?? "—") })}</p>
           <p className="text-text-muted">{when(u.blocked_at)}</p>
           {u.blocked_note && <p className="mt-1">{u.blocked_note}</p>}
         </Card>
       )}
       {u.locked_reason && (
         <Card className="border-warn p-3 text-sm">
-          <p className="font-medium">System ochrony zablokował konto: {u.locked_reason}</p>
+          <p className="font-medium">{t("panel.shieldLocked", { reason: u.locked_reason })}</p>
           <p className="text-text-muted">{when(u.locked_at)}</p>
           <Button variant="secondary" className="mt-2" onClick={() => setOpen("unlock")}>
-            Odblokuj (system ochrony)
+            {t("panel.shieldUnlock")}
           </Button>
         </Card>
       )}
@@ -147,38 +154,38 @@ export function UserPanel({ userId, onClose }: { userId: string; onClose: () => 
 
       <section aria-labelledby="user-actions" className="flex flex-col gap-2">
         <h3 id="user-actions" className="font-medium">
-          Dostęp
+          {t("panel.access")}
         </h3>
         <div className="flex flex-wrap gap-2">
           {u.status === "blocked" ? (
             <Button variant="secondary" onClick={() => setOpen("unblock")}>
-              Odblokuj
+              {t("panel.unblock")}
             </Button>
           ) : (
-            <Button variant="danger" disabled={lockout !== null} title={lockout ?? undefined} onClick={() => setOpen("block")}>
-              Zablokuj
+            <Button variant="danger" disabled={lockout !== null} title={lockoutText ?? undefined} onClick={() => setOpen("block")}>
+              {t("panel.block")}
             </Button>
           )}
           <Button variant="secondary" onClick={() => setOpen("signout")}>
-            Wyloguj ze wszystkich urządzeń
+            {t("panel.signOutAll")}
           </Button>
         </div>
-        {lockout && u.status !== "blocked" && <p className="text-xs text-text-muted">Nie można zablokować: {lockout}</p>}
+        {lockoutText && u.status !== "blocked" && <p className="text-xs text-text-muted">{t("panel.cannotBlock", { reason: lockoutText })}</p>}
       </section>
 
       <section aria-labelledby="user-password" className="flex flex-col gap-2">
         <h3 id="user-password" className="font-medium">
-          Hasło
+          {t("panel.password")}
         </h3>
         {external ? (
-          <p className="text-sm text-text-muted">Konto loguje się przez zewnętrznego dostawcę; tam zmienia się hasło.</p>
+          <p className="text-sm text-text-muted">{t("panel.external")}</p>
         ) : (
           <div className="flex flex-wrap gap-2">
             <Button variant="secondary" onClick={() => setOpen("reset")}>
-              Resetuj hasło
+              {t("panel.reset")}
             </Button>
             <Button variant="secondary" onClick={() => setOpen("force")}>
-              Wymuś zmianę hasła
+              {t("panel.force")}
             </Button>
           </div>
         )}
@@ -195,12 +202,14 @@ export function UserPanel({ userId, onClose }: { userId: string; onClose: () => 
 }
 
 function PanelShell({ title, onClose, children }: { title?: string; onClose: () => void; children: ReactNode }) {
+  const t = useTranslations("adminUsers.panel");
+  const common = useTranslations("common");
   return (
-    <section aria-label="Szczegóły użytkownika" className="flex flex-col gap-4 rounded-xl border border-border bg-surface p-4">
+    <section aria-label={t("region")} className="flex flex-col gap-4 rounded-xl border border-border bg-surface p-4">
       <div className="flex items-start justify-between gap-2">
-        <h2 className="font-display text-lg font-semibold">{title ?? "Użytkownik"}</h2>
+        <h2 className="font-display text-lg font-semibold">{title ?? t("userTitle")}</h2>
         <Button variant="ghost" onClick={onClose}>
-          Zamknij
+          {common("close")}
         </Button>
       </div>
       {children}
@@ -210,12 +219,14 @@ function PanelShell({ title, onClose, children }: { title?: string; onClose: () 
 
 type Run = (work: () => Promise<unknown>, ok?: string) => Promise<boolean>;
 
-function RolesEditor({ user, lockout, run }: { user: UserDetail; lockout: string | null; run: Run }) {
+function RolesEditor({ user, lockout, run }: { user: UserDetail; lockout: Lockout | null; run: Run }) {
+  const t = useTranslations("adminUsers");
+  const common = useTranslations("common");
   const [roles, setRoles] = useState<Role[]>(user.roles);
   const [confirming, setConfirming] = useState(false);
   const setRolesMutation = useSetRoles();
 
-  const changed = ROLES.some((r) => roles.includes(r.role) !== user.roles.includes(r.role));
+  const changed = ROLES.some((r) => roles.includes(r) !== user.roles.includes(r));
   const granted = grantsElevated(user.roles, roles);
 
   function toggle(role: Role) {
@@ -223,7 +234,7 @@ function RolesEditor({ user, lockout, run }: { user: UserDetail; lockout: string
   }
 
   async function save() {
-    const ok = await run(() => setRolesMutation.mutateAsync({ id: user.id, roles }), "Role zapisane.");
+    const ok = await run(() => setRolesMutation.mutateAsync({ id: user.id, roles }), t("rolesEditor.saved"));
     setConfirming(false);
     if (!ok) setRoles(user.roles);
   }
@@ -231,24 +242,27 @@ function RolesEditor({ user, lockout, run }: { user: UserDetail; lockout: string
   return (
     <section aria-labelledby="user-roles" className="flex flex-col gap-2">
       <h3 id="user-roles" className="font-medium">
-        Role
+        {t("rolesEditor.title")}
       </h3>
       <fieldset className="flex flex-col gap-1 text-sm">
-        <legend className="sr-only">Role użytkownika</legend>
+        <legend className="sr-only">{t("rolesEditor.legend")}</legend>
         {ROLES.map((r) => {
-          const lockedAdmin = r.role === "ADMIN" && user.roles.includes("ADMIN") && lockout !== null;
+          const lockedAdmin = r === "ADMIN" && user.roles.includes("ADMIN") && lockout !== null;
           return (
-            <label key={r.role} className="flex items-start gap-2">
+            <label key={r} className="flex items-start gap-2">
               <input
                 type="checkbox"
                 className="mt-1"
-                checked={roles.includes(r.role)}
-                disabled={r.role === "MEMBER" || lockedAdmin}
-                onChange={() => toggle(r.role)}
+                checked={roles.includes(r)}
+                disabled={r === "MEMBER" || lockedAdmin}
+                onChange={() => toggle(r)}
               />
               <span>
-                {r.label}
-                <span className="text-xs text-text-muted"> · {lockedAdmin ? `Nie można odebrać: ${lockout}` : r.hint}</span>
+                {t(`roleNames.${r}`)}
+                <span className="text-xs text-text-muted">
+                  {" · "}
+                  {lockedAdmin && lockout ? t("rolesEditor.cannotRemove", { reason: t(`lockout.${lockout}`) }) : t(`roleHints.${r}`)}
+                </span>
               </span>
             </label>
           );
@@ -260,24 +274,26 @@ function RolesEditor({ user, lockout, run }: { user: UserDetail; lockout: string
           busy={setRolesMutation.isPending}
           onClick={() => (granted.length > 0 ? setConfirming(true) : void save())}
         >
-          Zapisz role
+          {t("rolesEditor.save")}
         </Button>
       </div>
-      <Dialog open={confirming} onClose={() => setConfirming(false)} title="Nadać uprawnienia?">
+      <Dialog open={confirming} onClose={() => setConfirming(false)} title={t("rolesEditor.confirmTitle")}>
         <div className="flex flex-col gap-3 text-sm">
           <p>
-            Nadajesz rolę: <strong>{granted.map((r) => ROLE_LABEL[r]).join(", ")}</strong> użytkownikowi {displayName(user)}.
+            {t.rich("rolesEditor.granting", {
+              roles: granted.map((r) => t(`roleNames.${r}`)).join(", "),
+              name: displayName(user),
+              strong: (chunks) => <strong>{chunks}</strong>,
+            })}
           </p>
-          {user.idp && !user.idp.totp && (
-            <p className="text-warn">Przy następnym logowaniu użytkownik skonfiguruje aplikację do kodów (MFA).</p>
-          )}
-          <p className="text-text-muted">Zmiana zostanie zapisana w dzienniku audytu.</p>
+          {user.idp && !user.idp.totp && <p className="text-warn">{t("rolesEditor.mfaNext")}</p>}
+          <p className="text-text-muted">{t("rolesEditor.audited")}</p>
           <div className="flex justify-end gap-2">
             <Button variant="ghost" onClick={() => setConfirming(false)}>
-              Anuluj
+              {common("cancel")}
             </Button>
             <Button busy={setRolesMutation.isPending} onClick={() => void save()}>
-              Nadaj
+              {t("rolesEditor.grant")}
             </Button>
           </div>
         </div>
@@ -294,45 +310,44 @@ interface ActionDialogProps {
 }
 
 function BlockDialog({ user, open, onClose, run }: ActionDialogProps) {
+  const t = useTranslations("adminUsers");
+  const common = useTranslations("common");
   const [reason, setReason] = useState<BlockReason>("left_cooperative");
   const [note, setNote] = useState("");
   const block = useBlock();
 
   async function submit(event: FormEvent) {
     event.preventDefault();
-    if (await run(() => block.mutateAsync({ id: user.id, reason, note }), "Konto zablokowane, sesje zakończone.")) {
+    if (await run(() => block.mutateAsync({ id: user.id, reason, note }), t("blockDialog.done"))) {
       setNote("");
       onClose();
     }
   }
 
   return (
-    <Dialog open={open} onClose={onClose} title="Zablokować konto?">
+    <Dialog open={open} onClose={onClose} title={t("blockDialog.title")}>
       <form onSubmit={submit} className="flex flex-col gap-3 text-sm">
-        <p>
-          {displayName(user)} nie zaloguje się, a wszystkie otwarte sesje zakończą się od razu. Treści i autorstwo zostają bez
-          zmian.
-        </p>
+        <p>{t("blockDialog.body", { name: displayName(user) })}</p>
         <label className="flex flex-col gap-1">
-          Powód
+          {t("blockDialog.reason")}
           <select className={INPUT} value={reason} onChange={(e) => setReason(e.target.value as BlockReason)}>
             {BLOCK_REASONS.map((r) => (
-              <option key={r.reason} value={r.reason}>
-                {r.label}
+              <option key={r} value={r}>
+                {t(`blockReasons.${r}`)}
               </option>
             ))}
           </select>
         </label>
         <label className="flex flex-col gap-1">
-          Notatka (widoczna tylko dla administratorów)
+          {t("blockDialog.note")}
           <textarea className={INPUT} rows={2} maxLength={200} value={note} onChange={(e) => setNote(e.target.value)} />
         </label>
         <div className="flex justify-end gap-2">
           <Button variant="ghost" onClick={onClose}>
-            Anuluj
+            {common("cancel")}
           </Button>
           <Button type="submit" variant="danger" busy={block.isPending}>
-            Zablokuj konto
+            {t("blockDialog.submit")}
           </Button>
         </div>
       </form>
@@ -341,23 +356,23 @@ function BlockDialog({ user, open, onClose, run }: ActionDialogProps) {
 }
 
 function UnblockDialog({ user, open, onClose, run }: ActionDialogProps) {
+  const t = useTranslations("adminUsers.unblockDialog");
+  const common = useTranslations("common");
   const unblock = useUnblock();
   return (
-    <Dialog open={open} onClose={onClose} title="Odblokować konto?">
+    <Dialog open={open} onClose={onClose} title={t("title")}>
       <div className="flex flex-col gap-3 text-sm">
-        <p>{displayName(user)} znów będzie mógł się zalogować.</p>
-        {user.locked_reason && (
-          <p className="text-warn">Blokada systemu ochrony zostaje; zdejmiesz ją osobno, po przejrzeniu historii ryzyka.</p>
-        )}
+        <p>{t("body", { name: displayName(user) })}</p>
+        {user.locked_reason && <p className="text-warn">{t("shieldStays")}</p>}
         <div className="flex justify-end gap-2">
           <Button variant="ghost" onClick={onClose}>
-            Anuluj
+            {common("cancel")}
           </Button>
           <Button
             busy={unblock.isPending}
-            onClick={() => void run(() => unblock.mutateAsync(user.id), "Konto odblokowane.").then((ok) => ok && onClose())}
+            onClick={() => void run(() => unblock.mutateAsync(user.id), t("done")).then((ok) => ok && onClose())}
           >
-            Odblokuj
+            {t("submit")}
           </Button>
         </div>
       </div>
@@ -366,6 +381,8 @@ function UnblockDialog({ user, open, onClose, run }: ActionDialogProps) {
 }
 
 function ResetDialog({ user, open, onClose, run }: ActionDialogProps) {
+  const t = useTranslations("adminUsers.resetDialog");
+  const common = useTranslations("common");
   const email = user.idp?.email ?? user.email;
   const [mode, setMode] = useState<PasswordMode>(email ? "email" : "temporary");
   const [issued, setIssued] = useState<string | null>(null);
@@ -382,38 +399,38 @@ function ResetDialog({ user, open, onClose, run }: ActionDialogProps) {
       const result = await reset.mutateAsync({ id: user.id, mode });
       if (result.temporary_password) setIssued(result.temporary_password);
       else close();
-    }, mode === "email" ? "Wysłaliśmy link do ustawienia nowego hasła." : undefined);
+    }, mode === "email" ? t("linkSent") : undefined);
   }
 
   return (
-    <Dialog open={open} onClose={close} title={issued ? "Nowe hasło tymczasowe" : "Resetuj hasło"}>
+    <Dialog open={open} onClose={close} title={issued ? t("issuedTitle") : t("title")}>
       {issued ? (
         <div className="flex flex-col gap-4">
           <OneTimePassword password={issued} username={user.username} />
           <div className="flex justify-end">
-            <Button onClick={close}>Gotowe</Button>
+            <Button onClick={close}>{t("done")}</Button>
           </div>
         </div>
       ) : (
         <form onSubmit={submit} className="flex flex-col gap-3 text-sm">
-          <p>Obecne hasło przestanie działać, a {displayName(user)} zostanie wylogowany ze wszystkich urządzeń.</p>
+          <p>{t("body", { name: displayName(user) })}</p>
           <fieldset className="flex flex-col gap-1">
-            <legend className="sr-only">Sposób</legend>
+            <legend className="sr-only">{t("method")}</legend>
             <label className="flex items-center gap-2">
               <input type="radio" name="reset-mode" checked={mode === "email"} disabled={!email} onChange={() => setMode("email")} />
-              Link e-mailem{email ? ` na ${email}` : " (brak adresu)"}
+              {email ? t("byEmail", { email }) : t("byEmailNone")}
             </label>
             <label className="flex items-center gap-2">
               <input type="radio" name="reset-mode" checked={mode === "temporary"} onChange={() => setMode("temporary")} />
-              Hasło tymczasowe (pokażemy je raz)
+              {t("temporary")}
             </label>
           </fieldset>
           <div className="flex justify-end gap-2">
             <Button variant="ghost" onClick={close}>
-              Anuluj
+              {common("cancel")}
             </Button>
             <Button type="submit" busy={reset.isPending}>
-              Resetuj
+              {t("submit")}
             </Button>
           </div>
         </form>
@@ -423,29 +440,31 @@ function ResetDialog({ user, open, onClose, run }: ActionDialogProps) {
 }
 
 function ForceChangeDialog({ user, open, onClose, run }: ActionDialogProps) {
+  const t = useTranslations("adminUsers.forceDialog");
+  const common = useTranslations("common");
   const [signOut, setSignOut] = useState(false);
   const force = useRequirePasswordChange();
   return (
-    <Dialog open={open} onClose={onClose} title="Wymusić zmianę hasła?">
+    <Dialog open={open} onClose={onClose} title={t("title")}>
       <div className="flex flex-col gap-3 text-sm">
-        <p>Przy następnym logowaniu {displayName(user)} musi ustawić nowe hasło.</p>
+        <p>{t("body", { name: displayName(user) })}</p>
         <label className="flex items-center gap-2">
           <input type="checkbox" checked={signOut} onChange={(e) => setSignOut(e.target.checked)} />
-          Wyloguj teraz ze wszystkich urządzeń
+          {t("signOut")}
         </label>
         <div className="flex justify-end gap-2">
           <Button variant="ghost" onClick={onClose}>
-            Anuluj
+            {common("cancel")}
           </Button>
           <Button
             busy={force.isPending}
             onClick={() =>
-              void run(() => force.mutateAsync({ id: user.id, signOut }), "Zmiana hasła będzie wymagana przy logowaniu.").then(
+              void run(() => force.mutateAsync({ id: user.id, signOut }), t("done")).then(
                 (ok) => ok && onClose(),
               )
             }
           >
-            Wymuś
+            {t("submit")}
           </Button>
         </div>
       </div>
@@ -454,20 +473,22 @@ function ForceChangeDialog({ user, open, onClose, run }: ActionDialogProps) {
 }
 
 function SignOutDialog({ user, open, onClose, run }: ActionDialogProps) {
+  const t = useTranslations("adminUsers.signOutDialog");
+  const common = useTranslations("common");
   const signOut = useSignOut();
   return (
-    <Dialog open={open} onClose={onClose} title="Wylogować ze wszystkich urządzeń?">
+    <Dialog open={open} onClose={onClose} title={t("title")}>
       <div className="flex flex-col gap-3 text-sm">
-        <p>Wszystkie sesje {displayName(user)} zakończą się od razu. Konto pozostaje aktywne.</p>
+        <p>{t("body", { name: displayName(user) })}</p>
         <div className="flex justify-end gap-2">
           <Button variant="ghost" onClick={onClose}>
-            Anuluj
+            {common("cancel")}
           </Button>
           <Button
             busy={signOut.isPending}
-            onClick={() => void run(() => signOut.mutateAsync(user.id), "Sesje zakończone.").then((ok) => ok && onClose())}
+            onClick={() => void run(() => signOut.mutateAsync(user.id), t("done")).then((ok) => ok && onClose())}
           >
-            Wyloguj
+            {t("submit")}
           </Button>
         </div>
       </div>

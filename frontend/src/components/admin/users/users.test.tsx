@@ -6,8 +6,12 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 
 import { UsersConsole } from "@/components/admin/users/UsersConsole";
 import { ApiError } from "@/lib/api";
-import { grantsElevated, lockoutReason, usersError, type UserDetail, type UserSummary } from "@/lib/users-admin";
+import { createTranslator } from "next-intl";
+
+import { grantsElevated, lockoutReason, usersErrorKey, type UserDetail, type UserSummary } from "@/lib/users-admin";
+import { MESSAGES } from "@/messages";
 import { API, renderWithClient } from "@/test/render";
+import { setTestLocale } from "@/test/rtl";
 
 const server = setupServer();
 beforeAll(() => server.listen({ onUnhandledFrame: "error" }));
@@ -253,6 +257,8 @@ describe("UsersConsole", () => {
 describe("users-admin helpers", () => {
   it("maps API refusals to Polish explanations", () => {
     const refusal = (error: string, status = 409) => new ApiError(status, { detail: { error } });
+    const t = createTranslator({ locale: "pl", messages: MESSAGES.pl, namespace: "adminUsers.errors" });
+    const usersError = (error: unknown) => t(usersErrorKey(error));
     expect(usersError(refusal("last_admin"))).toMatch(/ostatni aktywny administrator/);
     expect(usersError(refusal("email_failed", 502))).toMatch(/hasło tymczasowe/);
     expect(usersError(new ApiError(429, null))).toMatch(/Odczekaj/);
@@ -263,8 +269,21 @@ describe("users-admin helpers", () => {
     expect(grantsElevated(["MEMBER"], ["MEMBER", "EXPERT", "ADMIN"])).toEqual(["EXPERT", "ADMIN"]);
     expect(grantsElevated(["MEMBER", "EXPERT"], ["MEMBER"])).toEqual([]);
     const lastAdmin = { ...DETAILS[ADMIN_ID], is_self: false };
-    expect(lockoutReason(lastAdmin)).toBe("To ostatni aktywny administrator.");
+    expect(lockoutReason(lastAdmin)).toBe("lastAdmin");
     expect(lockoutReason({ ...lastAdmin, other_active_admins: 2 })).toBeNull();
     expect(lockoutReason(DETAILS[OLA_ID])).toBeNull();
+  });
+});
+
+describe("in English (14.4)", () => {
+  it("lists users with English roles and statuses", async () => {
+    setTestLocale("en");
+    mount();
+    renderWithClient(<UsersConsole />);
+    const table = await screen.findByRole("table", { name: "Users" });
+    expect(within(table).getByText("Administrator")).toBeInTheDocument();
+    expect(within(table).getAllByText("Active")).toHaveLength(3);
+    expect(screen.getByLabelText("Role")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add user" })).toBeInTheDocument();
   });
 });

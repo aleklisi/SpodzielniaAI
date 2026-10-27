@@ -1,9 +1,8 @@
-import type { Metadata } from "next";
-
 import { AtlasContributions } from "@/components/contributions/AtlasContributions";
 import { ContributionsPanel } from "@/components/contributions/ContributionsPanel";
+import { titled } from "@/i18n/metadata";
 
-export const metadata: Metadata = { title: "Moje kontrybucje" };
+export const generateMetadata = titled("contributions");
 
 export default function ContributionsPage() {
   return (

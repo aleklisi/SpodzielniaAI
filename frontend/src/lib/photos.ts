@@ -9,9 +9,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { api, API_BASE, ApiError } from "@/lib/api";
+import { apiErrorCode, knownCode } from "@/lib/messages";
 import type { components } from "@/lib/api-schema";
 import { keys as notebookKeys } from "@/lib/notebook";
 import { unwrap } from "@/lib/query";
+import type { Messages } from "@/messages";
 
 export type Photo = components["schemas"]["PhotoOut"];
 export type Region = components["schemas"]["RegionOut"];
@@ -109,29 +111,29 @@ export function clampBox(box: { x: number; y: number; w: number; h: number }) {
   return { x, y, w, h };
 }
 
-const ERRORS: Record<string, string> = {
-  stale_version: "Zdjęcie zmieniło się w innej karcie. Wczytaj je ponownie, aby nie nadpisać zmian.",
-  invalid_box: "Któreś oznaczenie wychodzi poza zdjęcie albo jest za małe.",
-  too_many_regions: `Najwyżej ${MAX_MARKS} oznaczeń na jednym zdjęciu.`,
-  label_not_usable: "Któraś etykieta nie jest już dostępna. Wybierz inną.",
-  label_not_found: "Któraś etykieta nie należy do wybranej dziedziny.",
-  domain_archived: "Ta dziedzina jest zarchiwizowana: zdjęcie można tylko oglądać.",
-  domain_not_found: "Nie znaleziono dziedziny.",
-  photo_not_found: "Nie znaleziono zdjęcia.",
-  caption_too_long: "Opis zdjęcia jest za długi (najwyżej 2000 znaków).",
-  description_too_long: "Opis oznaczenia jest za długi (najwyżej 1000 znaków).",
-};
+export type PhotoErrorKey = keyof Messages["notebook"]["photo"]["errors"];
+
+const CODES = [
+  "stale_version",
+  "invalid_box",
+  "too_many_regions",
+  "label_not_usable",
+  "label_not_found",
+  "domain_archived",
+  "domain_not_found",
+  "photo_not_found",
+  "caption_too_long",
+  "description_too_long",
+] as const satisfies readonly PhotoErrorKey[];
 
 export function photoErrorCode(error: unknown): string | null {
-  if (!(error instanceof ApiError)) return null;
-  const detail = (error.detail as { detail?: unknown } | null)?.detail ?? error.detail;
-  if (detail && typeof detail === "object" && "error" in detail && typeof detail.error === "string") return detail.error;
-  return null;
+  return apiErrorCode(error);
 }
 
-export function photoError(error: unknown): string {
-  const code = photoErrorCode(error);
-  if (code && ERRORS[code]) return ERRORS[code];
-  if (error instanceof ApiError && error.status === 422) return "Sprawdź oznaczenia i opisy.";
-  return "Nie udało się zapisać zdjęcia.";
+/** The key in `notebook.photo.errors` (`too_many_regions` takes `{max: MAX_MARKS}`). */
+export function photoErrorKey(error: unknown): PhotoErrorKey {
+  const code = knownCode(CODES, photoErrorCode(error));
+  if (code) return code;
+  if (error instanceof ApiError && error.status === 422) return "invalid";
+  return "failed";
 }

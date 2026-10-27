@@ -1,9 +1,10 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { useId, useState } from "react";
 
 import { cn } from "@/components/ui/cn";
-import { atlasError, useLabels, useProposeLabel, type Label } from "@/lib/atlas";
+import { atlasErrorKey, useLabels, useProposeLabel, type AtlasErrorKey, type Label } from "@/lib/atlas";
 
 const INPUT = "w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm";
 
@@ -16,7 +17,7 @@ export function LabelCombobox({
   domainId,
   value,
   onChange,
-  label = "Etykieta",
+  label,
   disabled = false,
 }: {
   domainId: string;
@@ -25,10 +26,12 @@ export function LabelCombobox({
   label?: string;
   disabled?: boolean;
 }) {
+  const t = useTranslations("atlas");
+  const fieldLabel = label ?? t("combobox.label");
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<AtlasErrorKey | "proposeFailed" | null>(null);
   const labels = useLabels(open ? domainId : null, q.trim());
   const propose = useProposeLabel();
   const id = useId();
@@ -36,6 +39,7 @@ export function LabelCombobox({
 
   const options = labels.data ?? [];
   const typed = q.trim();
+  // Label names are the cooperative's content, written in Polish whatever the UI language.
   const exact = options.some((o) => o.name.toLocaleLowerCase("pl") === typed.toLocaleLowerCase("pl"));
   const canPropose = typed.length > 0 && !exact && !labels.isFetching;
   const count = options.length + (canPropose ? 1 : 0);
@@ -52,7 +56,8 @@ export function LabelCombobox({
     try {
       choose(await propose.mutateAsync({ domain_id: domainId, name: typed }));
     } catch (e) {
-      setError(atlasError(e, "Nie udało się zaproponować etykiety."));
+      const key = atlasErrorKey(e);
+      setError(key === "failed" ? "proposeFailed" : key);
     }
   }
 
@@ -64,7 +69,7 @@ export function LabelCombobox({
   return (
     <div className="relative flex flex-col gap-1 text-sm">
       <label htmlFor={id} className="font-medium">
-        {label}
+        {fieldLabel}
       </label>
       <input
         id={id}
@@ -76,7 +81,7 @@ export function LabelCombobox({
         className={INPUT}
         disabled={disabled}
         autoComplete="off"
-        placeholder={value ? value.name : "Szukaj etykiety…"}
+        placeholder={value ? value.name : t("combobox.search")}
         value={q}
         onFocus={() => setOpen(true)}
         onBlur={() => setTimeout(() => setOpen(false), 150)}
@@ -103,16 +108,16 @@ export function LabelCombobox({
       />
       {value && (
         <p className="text-xs text-text-muted">
-          Wybrano: <span className="font-medium text-text">{value.name}</span>
-          {value.status === "PROPOSED" && " (propozycja czeka na ekspertów)"}
-          {value.status === "DEPRECATED" && " (etykieta wycofana)"}
+          {t.rich("combobox.chosen", { name: value.name, b: (chunks) => <span className="font-medium text-text">{chunks}</span> })}
+          {value.status === "PROPOSED" && t("combobox.proposedSuffix")}
+          {value.status === "DEPRECATED" && t("combobox.deprecatedSuffix")}
         </p>
       )}
       {open && (
         <ul
           id={listId}
           role="listbox"
-          aria-label={label}
+          aria-label={fieldLabel}
           className="absolute top-full z-20 mt-1 max-h-64 w-full overflow-auto rounded-lg border border-border bg-surface shadow-lg"
         >
           {options.map((o, i) => (
@@ -126,7 +131,7 @@ export function LabelCombobox({
               onClick={() => choose(o)}
             >
               <span className="font-medium">{o.name}</span>
-              {o.status === "PROPOSED" && <span className="ml-2 text-xs text-warn">propozycja</span>}
+              {o.status === "PROPOSED" && <span className="ml-2 text-xs text-warn">{t("combobox.proposal")}</span>}
               {o.synonyms.length > 0 && <span className="block text-xs text-text-muted">{o.synonyms.join(", ")}</span>}
             </li>
           ))}
@@ -139,15 +144,15 @@ export function LabelCombobox({
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => void proposeTyped()}
             >
-              Zaproponuj nową etykietę „{typed}”
+              {t("combobox.propose", { name: typed })}
             </li>
           )}
-          {count === 0 && !labels.isFetching && <li className="px-3 py-2 text-text-muted">Wpisz nazwę, aby wyszukać.</li>}
+          {count === 0 && !labels.isFetching && <li className="px-3 py-2 text-text-muted">{t("combobox.typeToSearch")}</li>}
         </ul>
       )}
       {error && (
         <p role="alert" className="text-xs text-danger">
-          {error}
+          {error === "proposeFailed" ? t("combobox.proposeFailed") : t(`errors.${error}`)}
         </p>
       )}
     </div>

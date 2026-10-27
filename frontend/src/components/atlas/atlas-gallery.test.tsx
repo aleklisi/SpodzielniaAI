@@ -10,6 +10,7 @@ import { AtlasReviewPanel } from "@/components/review/AtlasReviewPanel";
 import type { Domain, Label } from "@/lib/atlas";
 import type { PhotoCard, PhotoDetail, QueuePhoto, ReviewPhoto } from "@/lib/atlas-gallery";
 import { API, renderWithClient } from "@/test/render";
+import { setTestLocale } from "@/test/rtl";
 
 const server = setupServer();
 beforeAll(() => server.listen({ onUnhandledFrame: "error" }));
@@ -183,5 +184,22 @@ describe("AtlasReviewPanel", () => {
     expect(await screen.findByText(/To Twoje zdjęcie/)).toBeInTheDocument();
     expect(screen.queryByRole("form", { name: "Decyzja" })).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "słowniku etykiet" })).toHaveAttribute("href", "/review/labels");
+  });
+});
+
+describe("in English (14.3)", () => {
+  it("lists the photos with English labels; the labels themselves stay as written", async () => {
+    setTestLocale("en");
+    server.use(
+      http.get(`${API}/atlas/domains`, () => HttpResponse.json([BEES])),
+      http.get(`${API}/atlas/labels`, () => HttpResponse.json([QUEEN])),
+      http.get(`${API}/atlas/photos`, () => HttpResponse.json({ items: [card("p1", "Alicja"), card("p2", null)], total: 2, offset: 0, limit: 24 })),
+    );
+    renderWithClient(<AtlasGallery />);
+    const items = await within(await screen.findByRole("list", { name: "Atlas photos" })).findAllByRole("link");
+    expect(items[1]).toHaveTextContent("Cooperative member");
+    expect(screen.getByLabelText("Domain")).toBeInTheDocument();
+    expect(screen.getByLabelText("Label")).toBeInTheDocument();
+    expect(screen.getByLabelText("Search")).toHaveAttribute("placeholder", "e.g. queen, queen cell");
   });
 });

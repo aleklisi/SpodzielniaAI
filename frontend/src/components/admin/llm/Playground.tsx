@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { useState, type FormEvent } from "react";
 
 import { KindBadge } from "@/components/admin/llm/Catalog";
@@ -7,7 +8,7 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import {
   generates,
-  llmError,
+  llmErrorKey,
   modelLabel,
   usePlayground,
   usePresets,
@@ -21,6 +22,7 @@ const MAX_MODELS = 3;
 
 /** Up to three models answer the same prompt. No knowledge base, nothing stored. */
 export function PlaygroundPanel({ status, providers, models }: { status: LlmStatus; providers: Provider[]; models: LlmModel[] }) {
+  const t = useTranslations("adminLlm");
   const presets = usePresets();
   const run = usePlayground();
   const [chosen, setChosen] = useState<string[]>([]);
@@ -54,13 +56,10 @@ export function PlaygroundPanel({ status, providers, models }: { status: LlmStat
 
   return (
     <div className="flex flex-col gap-4">
-      <p className="text-sm text-text-muted">
-        Playground nie korzysta z bazy wiedzy ani z notatek: modele widzą tylko to polecenie. Odpowiedzi nie są zapisywane; w
-        dzienniku audytu zostaje skrót polecenia.
-      </p>
+      <p className="text-sm text-text-muted">{t("playground.intro")}</p>
       <form onSubmit={submit} className="flex flex-col gap-4 text-sm">
         <fieldset className="flex flex-col gap-2">
-          <legend className="mb-1 font-medium">Modele (do {MAX_MODELS})</legend>
+          <legend className="mb-1 font-medium">{t("playground.models", { max: MAX_MODELS })}</legend>
           <div className="flex flex-wrap gap-3">
             {candidates.map((m) => {
               const cloudOff = isCloud(m) && !status.allow_cloud;
@@ -80,17 +79,17 @@ export function PlaygroundPanel({ status, providers, models }: { status: LlmStat
             })}
           </div>
         </fieldset>
-        <div className="flex gap-4" role="radiogroup" aria-label="Polecenie">
+        <div className="flex gap-4" role="radiogroup" aria-label={t("playground.prompt")}>
           <label className="flex items-center gap-2">
-            <input type="radio" checked={mode === "preset"} onChange={() => setMode("preset")} /> Gotowy scenariusz
+            <input type="radio" checked={mode === "preset"} onChange={() => setMode("preset")} /> {t("playground.preset")}
           </label>
           <label className="flex items-center gap-2">
-            <input type="radio" checked={mode === "own"} onChange={() => setMode("own")} /> Własne polecenie
+            <input type="radio" checked={mode === "own"} onChange={() => setMode("own")} /> {t("playground.own")}
           </label>
         </div>
         {mode === "preset" ? (
           <div className="flex flex-col gap-1">
-            <label htmlFor="playground-preset">Scenariusz</label>
+            <label htmlFor="playground-preset">{t("playground.scenario")}</label>
             <select
               id="playground-preset"
               className="rounded-lg border border-border bg-surface px-3 py-2"
@@ -105,7 +104,7 @@ export function PlaygroundPanel({ status, providers, models }: { status: LlmStat
               {presets.data?.map((p) => (
                 <option key={p.key} value={p.key}>
                   {p.title}
-                  {p.private_data ? " (tylko dostawcy dopuszczeni do danych prywatnych)" : ""}
+                  {p.private_data ? t("playground.privateOnly") : ""}
                 </option>
               ))}
             </select>
@@ -113,7 +112,7 @@ export function PlaygroundPanel({ status, providers, models }: { status: LlmStat
           </div>
         ) : (
           <label className="flex flex-col gap-1">
-            Polecenie (nie wklejaj danych osobowych ani treści notatek)
+            {t("playground.ownLabel")}
             <textarea
               rows={4}
               maxLength={4000}
@@ -125,18 +124,18 @@ export function PlaygroundPanel({ status, providers, models }: { status: LlmStat
         )}
         {run.error && (
           <p role="alert" className="text-danger">
-            {llmError(run.error)}
+            {t(`errors.${llmErrorKey(run.error)}`)}
           </p>
         )}
         <div className="flex justify-end">
           <Button type="submit" busy={run.isPending} disabled={chosen.length === 0 || (mode === "own" && !prompt.trim())}>
-            Uruchom
+            {t("playground.run")}
           </Button>
         </div>
       </form>
 
       {results.length > 0 && (
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3" aria-label="Wyniki">
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3" aria-label={t("playground.results")}>
           {results.map((r) => (
             <Card key={r.model_id} className="flex flex-col gap-2 p-4">
               <div className="flex flex-wrap items-center justify-between gap-2">
@@ -145,16 +144,16 @@ export function PlaygroundPanel({ status, providers, models }: { status: LlmStat
               </div>
               <p className="text-xs text-text-muted">
                 {r.latency_ms !== null && r.latency_ms !== undefined ? `${(r.latency_ms / 1000).toFixed(1)} s` : ""}
-                {r.tokens ? ` · ${r.tokens} tokenów` : ""}
-                {r.json_valid === true ? " · poprawny JSON" : r.json_valid === false ? " · niepoprawny JSON" : ""}
+                {r.tokens ? t("playground.tokens", { count: r.tokens }) : ""}
+                {r.json_valid === true ? t("playground.jsonValid") : r.json_valid === false ? t("playground.jsonInvalid") : ""}
               </p>
               {r.ok ? (
                 // Plain text on purpose: model output is never rendered as HTML or Markdown here.
                 <pre className="whitespace-pre-wrap break-words font-sans text-sm">{r.content}</pre>
               ) : (
-                <p className="text-danger">Błąd: {r.error}</p>
+                <p className="text-danger">{t("playground.error", { error: r.error ?? "" })}</p>
               )}
-              {r.truncated && <p className="text-xs text-text-muted">Odpowiedź skrócona.</p>}
+              {r.truncated && <p className="text-xs text-text-muted">{t("playground.truncated")}</p>}
             </Card>
           ))}
         </div>

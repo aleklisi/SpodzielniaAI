@@ -1,0 +1,28 @@
+{
+  "title": "Where your data is processed",
+  "description": "Your notes, recordings, photos and documents go to AI models only at providers the cooperative's administrator has cleared for private data (within the limits the server operator set). If no provider is cleared for a feature, that feature is off: nothing goes anywhere else.",
+  "loading": "Loading…",
+  "loadFailed": "The list could not be loaded.",
+  "provider": "Provider {name}",
+  "onServer": "Cooperative's server",
+  "cloud": "Cloud",
+  "region": "Region",
+  "retention": "Retention",
+  "contract": "Contract",
+  "clearedSince": "Cleared since",
+  "idle": "Cleared, but not processing your data at the moment.",
+  "none": "No provider is cleared for private data: AI features on your data are off.",
+  "builtIn": "Built-in models",
+  "builtInTitle": "On the cooperative's server (built-in models)",
+  "purpose": {
+    "PII_SCRUB": "removing personal data from texts before sharing",
+    "PRIVATE_NOTE": "answering questions to your notebook",
+    "PROMOTION": "preparing a draft article from your notes",
+    "VLM": "describing photos and checking photos before they go to the atlas",
+    "EMBED": "searching notes and the wiki (text vectors)",
+    "TRANSCRIBE": "transcribing recordings",
+    "OCR": "reading scanned documents",
+    "IMAGE_EMBED": "the atlas and “Recognise” (photo vectors)",
+    "RAG": "answers from the cooperative's wiki"
+  }
+}

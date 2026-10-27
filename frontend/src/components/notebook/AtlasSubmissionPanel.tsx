@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { useState } from "react";
 
 import { ImageAnnotator } from "@/components/annotator/ImageAnnotator";
@@ -9,10 +10,11 @@ import { Card } from "@/components/ui/Card";
 import { Dialog } from "@/components/ui/Dialog";
 import { useToast } from "@/components/ui/Toast";
 import {
-  ATLAS_STATUS,
+  ATLAS_STATUS_TONE,
   atlasImageUrl,
-  PRIVACY_LABEL,
-  submissionError,
+  privacyFlag,
+  submissionErrorKey,
+  type SubmissionErrorKey,
   usePhotoSubmissions,
   useRequestSubmission,
   useSendSubmission,
@@ -22,7 +24,7 @@ import {
 import type { Mark } from "@/lib/photos";
 
 /**
- * „Przekaż do atlasu”: prepare → review exactly what would be shared → send or withdraw.
+ * "Submit to the atlas": prepare → review exactly what would be shared → send or withdraw.
  * Disabled while the editor has unsaved changes (the server prepares the saved version).
  */
 export function AtlasSubmissionPanel({
@@ -36,9 +38,12 @@ export function AtlasSubmissionPanel({
   canSubmit: boolean;
   reason: string | null;
 }) {
+  const t = useTranslations("notebook.submission");
+  const status = useTranslations("common.atlasStatus");
+  const alerts = useTranslations("common.alerts");
   const submissions = usePhotoSubmissions(attachmentId);
   const request = useRequestSubmission(noteId, attachmentId);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<SubmissionErrorKey | null>(null);
   const [reviewing, setReviewing] = useState<string | null>(null);
   const latest = submissions.data?.[0];
   const atlas = latest?.status === "SENT" ? latest.atlas : null;
@@ -50,7 +55,7 @@ export function AtlasSubmissionPanel({
     try {
       await request.mutateAsync();
     } catch (e) {
-      setError(submissionError(e));
+      setError(submissionErrorKey(e));
     }
   }
 
@@ -59,45 +64,44 @@ export function AtlasSubmissionPanel({
   return (
     <Card className="flex flex-col gap-3" aria-labelledby="atlas-title">
       <h2 id="atlas-title" className="font-display text-lg font-semibold">
-        Atlas spółdzielni
+        {t("title")}
       </h2>
       {atlas && (
         <p className="flex flex-wrap items-center gap-2 text-sm">
-          <Badge tone={ATLAS_STATUS[atlas.status].tone}>{ATLAS_STATUS[atlas.status].label}</Badge>
-          {atlas.review_alert && <span className="text-warn">{atlas.review_alert}</span>}
+          <Badge tone={ATLAS_STATUS_TONE[atlas.status]}>{status(atlas.status)}</Badge>
+          {atlas.review_alert && (
+            <span className="text-warn">{atlas.review_alert === "revision_required" ? alerts("revision_required") : atlas.review_alert}</span>
+          )}
         </p>
       )}
       {busy && (
         <p role="status" className="text-sm text-text-muted">
-          Przygotowujemy kopię zdjęcia: usuwamy metadane i dane osobowe z opisów…
+          {t("preparing")}
         </p>
       )}
       {latest?.status === "FAILED" && (
         <p role="alert" className="text-sm text-danger">
-          {submissionError(latest.error ?? "", "Nie udało się przygotować zdjęcia.")}
+          {t(`errors.${submissionErrorKey(latest.error ?? "", "prepareFailed")}`)}
         </p>
       )}
       {latest?.status === "PREPARED" && (
         <div className="flex flex-col gap-2 text-sm">
-          <p>Zdjęcie jest przygotowane. Sprawdź, co zobaczą inni, zanim je wyślesz.</p>
-          <Button onClick={() => setReviewing(latest.id)}>Sprawdź i wyślij</Button>
+          <p>{t("prepared")}</p>
+          <Button onClick={() => setReviewing(latest.id)}>{t("review")}</Button>
         </div>
       )}
       {!busy && latest?.status !== "PREPARED" && !live && (
         <div className="flex flex-col gap-2 text-sm">
-          <p className="text-text-muted">
-            Zdjęcie trafi do ekspertów. Po zatwierdzeniu zobaczą je wszyscy członkowie spółdzielni. Możesz je potem w każdej chwili wstrzymać lub
-            wycofać.
-          </p>
+          <p className="text-text-muted">{t("intro")}</p>
           <Button onClick={() => void start()} busy={request.isPending} disabled={!canSubmit}>
-            {atlas?.status === "REVISION_REQUIRED" ? "Wyślij poprawione zdjęcie" : "Przekaż do atlasu"}
+            {atlas?.status === "REVISION_REQUIRED" ? t("resend") : t("send")}
           </Button>
           {!canSubmit && reason && <p className="text-xs text-text-muted">{reason}</p>}
         </div>
       )}
       {error && (
         <p role="alert" className="text-sm text-danger">
-          {error}
+          {t(`errors.${error}`)}
         </p>
       )}
       {review && <ReviewDialog key={review.id} submission={review} attachmentId={attachmentId} onClose={() => setReviewing(null)} />}
@@ -106,6 +110,7 @@ export function AtlasSubmissionPanel({
 }
 
 function ReviewDialog({ submission, attachmentId, onClose }: { submission: Submission; attachmentId: string; onClose: () => void }) {
+  const t = useTranslations("notebook.submission");
   const draft = submission.atlas!;
   const send = useSendSubmission(attachmentId);
   const withdraw = useWithdrawSubmission(attachmentId);
@@ -113,7 +118,7 @@ function ReviewDialog({ submission, attachmentId, onClose }: { submission: Submi
   const [showAuthor, setShowAuthor] = useState<boolean | null>(null); // no default: the author decides
   const [allowExport, setAllowExport] = useState(false);
   const [confirmPeople, setConfirmPeople] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<SubmissionErrorKey | null>(null);
   const marks: Mark[] = draft.regions.map((r) => ({ key: r.id, label: r.label, x: r.x, y: r.y, w: r.w, h: r.h, description: r.description ?? "", source: "USER" }));
   const ready = showAuthor !== null && (!draft.needs_people_confirmation || confirmPeople);
 
@@ -122,10 +127,10 @@ function ReviewDialog({ submission, attachmentId, onClose }: { submission: Submi
     setError(null);
     try {
       await send.mutateAsync({ id: submission.id, show_author: showAuthor, allow_export: allowExport, confirm_no_people: confirmPeople });
-      toast("Zdjęcie wysłane do ekspertów.", "ok");
+      toast(t("sent"), "ok");
       onClose();
     } catch (e) {
-      setError(submissionError(e));
+      setError(submissionErrorKey(e));
     }
   }
 
@@ -134,16 +139,16 @@ function ReviewDialog({ submission, attachmentId, onClose }: { submission: Submi
       await withdraw.mutateAsync(submission.id);
       onClose();
     } catch (e) {
-      setError(submissionError(e));
+      setError(submissionErrorKey(e));
     }
   }
 
   return (
-    <Dialog open onClose={onClose} title="Tak zobaczą to inni">
+    <Dialog open onClose={onClose} title={t("dialogTitle")}>
       <div className="flex max-h-[80vh] flex-col gap-4 overflow-y-auto text-sm">
         <ImageAnnotator
           src={atlasImageUrl(draft.id, "preview")}
-          alt={draft.caption ?? "Zdjęcie do atlasu"}
+          alt={draft.caption ?? t("defaultAlt")}
           aspect={draft.width / draft.height}
           marks={marks}
           selected={null}
@@ -152,67 +157,74 @@ function ReviewDialog({ submission, attachmentId, onClose }: { submission: Submi
           readOnly
         />
         <section>
-          <h3 className="font-medium">Opis</h3>
+          <h3 className="font-medium">{t("caption")}</h3>
           <p className="whitespace-pre-wrap">{draft.caption ?? "—"}</p>
           {submission.pii_replaced > 0 && (
-            <p className="mt-1 text-xs text-warn">
-              Zastąpiliśmy dane osobowe w opisach ({submission.pii_replaced}). Sprawdź, czy tekst nadal ma sens.
-            </p>
+            <p className="mt-1 text-xs text-warn">{t("piiReplaced", { count: submission.pii_replaced })}</p>
           )}
         </section>
         <section>
-          <h3 className="font-medium">Oznaczenia</h3>
+          <h3 className="font-medium">{t("marks")}</h3>
           <ol className="list-decimal pl-5">
             {draft.regions.map((r) => (
               <li key={r.id}>
                 {r.label.name}
-                {r.label.status === "PROPOSED" && <span className="text-xs text-warn"> (nowa etykieta: eksperci ją rozpatrzą)</span>}
+                {r.label.status === "PROPOSED" && <span className="text-xs text-warn">{t("proposedLabel")}</span>}
                 {r.description && <span className="text-text-muted">: {r.description}</span>}
               </li>
             ))}
           </ol>
         </section>
-        <p className="text-xs text-text-muted">Kopia zdjęcia nie zawiera metadanych (aparat, data, lokalizacja GPS).</p>
+        <p className="text-xs text-text-muted">{t("noMetadata")}</p>
         {draft.privacy_check === "unavailable" && (
-          <p className="text-warn">Nie udało się automatycznie sprawdzić, czy na zdjęciu są osoby lub dokumenty. Sprawdź to sam(a).</p>
+          <p className="text-warn">{t("checkUnavailable")}</p>
         )}
         {draft.privacy_flags.length > 0 && (
           <div role="alert" className="rounded-lg border border-warn p-3">
-            <p className="font-medium text-warn">Na zdjęciu mogą być: {draft.privacy_flags.map((f) => PRIVACY_LABEL[f] ?? f).join(", ")}.</p>
+            <p className="font-medium text-warn">
+              {t("mayShow", {
+                flags: draft.privacy_flags
+                  .map((f) => {
+                    const flag = privacyFlag(f);
+                    return flag ? t(`privacy.${flag}`) : f;
+                  })
+                  .join(", "),
+              })}
+            </p>
             {draft.needs_people_confirmation && (
               <label className="mt-2 flex items-start gap-2">
                 <input type="checkbox" className="mt-1" checked={confirmPeople} onChange={(e) => setConfirmPeople(e.target.checked)} />
-                Osoby na zdjęciu zgodziły się na jego udostępnienie albo są nierozpoznawalne.
+                {t("confirmPeople")}
               </label>
             )}
           </div>
         )}
         <fieldset className="flex flex-col gap-1">
-          <legend className="mb-1 font-medium">Podpis pod zdjęciem</legend>
+          <legend className="mb-1 font-medium">{t("byline")}</legend>
           <label className="flex items-center gap-2">
             <input type="radio" name="show-author" checked={showAuthor === true} onChange={() => setShowAuthor(true)} />
-            Pokaż moje imię i nazwisko
+            {t("showName")}
           </label>
           <label className="flex items-center gap-2">
             <input type="radio" name="show-author" checked={showAuthor === false} onChange={() => setShowAuthor(false)} />
-            Publikuj anonimowo („Członek spółdzielni”)
+            {t("anonymous")}
           </label>
         </fieldset>
         <label className="flex items-start gap-2">
           <input type="checkbox" className="mt-1" checked={allowExport} onChange={(e) => setAllowExport(e.target.checked)} />
-          Zgadzam się na użycie zdjęcia w eksporcie zbioru danych spółdzielni (np. do trenowania modelu rozpoznawania). Mogę to zmienić później.
+          {t("allowExport")}
         </label>
         {error && (
           <p role="alert" className="text-danger">
-            {error}
+            {t(`errors.${error}`)}
           </p>
         )}
         <div className="flex flex-wrap justify-end gap-2">
           <Button variant="ghost" onClick={() => void doWithdraw()} busy={withdraw.isPending}>
-            Wycofaj
+            {t("withdraw")}
           </Button>
           <Button onClick={() => void doSend()} busy={send.isPending} disabled={!ready}>
-            Wyślij do ekspertów
+            {t("toExperts")}
           </Button>
         </div>
       </div>

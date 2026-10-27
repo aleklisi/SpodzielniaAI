@@ -1,0 +1,40 @@
+{
+  "sections": {
+    "work": "Moja praca",
+    "knowledge": "Wiedza spółdzielni",
+    "experts": "Rada Ekspertów",
+    "admin": "Administracja"
+  },
+  "nav": {
+    "notebook": "Notatnik",
+    "drafts": "Moje szkice",
+    "contributions": "Moje kontrybucje",
+    "wiki": "Wiki",
+    "atlas": "Atlas",
+    "chat": "Zapytaj spółdzielnię",
+    "review": "Recenzje",
+    "atlasReview": "Recenzje atlasu",
+    "labels": "Słownik etykiet",
+    "security": "Bezpieczeństwo",
+    "llm": "Modele AI",
+    "users": "Użytkownicy",
+    "adminAtlas": "Atlas (admin)",
+    "branding": "Wygląd",
+    "privacy": "Twoje dane"
+  },
+  "mainNav": "Główna",
+  "menu": "Menu",
+  "openMenu": "Otwórz menu",
+  "closeMenu": "Zamknij menu",
+  "expandMenu": "Rozwiń menu",
+  "collapseMenu": "Zwiń menu",
+  "createNote": "Utwórz notatkę",
+  "newNoteTitle": "Nowa notatka",
+  "signIn": "Zaloguj się",
+  "signOut": "Wyloguj",
+  "language": {
+    "label": "Język",
+    "failed": "Nie udało się zmienić języka. Spróbuj ponownie."
+  },
+  "account": "konto"
+}

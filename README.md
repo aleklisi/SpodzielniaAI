@@ -38,7 +38,7 @@ wykradaniem bazy wiedzy.
 - **Administracja:** użytkownicy i role (Keycloak), konfiguracja modeli z porównywarką,
   dziennik audytu z łańcuchem skrótów SHA-256, wygląd organizacji (nazwa, logo, kolory).
 - **Nowoczesny interfejs:** menu po lewej, obszar roboczy po prawej, w stylu Open Notebook;
-  działa na komputerze, tablecie i telefonie, zgodnie z WCAG 2.2 AA.
+  działa na komputerze, tablecie i telefonie, zgodnie z WCAG 2.2 AA; po polsku i po angielsku.
 
 ### Technologie
 
@@ -70,8 +70,8 @@ poniżej (po angielsku).
 
 ### Status
 
-Projekt jest rozwijany. Interfejs jest obecnie po polsku; wersja angielska jest zaplanowana
-(Etap 14).
+Projekt jest rozwijany. Interfejs jest dostępny po polsku i po angielsku (wybór języka w menu,
+Etap 14).
 
 ### Licencja
 
@@ -109,7 +109,7 @@ protected against extraction of the knowledge base.
 - **Administration:** users and roles (Keycloak), model configuration with a side-by-side
   playground, a SHA-256 hash-chained audit log, organisation branding (name, logo, colours).
 - **Modern UI:** an Open Notebook-style layout (menu on the left, workspace on the right) for
-  desktops, tablets and phones, meeting WCAG 2.2 AA.
+  desktops, tablets and phones, meeting WCAG 2.2 AA; in Polish and English.
 
 ### Stack
 
@@ -141,8 +141,8 @@ production, backups) are in the [developer guide](#developer-guide) below.
 
 ### Status
 
-Under active development. The UI is currently in Polish; an English version is planned
-(Stage 14).
+Under active development. The UI is available in Polish and English (choose the language in
+the menu, Stage 14).
 
 ### License
 

@@ -12,12 +12,6 @@ from uuid import UUID  # noqa: TC003 - pydantic resolves annotations at runtime
 
 from pydantic import BaseModel, Field
 
-NO_OFFICIAL_POSITION = (
-    "Brak oficjalnego stanowiska ekspertów spółdzielni w tej sprawie. Zatwierdzona baza "
-    "wiedzy nie zawiera odpowiedzi na to pytanie. Możesz zgłosić je Radzie Ekspertów."
-)
-NO_NOTES_ANSWER = "Twoje notatki nie zawierają informacji pozwalających odpowiedzieć na to pytanie."
-
 
 class AskIn(BaseModel):
     question: str = Field(min_length=3, max_length=10_000)

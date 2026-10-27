@@ -2,6 +2,7 @@
 
 import { Menu } from "lucide-react";
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import { useBranding } from "@/lib/branding-context";
@@ -27,6 +28,7 @@ export function AppShell({
   const [collapsed, setCollapsed] = useState(initialCollapsed);
   const [drawer, setDrawer] = useState(false);
   const { org_name } = useBranding();
+  const t = useTranslations("shell");
   return (
     <div className="flex min-h-dvh md:h-dvh md:overflow-hidden">
       <div className="hidden md:flex">
@@ -44,7 +46,7 @@ export function AppShell({
         <header className="sticky top-0 z-30 flex items-center gap-2 border-b border-border bg-surface px-2 pt-[max(0.5rem,env(safe-area-inset-top))] pb-2 md:hidden">
           <button
             type="button"
-            aria-label="Otwórz menu"
+            aria-label={t("openMenu")}
             aria-expanded={drawer}
             onClick={() => setDrawer(true)}
             className="inline-flex size-11 items-center justify-center rounded-lg text-text hover:bg-surface-muted"
@@ -71,6 +73,7 @@ export function AppShell({
 
 /** The menu over the workspace: a native modal `<dialog>` (focus trap, Escape, focus return). */
 function Drawer({ open, onClose, children }: { open: boolean; onClose: () => void; children: ReactNode }) {
+  const t = useTranslations("shell");
   const ref = useRef<HTMLDialogElement>(null);
   useEffect(() => {
     const dialog = ref.current;
@@ -87,7 +90,7 @@ function Drawer({ open, onClose, children }: { open: boolean; onClose: () => voi
   return (
     <dialog
       ref={ref}
-      aria-label="Menu"
+      aria-label={t("menu")}
       onClose={onClose}
       onClick={(event) => {
         if (event.target === event.currentTarget) onClose(); // the backdrop

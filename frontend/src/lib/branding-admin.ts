@@ -12,6 +12,8 @@ import { api, ApiError, RateLimited, StepUpRequired } from "@/lib/api";
 import type { components } from "@/lib/api-schema";
 import { TOKENS } from "@/lib/branding-css";
 import { unwrap } from "@/lib/query";
+import { knownCode } from "@/lib/messages";
+import type { Messages } from "@/messages";
 
 export type AdminBranding = components["schemas"]["AdminBrandingOut"];
 export type Preview = components["schemas"]["PreviewOut"];
@@ -84,32 +86,35 @@ export function applyLive(palette: AdminBranding["palette"]): void {
   if (!palette) document.getElementById("branding")?.remove(); // back to the default colours
 }
 
-const ERRORS: Record<string, string> = {
-  colours_together: "Wybierz oba kolory albo żaden.",
-  invalid_colour: "Kolor musi mieć postać #rrggbb.",
-  contrast_unreachable: "Z tym kolorem tekst nie byłby czytelny w żadnym odcieniu. Wybierz inny.",
-  name_too_long: "Nazwa może mieć najwyżej 60 znaków.",
-  name_invalid: "Nazwa zawiera niedozwolone znaki (np. znaki sterujące).",
-  type_not_allowed: "Dozwolone są tylko obrazy PNG, JPEG lub WebP (SVG nie jest obsługiwany).",
-  logo_type: "Dozwolone są tylko obrazy PNG, JPEG lub WebP.",
-  extension_mismatch: "Rozszerzenie pliku nie pasuje do jego zawartości.",
-  content_type_mismatch: "Typ pliku nie pasuje do jego zawartości.",
-  executable: "Pliki wykonywalne są niedozwolone.",
-  too_large: "Plik jest za duży (najwyżej 2 MB).",
-  dimensions: "Obraz jest za duży (najwyżej 4096 × 4096 pikseli).",
-  unreadable_image: "Nie udało się odczytać obrazu.",
-  infected: "Plik został odrzucony przez skaner antywirusowy.",
-  scanner_unavailable: "Skaner antywirusowy jest chwilowo niedostępny. Spróbuj za chwilę.",
-};
+export type BrandingErrorKey = keyof Messages["adminBranding"]["errors"];
 
-export function brandingError(error: unknown): string {
-  if (error instanceof RateLimited) return "Zbyt wiele zmian w ciągu godziny. Spróbuj później.";
-  if (error instanceof StepUpRequired) return "Ta operacja wymaga zalogowania z MFA.";
+const CODES = [
+  "colours_together",
+  "invalid_colour",
+  "contrast_unreachable",
+  "name_too_long",
+  "name_invalid",
+  "type_not_allowed",
+  "logo_type",
+  "extension_mismatch",
+  "content_type_mismatch",
+  "executable",
+  "too_large",
+  "dimensions",
+  "unreadable_image",
+  "infected",
+  "scanner_unavailable",
+] as const satisfies readonly BrandingErrorKey[];
+
+/** The key in `adminBranding.errors`. */
+export function brandingErrorKey(error: unknown): BrandingErrorKey {
+  if (error instanceof RateLimited) return "rate_limited";
+  if (error instanceof StepUpRequired) return "mfa";
   if (error instanceof ApiError) {
     const body = error.detail as { detail?: { error?: string } | unknown[] } | undefined;
-    const code = body && !Array.isArray(body.detail) ? body.detail?.error : undefined;
-    if (code && ERRORS[code]) return ERRORS[code];
-    if (Array.isArray(body?.detail)) return "Nieprawidłowe dane w formularzu.";
+    const code = knownCode(CODES, body && !Array.isArray(body.detail) ? body.detail?.error : undefined);
+    if (code) return code;
+    if (Array.isArray(body?.detail)) return "invalid";
   }
-  return "Nie udało się zapisać zmian.";
+  return "failed";
 }

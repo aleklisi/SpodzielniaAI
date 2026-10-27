@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { useState } from "react";
 
 import { KindBadge } from "@/components/admin/llm/Catalog";
@@ -11,11 +12,10 @@ import { Dialog } from "@/components/ui/Dialog";
 import { useToast } from "@/components/ui/Toast";
 import {
   eligibleModels,
-  llmError,
+  llmErrorKey,
   modelLabel,
   probeFresh,
   PURPOSE_ORDER,
-  PURPOSES,
   useActivate,
   useCreateDraft,
   useDeleteDraft,
@@ -67,6 +67,7 @@ export function RoutingPanel({
   models: LlmModel[];
   revisions: Revision[];
 }) {
+  const t = useTranslations("adminLlm");
   const active = revisions.find((r) => r.status === "ACTIVE");
   const draft = revisions.filter((r) => r.status === "DRAFT").sort((a, b) => b.number - a.number)[0];
   const [confirming, setConfirming] = useState(false);
@@ -82,7 +83,7 @@ export function RoutingPanel({
       await work();
       if (ok) toast(ok, "ok");
     } catch (error) {
-      toast(llmError(error), "error");
+      toast(t(`errors.${llmErrorKey(error)}`), "error");
     }
   }
 
@@ -98,22 +99,22 @@ export function RoutingPanel({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-text-muted">
           {draft
-            ? `Szkic rewizji ${draft.number} (na podstawie ${draft.based_on ?? "—"}). Zmiany zaczną działać po aktywacji.`
-            : `Aktywna rewizja ${active?.number ?? "—"}. Aby coś zmienić, utwórz szkic.`}
+            ? t("routing.draft", { number: draft.number, base: draft.based_on ?? "—" })
+            : t("routing.active", { number: active?.number ?? "—" })}
         </p>
         <div className="flex gap-2">
           {draft ? (
             <>
               <Button variant="ghost" busy={deleteDraft.isPending} onClick={() => void run(() => deleteDraft.mutateAsync(draft.number))}>
-                Odrzuć szkic
+                {t("routing.discard")}
               </Button>
               <Button disabled={pending.length === 0} onClick={() => setConfirming(true)}>
-                Aktywuj rewizję {draft.number}
+                {t("routing.activate", { number: draft.number })}
               </Button>
             </>
           ) : (
             <Button busy={createDraft.isPending} onClick={() => void run(() => createDraft.mutateAsync({}))}>
-              Nowy szkic zmian
+              {t("routing.newDraft")}
             </Button>
           )}
         </div>
@@ -122,10 +123,10 @@ export function RoutingPanel({
       <DataTable>
         <THead>
           <Tr>
-            <Th>Funkcja</Th>
-            <Th>Obecnie</Th>
-            {draft && <Th>W szkicu</Th>}
-            {draft && <Th>Test</Th>}
+            <Th>{t("routing.feature")}</Th>
+            <Th>{t("routing.current")}</Th>
+            {draft && <Th>{t("routing.inDraft")}</Th>}
+            {draft && <Th>{t("routing.test")}</Th>}
           </Tr>
         </THead>
         <TBody>
@@ -141,27 +142,27 @@ export function RoutingPanel({
               return (
                 <Tr key={p.purpose}>
                   <Td primary>
-                    <div className="font-medium">{PURPOSES[p.purpose].label}</div>
-                    <div className="text-xs text-text-muted">{PURPOSES[p.purpose].hint}</div>
+                    <div className="font-medium">{t(`purposes.${p.purpose}.label`)}</div>
+                    <div className="text-xs text-text-muted">{t(`purposes.${p.purpose}.hint`)}</div>
                     {p.private_data && (
-                      <Badge tone="ok" className="mt-1" title="Dane prywatne: tylko dostawcy dopuszczeni do danych prywatnych">
-                        🔒 dane prywatne
+                      <Badge tone="ok" className="mt-1" title={t("routing.privateHint")}>
+                        {t("routing.private")}
                       </Badge>
                     )}
                   </Td>
-                  <Td label="Obecnie">
+                  <Td label={t("routing.current")}>
                     {current ? (
                       <span className="flex flex-wrap items-center gap-1">
                         {current.name} <KindBadge kind={current.kind} />
                       </span>
                     ) : (
-                      <span className="text-text-muted">brak (funkcja niedostępna)</span>
+                      <span className="text-text-muted">{t("routing.none")}</span>
                     )}
                   </Td>
                   {draft && (
-                    <Td label="W szkicu">
+                    <Td label={t("routing.inDraft")}>
                       <label className="sr-only" htmlFor={`route-${p.purpose}`}>
-                        Model dla: {PURPOSES[p.purpose].label}
+                        {t("routing.modelFor", { purpose: t(`purposes.${p.purpose}.label`) })}
                       </label>
                       <select
                         id={`route-${p.purpose}`}
@@ -174,35 +175,33 @@ export function RoutingPanel({
                           )
                         }
                       >
-                        <option value="">— brak —</option>
+                        <option value="">{t("routing.noModel")}</option>
                         {selected && !options.includes(selected) && <option value={selected.id}>{modelLabel(selected, providers)}</option>}
                         {options.map((m) => (
                           <option key={m.id} value={m.id}>
                             {modelLabel(m, providers)}
-                            {providers.find((pr) => pr.id === m.provider_id)?.kind === "CLOUD" ? " (chmura)" : ""}
+                            {providers.find((pr) => pr.id === m.provider_id)?.kind === "CLOUD" ? t("routing.cloudSuffix") : ""}
                           </option>
                         ))}
                       </select>
                       {(p.purpose === "EMBED" || p.purpose === "IMAGE_EMBED") && (
-                        <p className="mt-1 text-xs text-text-muted">
-                          Po aktywacji indeks przebuduje się w tle (zakładka „Indeksy”); do końca działa stara wersja.
-                        </p>
+                        <p className="mt-1 text-xs text-text-muted">{t("routing.rebuildHint")}</p>
                       )}
                     </Td>
                   )}
                   {draft && (
-                    <Td label="Test">
+                    <Td label={t("routing.test")}>
                       {selected &&
                         changed &&
                         (probeFresh(selected, status.probe_max_age_hours) ? (
-                          <span className="text-ok">✓ przetestowany</span>
+                          <span className="text-ok">{t("routing.tested")}</span>
                         ) : (
                           <Button
                             variant="secondary"
                             busy={probe.isPending && probe.variables === selected.id}
-                            onClick={() => void run(() => probe.mutateAsync(selected.id), "Test zakończony.")}
+                            onClick={() => void run(() => probe.mutateAsync(selected.id), t("routing.probeDone"))}
                           >
-                            Testuj
+                            {t("routing.runTest")}
                           </Button>
                         ))}
                     </Td>
@@ -225,7 +224,7 @@ export function RoutingPanel({
             void run(async () => {
               await activate.mutateAsync(draft.number);
               setConfirming(false);
-            }, `Rewizja ${draft.number} jest aktywna. Serwery przełączą się przy następnym wywołaniu.`)
+            }, t("routing.activated", { number: draft.number }))
           }
         />
       )}
@@ -250,34 +249,35 @@ function ActivateDialog({
   onClose: () => void;
   onConfirm: () => void;
 }) {
+  const t = useTranslations("adminLlm");
+  const common = useTranslations("common");
   const cloud = list.filter((c) => c.cloud);
   return (
-    <Dialog open={open} onClose={onClose} title={`Aktywować rewizję ${number}?`}>
+    <Dialog open={open} onClose={onClose} title={t("routing.confirmTitle", { number })}>
       <div className="flex flex-col gap-3 text-sm">
-        <ul className="flex flex-col gap-1" aria-label="Zmiany">
+        <ul className="flex flex-col gap-1" aria-label={t("routing.changes")}>
           {list.map((c) => (
             <li key={c.purpose}>
-              <strong>{PURPOSES[c.purpose].label}:</strong> {c.before} → {c.after}
+              <strong>{t(`purposes.${c.purpose}.label`)}:</strong> {c.before} → {c.after}
             </li>
           ))}
         </ul>
         {cloud.length > 0 && (
           <Card role="alert" className="border-warn p-3">
-            Do modelu chmurowego trafią zapytania funkcji: {cloud.map((c) => PURPOSES[c.purpose].label).join(", ")}. Treści
-            kanonicznej Wiki zostaną przesłane do zewnętrznego dostawcy.
+            {t("routing.cloudWarning", { purposes: cloud.map((c) => t(`purposes.${c.purpose}.label`)).join(", ") })}
           </Card>
         )}
         {unprobed.length > 0 && (
           <p role="status" className="text-warn">
-            Bez aktualnego testu: {unprobed.join(", ")}. Serwer odrzuci aktywację, dopóki ich nie przetestujesz.
+            {t("routing.unprobed", { models: unprobed.join(", ") })}
           </p>
         )}
         <div className="flex justify-end gap-2">
           <Button variant="ghost" onClick={onClose}>
-            Anuluj
+            {common("cancel")}
           </Button>
           <Button busy={busy} onClick={onConfirm}>
-            Aktywuj
+            {t("routing.submit")}
           </Button>
         </div>
       </div>

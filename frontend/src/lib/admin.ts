@@ -7,6 +7,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import type { components } from "@/lib/api-schema";
 import { unwrap } from "@/lib/query";
+import type { Messages } from "@/messages";
 
 export type AuditEntry = components["schemas"]["AuditEntryOut"];
 export type UserCoverage = components["schemas"]["UserCoverageOut"];
@@ -90,11 +91,12 @@ export function useUnlock() {
   });
 }
 
+/** Labels in `adminSecurity.levels`. */
 export const LEVELS = {
-  NORMAL: { label: "Normalny", icon: "●", color: "var(--status-good)" },
-  ELEVATED: { label: "Podwyższony", icon: "▲", color: "var(--status-warning)" },
-  HIGH: { label: "Wysoki", icon: "◆", color: "var(--status-serious)" },
-  CRITICAL: { label: "Krytyczny", icon: "■", color: "var(--status-critical)" },
+  NORMAL: { icon: "●", color: "var(--status-good)" },
+  ELEVATED: { icon: "▲", color: "var(--status-warning)" },
+  HIGH: { icon: "◆", color: "var(--status-serious)" },
+  CRITICAL: { icon: "■", color: "var(--status-critical)" },
 } as const;
 
 export type Level = keyof typeof LEVELS;
@@ -117,25 +119,32 @@ export function histogram(users: Array<Pick<UserCoverage, "fraction_of_limit">>)
   return counts;
 }
 
-export const EVENT_LABELS: Record<string, string> = {
-  HONEYPOT_TRIGGERED: "Pobrano kanarka",
-  COVERAGE_LOCK: "Przekroczony budżet pokrycia",
-  VERBATIM_BLOCKED: "Zablokowana odpowiedź dosłowna",
-  REFRESH_TOKEN_REUSE: "Ponowne użycie tokenu odświeżania",
-  SHIELD_DECISION: "Decyzja tarczy",
-  ACCOUNT_UNLOCKED: "Odblokowano konto",
-  SECURITY_DASHBOARD_ACCESSED: "Wgląd w panel bezpieczeństwa",
-  CONSENT_REVOKED: "Wycofanie zgody",
-  CONSENT_SUSPENDED: "Wstrzymanie zgody",
-  CONSENT_RESUMED: "Wznowienie zgody",
-  ARTICLE_STATUS_CHANGED: "Zmiana statusu artykułu",
-  USER_LOGIN: "Logowanie",
-  USER_CREATED: "Utworzono konto",
-  USER_ROLES_CHANGED: "Zmiana ról",
-  USER_BLOCKED: "Zablokowano konto",
-  USER_UNBLOCKED: "Odblokowano konto (administrator)",
-  USER_PASSWORD_RESET: "Reset hasła",
-  USER_PASSWORD_CHANGE_REQUIRED: "Wymuszona zmiana hasła",
-  USER_SESSIONS_REVOKED: "Wylogowano ze wszystkich urządzeń",
-  USERS_SYNCED: "Synchronizacja kont z Keycloak",
-};
+/** The events the log can be filtered by; labels in `adminSecurity.events`. */
+export const EVENT_TYPES = [
+  "HONEYPOT_TRIGGERED",
+  "COVERAGE_LOCK",
+  "VERBATIM_BLOCKED",
+  "REFRESH_TOKEN_REUSE",
+  "SHIELD_DECISION",
+  "ACCOUNT_UNLOCKED",
+  "SECURITY_DASHBOARD_ACCESSED",
+  "CONSENT_REVOKED",
+  "CONSENT_SUSPENDED",
+  "CONSENT_RESUMED",
+  "ARTICLE_STATUS_CHANGED",
+  "USER_LOGIN",
+  "USER_CREATED",
+  "USER_ROLES_CHANGED",
+  "USER_BLOCKED",
+  "USER_UNBLOCKED",
+  "USER_PASSWORD_RESET",
+  "USER_PASSWORD_CHANGE_REQUIRED",
+  "USER_SESSIONS_REVOKED",
+  "USERS_SYNCED",
+] as const satisfies readonly (keyof Messages["adminSecurity"]["events"])[];
+
+export type EventType = (typeof EVENT_TYPES)[number];
+
+export function isEventType(value: string): value is EventType {
+  return (EVENT_TYPES as readonly string[]).includes(value);
+}

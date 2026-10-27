@@ -9,8 +9,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { api, API_BASE, ApiError } from "@/lib/api";
+import { apiErrorCode, knownCode } from "@/lib/messages";
 import type { components } from "@/lib/api-schema";
 import { unwrap } from "@/lib/query";
+import type { Messages } from "@/messages";
 
 export type Submission = components["schemas"]["SubmissionOut"];
 export type AtlasDraft = components["schemas"]["DraftOut"];
@@ -57,45 +59,46 @@ export function useWithdrawSubmission(attachmentId: string) {
   });
 }
 
-export const PRIVACY_LABEL: Record<string, string> = {
-  people: "osoby lub części ciała",
-  faces: "rozpoznawalne twarze",
-  documents: "dokumenty lub czytelny tekst",
-  plates: "tablice rejestracyjne",
-  addresses: "numery domów lub szyldy z nazwiskami",
+export type PrivacyFlag = keyof Messages["notebook"]["submission"]["privacy"];
+export type SubmissionErrorKey = keyof Messages["notebook"]["submission"]["errors"];
+type Tone = "ok" | "warn" | "neutral" | "danger" | "primary";
+
+const PRIVACY_FLAGS = ["people", "faces", "documents", "plates", "addresses"] as const satisfies readonly PrivacyFlag[];
+
+export function privacyFlag(flag: string): PrivacyFlag | null {
+  return knownCode(PRIVACY_FLAGS, flag);
+}
+
+/** Labels in `common.atlasStatus`. */
+export const ATLAS_STATUS_TONE: Record<AtlasDraft["status"], Tone> = {
+  DRAFT: "neutral",
+  IN_REVIEW: "primary",
+  APPROVED: "ok",
+  REVISION_REQUIRED: "warn",
+  REJECTED: "danger",
 };
 
-export const ATLAS_STATUS: Record<AtlasDraft["status"], { label: string; tone: "ok" | "warn" | "neutral" | "danger" | "primary" }> = {
-  DRAFT: { label: "Przygotowane, niewysłane", tone: "neutral" },
-  IN_REVIEW: { label: "W recenzji ekspertów", tone: "primary" },
-  APPROVED: { label: "W atlasie", tone: "ok" },
-  REVISION_REQUIRED: { label: "Eksperci proszą o poprawki", tone: "warn" },
-  REJECTED: { label: "Odrzucone przez ekspertów", tone: "danger" },
-};
+const CODES = [
+  "nothing_to_send",
+  "submission_in_progress",
+  "already_in_atlas",
+  "domain_archived",
+  "label_not_usable",
+  "label_not_found",
+  "duplicate_photo",
+  "injection_detected",
+  "image_unreadable",
+  "people_confirmation_required",
+  "not_prepared",
+  "not_withdrawable",
+  "rate_limited",
+] as const satisfies readonly SubmissionErrorKey[];
 
-const ERRORS: Record<string, string> = {
-  nothing_to_send: "Najpierw zaznacz i opisz co najmniej jeden element, potem zapisz zdjęcie.",
-  submission_in_progress: "To zdjęcie jest już przygotowywane do atlasu.",
-  already_in_atlas: "To zdjęcie jest już w atlasie lub w recenzji.",
-  domain_archived: "Dziedzina zdjęcia jest zarchiwizowana.",
-  label_not_usable: "Któraś etykieta nie jest już dostępna. Zmień ją i zapisz zdjęcie.",
-  label_not_found: "Któraś etykieta nie należy do dziedziny zdjęcia.",
-  duplicate_photo: "To zdjęcie (albo bardzo podobne) jest już w atlasie.",
-  injection_detected: "W opisach są fragmenty wyglądające jak polecenia dla AI. Popraw opisy i spróbuj ponownie.",
-  image_unreadable: "Nie udało się odczytać zdjęcia.",
-  people_confirmation_required: "Potwierdź, że osoby na zdjęciu zgodziły się na jego udostępnienie lub są nierozpoznawalne.",
-  not_prepared: "To zgłoszenie nie czeka już na wysłanie.",
-  not_withdrawable: "Tego zgłoszenia nie można już wycofać.",
-  rate_limited: "Dzienny limit zdjęć wysyłanych do atlasu został wyczerpany.",
-};
-
-export function submissionError(error: unknown, fallback = "Operacja nie powiodła się."): string {
-  if (typeof error === "string") return ERRORS[error] ?? fallback;
-  if (!(error instanceof ApiError)) return fallback;
-  const detail = (error.detail as { detail?: unknown } | null)?.detail ?? error.detail;
-  const code = detail && typeof detail === "object" && "error" in detail && typeof detail.error === "string" ? detail.error : null;
-  if (code && ERRORS[code]) return ERRORS[code];
-  if (error.status === 429) return ERRORS.rate_limited;
+/** The key in `notebook.submission.errors` for an API error or a stored error code. */
+export function submissionErrorKey(error: unknown, fallback: SubmissionErrorKey = "failed"): SubmissionErrorKey {
+  const code = knownCode(CODES, typeof error === "string" ? error : apiErrorCode(error));
+  if (code) return code;
+  if (error instanceof ApiError && error.status === 429) return "rate_limited";
   return fallback;
 }
 
@@ -132,8 +135,9 @@ export function usePhotoPreferences() {
   });
 }
 
-export const CONSENT_LABEL: Record<MyPhoto["consent_status"], { label: string; tone: "ok" | "warn" | "neutral" }> = {
-  ACTIVE: { label: "Udostępnione", tone: "ok" },
-  SUSPENDED: { label: "Wstrzymane", tone: "warn" },
-  REVOKED: { label: "Wycofane trwale", tone: "neutral" },
+/** Labels in `common.photoConsent`. */
+export const CONSENT_TONE: Record<MyPhoto["consent_status"], "ok" | "warn" | "neutral"> = {
+  ACTIVE: "ok",
+  SUSPENDED: "warn",
+  REVOKED: "neutral",
 };

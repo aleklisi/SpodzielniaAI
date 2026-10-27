@@ -34,6 +34,7 @@ class User(Entity):
         CheckConstraint(
             "(blocked_at IS NULL) = (blocked_reason IS NULL)", name="ck_app_user_blocked_reason"
         ),
+        CheckConstraint("locale IN ('pl', 'en')", name="ck_app_user_locale"),
         Index("ix_app_user_username", func.lower(text("username"))),
     )
 
@@ -63,6 +64,8 @@ class User(Entity):
     last_login_at: Mapped[datetime | None]
     # 10.8 (P4): when the member last acknowledged where private data is processed.
     processors_seen_at: Mapped[datetime | None]
+    # Stage 14: the UI language the user chose (``pl``/``en``); NULL = not chosen, Polish.
+    locale: Mapped[str | None] = mapped_column(String(2))
     required_actions: Mapped[list[str]] = mapped_column(
         ARRAY(Text), server_default=text("'{}'"), default=list
     )

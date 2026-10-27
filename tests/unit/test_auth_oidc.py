@@ -41,7 +41,9 @@ class FakeProvisioner:
     locked: bool = False
     calls: list[tuple[OidcIdentity, str]] = field(default_factory=list[tuple["OidcIdentity", str]])
 
-    async def provision(self, identity: OidcIdentity, provider: str) -> ProvisionedUser:
+    async def provision(
+        self, identity: OidcIdentity, provider: str, locale: str | None = None
+    ) -> ProvisionedUser:
         self.calls.append((identity, provider))
         return ProvisionedUser(
             id=UUID(int=1), roles=identity.roles, is_locked=self.locked, created=True

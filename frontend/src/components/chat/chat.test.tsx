@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import { ChatView, type Solver } from "@/components/chat/ChatView";
 import type { Ask, AskOutcome, RagAnswer } from "@/lib/chat";
 import { renderWithClient } from "@/test/render";
+import { setTestLocale } from "@/test/rtl";
 
 const ARTICLE = "0190f5a8-0000-7000-8000-0000000000a1";
 
@@ -137,5 +138,18 @@ describe("ChatView", () => {
     expect(ask).toHaveBeenCalledTimes(1);
     release(answer("Ok [1]."));
     await waitFor(() => expect(screen.getByRole("button", { name: "Zapytaj" })).not.toHaveAttribute("aria-busy"));
+  });
+});
+
+describe("in English (14.3)", () => {
+  it("asks and answers in English, dates included", async () => {
+    setTestLocale("en");
+    renderWithClient(<ChatView ask={async () => answer("Oxalic acid is given in winter [1].")} />);
+    expect(screen.getByRole("heading", { name: "Ask the cooperative" })).toBeInTheDocument();
+    expect(screen.getByText("Ask your first question")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "How do I treat varroa in winter?" }));
+    await userEvent.click(screen.getByRole("button", { name: "Ask" }));
+    const sources = await screen.findByRole("list", { name: "Sources" });
+    expect(sources).toHaveTextContent(/Verified \d{1,2} [A-Z][a-z]{2} 20\d\d/);
   });
 });

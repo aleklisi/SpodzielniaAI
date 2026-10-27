@@ -1,59 +1,65 @@
-/** Polish messages for the backend's machine-readable error codes. */
+/**
+ * Message keys for the backend's machine-readable error codes (14.3). The texts live in the
+ * catalogues; a code maps to a key (type-checked against the Polish catalogue) and the
+ * component translates it, so a lib function never needs the current language.
+ */
 
-export const UPLOAD_ERRORS: Record<string, string> = {
-  executable: "Pliki wykonywalne są niedozwolone.",
-  extension_mismatch: "Rozszerzenie pliku nie zgadza się z jego zawartością.",
-  content_type_mismatch: "Typ pliku nie zgadza się z jego zawartością.",
-  type_not_allowed: "Ten typ pliku nie jest obsługiwany.",
-  macros_not_allowed: "Dokumenty z makrami są niedozwolone.",
-  pdf_encrypted: "Zaszyfrowanych plików PDF nie można przetworzyć.",
-  pdf_corrupt: "Plik PDF jest uszkodzony.",
-  image_corrupt: "Zdjęcie jest uszkodzone.",
-  image_too_many_pixels: "Zdjęcie ma zbyt dużą rozdzielczość.",
-  media_corrupt: "Nagranie jest uszkodzone.",
-  too_large: "Plik jest za duży.",
-  infected: "Plik zawiera złośliwe oprogramowanie i został odrzucony.",
-  archive_nested: "Archiwa zagnieżdżone są niedozwolone.",
-  note_not_found: "Notatka nie istnieje.",
-};
+import { ApiError } from "@/lib/api";
+import type { Messages } from "@/messages";
 
-export const SSRF_REASONS: Record<string, string> = {
-  private_address: "Adres wskazuje na sieć prywatną lub wewnętrzną.",
-  internal_hostname: "Adres wskazuje na serwer wewnętrzny.",
-  scheme_not_allowed: "Dozwolone są tylko adresy https://.",
-  port_not_allowed: "Ten port jest niedozwolony.",
-  credentials_in_url: "Adres nie może zawierać loginu ani hasła.",
-  ip_encoding: "Nietypowy zapis adresu IP jest niedozwolony.",
-  invalid_hostname: "Nieprawidłowa nazwa serwera.",
-  invalid_url: "Nieprawidłowy adres.",
-  url_too_long: "Adres jest za długi.",
-};
-
-export const DERIVATIVE_KIND: Record<string, string> = {
-  TRANSCRIPT: "Transkrypcja",
-  IMAGE_DESCRIPTION: "Opis zdjęcia",
-  PARSED_DOC: "Treść dokumentu",
-  FETCHED_LINK: "Strona internetowa",
-  ANNOTATIONS: "Oznaczenia zdjęcia",
-  RECOGNITION: "Rozpoznawanie",
-};
-
-export const DERIVATIVE_STATUS: Record<string, string> = {
-  PENDING: "W kolejce",
-  PROCESSING: "Przetwarzanie…",
-  DONE: "Gotowe",
-  FAILED: "Błąd przetwarzania",
-  QUARANTINED: "Kwarantanna",
-  WAITING_FOR_MODEL: "Czeka na model AI",
-};
-
-export function uploadError(code: string | undefined, status: number): string {
-  if (code && UPLOAD_ERRORS[code]) return UPLOAD_ERRORS[code];
-  if (status === 415) return UPLOAD_ERRORS.type_not_allowed;
-  if (status === 413) return UPLOAD_ERRORS.too_large;
-  return "Nie udało się wgrać pliku.";
+/** The `error` code of an API error's detail (`{detail: {error}}` or `{error}`), if any. */
+export function apiErrorCode(error: unknown): string | null {
+  if (!(error instanceof ApiError)) return null;
+  const detail = (error.detail as { detail?: unknown } | null)?.detail ?? error.detail;
+  if (detail && typeof detail === "object" && "error" in detail && typeof detail.error === "string") return detail.error;
+  return null;
 }
 
-export function ssrfError(reason: string | undefined): string {
-  return (reason && SSRF_REASONS[reason]) || "Tego adresu nie można dodać.";
+/** `code` if it is one of `known` (the catalogue's keys for that area). */
+export function knownCode<K extends string>(known: readonly K[], code: string | null | undefined): K | null {
+  return code && (known as readonly string[]).includes(code) ? (code as K) : null;
+}
+
+export type UploadErrorKey = keyof Messages["errors"]["upload"];
+export type SsrfErrorKey = keyof Messages["errors"]["ssrf"];
+
+const UPLOAD_CODES = [
+  "executable",
+  "extension_mismatch",
+  "content_type_mismatch",
+  "type_not_allowed",
+  "macros_not_allowed",
+  "pdf_encrypted",
+  "pdf_corrupt",
+  "image_corrupt",
+  "image_too_many_pixels",
+  "media_corrupt",
+  "too_large",
+  "infected",
+  "archive_nested",
+  "note_not_found",
+] as const satisfies readonly UploadErrorKey[];
+
+const SSRF_CODES = [
+  "private_address",
+  "internal_hostname",
+  "scheme_not_allowed",
+  "port_not_allowed",
+  "credentials_in_url",
+  "ip_encoding",
+  "invalid_hostname",
+  "invalid_url",
+  "url_too_long",
+] as const satisfies readonly SsrfErrorKey[];
+
+export function uploadErrorKey(code: string | undefined, status: number): UploadErrorKey {
+  const known = knownCode(UPLOAD_CODES, code);
+  if (known) return known;
+  if (status === 415) return "type_not_allowed";
+  if (status === 413) return "too_large";
+  return "failed";
+}
+
+export function ssrfErrorKey(reason: string | undefined): SsrfErrorKey {
+  return knownCode(SSRF_CODES, reason) ?? "failed";
 }

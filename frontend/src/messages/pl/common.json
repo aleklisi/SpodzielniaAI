@@ -1,0 +1,71 @@
+{
+  "loading": "Ładowanie…",
+  "skipToContent": "Przejdź do treści",
+  "description": "Wspólna baza wiedzy spółdzielni pszczelarskiej",
+  "save": "Zapisz",
+  "saving": "Zapisywanie…",
+  "saved": "Zapisano",
+  "cancel": "Anuluj",
+  "close": "Zamknij",
+  "delete": "Usuń",
+  "edit": "Edytuj",
+  "back": "Wróć",
+  "retry": "Spróbuj ponownie",
+  "yes": "Tak",
+  "no": "Nie",
+  "none": "brak",
+  "account": "konto",
+  "error": {
+    "title": "Coś poszło nie tak",
+    "body": "Spróbuj ponownie za chwilę.",
+    "generic": "Coś poszło nie tak. Spróbuj ponownie."
+  },
+  "notFound": {
+    "title": "Nie znaleziono strony",
+    "body": "Ta strona nie istnieje albo nie masz do niej dostępu.",
+    "home": "Wróć na stronę główną"
+  },
+  "access": {
+    "deniedTitle": "Brak dostępu",
+    "deniedBody": "Ta część serwisu jest dostępna dla innej roli w spółdzielni.",
+    "stepUpTitle": "Potwierdź swoją tożsamość",
+    "stepUpBody": "Ta operacja wymaga zalogowania z drugim składnikiem (np. kodem z aplikacji).",
+    "stepUpAction": "Zaloguj ponownie z MFA"
+  },
+  "modelMissing": {
+    "title": "Model nie jest skonfigurowany",
+    "body": "{what} jest wyłączone, dopóki administrator nie wybierze modelu w panelu „Modele AI”."
+  },
+  "status": {
+    "DRAFT": "Szkic",
+    "IN_REVIEW": "W recenzji",
+    "CANONICAL": "Kanoniczny",
+    "SUPERSEDED": "Zastąpiony",
+    "DISPUTED": "Sporny",
+    "REVISION_REQUIRED": "Wymaga rewizji",
+    "REJECTED": "Odrzucony",
+    "ACTIVE": "Aktywny",
+    "SUSPENDED": "Wstrzymany",
+    "REVOKED": "Wycofany"
+  },
+  "alerts": {
+    "revision_required": "Wymagana rewizja – wycofano część wkładu autorskiego"
+  },
+  "processorsBanner": {
+    "text": "Spółdzielnia dopuściła nowego dostawcę chmurowego do przetwarzania danych prywatnych.",
+    "link": "Gdzie przetwarzane są Twoje dane",
+    "ack": "Rozumiem"
+  },
+  "atlasStatus": {
+    "DRAFT": "Przygotowane, niewysłane",
+    "IN_REVIEW": "W recenzji ekspertów",
+    "APPROVED": "W atlasie",
+    "REVISION_REQUIRED": "Eksperci proszą o poprawki",
+    "REJECTED": "Odrzucone przez ekspertów"
+  },
+  "photoConsent": {
+    "ACTIVE": "Udostępnione",
+    "SUSPENDED": "Wstrzymane",
+    "REVOKED": "Wycofane trwale"
+  }
+}

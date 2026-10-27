@@ -16,13 +16,14 @@ from typing import TYPE_CHECKING
 
 from spoldzielnia_ai.core.logging import get_logger
 from spoldzielnia_ai.llm.gateway import LLMOutputInvalid
-from spoldzielnia_ai.llm.prompts import STRICT_RULE
+from spoldzielnia_ai.llm.prompts import LANGUAGE_RULES, STRICT_RULE
 from spoldzielnia_ai.rag.schemas import AnswerDraft
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
     from uuid import UUID
 
+    from spoldzielnia_ai.i18n import Locale
     from spoldzielnia_ai.llm.gateway import ChatMessage, LLMGateway, LLMPurpose
     from spoldzielnia_ai.llm.prompts import PromptTemplate
 
@@ -52,6 +53,7 @@ class Source:
 class Style:
     strict: bool = False  # extraction intent (5.5): never quote
     max_words: int = 350
+    language: Locale = "pl"  # the asker's UI language (14.5)
 
 
 def label_sources(texts: Sequence[tuple[str, UUID]]) -> list[Source]:
@@ -127,6 +129,7 @@ class Synthesizer:
             [(s.label, s.text) for s in sources],
             question=question,
             max_words=str(style.max_words),
+            language_rule=LANGUAGE_RULES[style.language],
             strict_rule=STRICT_RULE if style.strict else "",
         )
         return messages

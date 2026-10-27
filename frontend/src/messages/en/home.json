@@ -1,0 +1,20 @@
+{
+  "greeting": "Hello, {name}",
+  "tagline": "Shared, verified beekeeping knowledge – respecting privacy and authors' rights.",
+  "cards": {
+    "notebook": "Your notes, photos and recordings. Only you can see them.",
+    "drafts": "Articles from your proposals, before the Expert Council approves them.",
+    "contributions": "Suspend or revoke your contribution at any time.",
+    "wiki": "Articles approved by the Expert Council.",
+    "atlas": "Photos with marked elements, verified by experts.",
+    "chat": "Answers from approved knowledge only, with citations.",
+    "review": "Draft articles waiting for your decision.",
+    "atlasReview": "Photos submitted to the atlas, waiting for verification.",
+    "labels": "Domain labels and members' proposals.",
+    "security": "Account risk, locks and the event log.",
+    "llm": "Providers, models and feature assignments.",
+    "users": "Accounts, roles, passwords and blocks.",
+    "adminAtlas": "Atlas domains and dataset export.",
+    "branding": "The cooperative's name, logo and colours."
+  }
+}

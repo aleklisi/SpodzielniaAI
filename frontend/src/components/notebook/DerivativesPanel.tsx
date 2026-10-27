@@ -1,9 +1,10 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
-import { DERIVATIVE_KIND, DERIVATIVE_STATUS } from "@/lib/messages";
 import { flaggedSpans, segment, useConfirmQuarantine, type Derivative } from "@/lib/notebook";
 
 const TONE = {
@@ -16,13 +17,14 @@ const TONE = {
 } as const;
 
 export function DerivativesPanel({ noteId, derivatives: all }: { noteId: string; derivatives: Derivative[] }) {
+  const t = useTranslations("notebook.derivatives");
   // Recognition results live in the photo editor (9.9), not among the note's materials.
   const derivatives = all.filter((d) => d.kind !== "RECOGNITION");
   if (derivatives.length === 0) return null;
   return (
     <section aria-labelledby="derivatives-title" className="flex flex-col gap-3">
       <h2 id="derivatives-title" className="font-display text-lg font-semibold">
-        Przetworzone materiały
+        {t("title")}
       </h2>
       {derivatives.map((d) =>
         d.status === "QUARANTINED" && !d.quarantine_confirmed_at ? (
@@ -30,16 +32,14 @@ export function DerivativesPanel({ noteId, derivatives: all }: { noteId: string;
         ) : (
           <Card key={d.id} className="flex flex-col gap-2">
             <div className="flex items-center justify-between gap-2">
-              <span className="font-medium">{DERIVATIVE_KIND[d.kind] ?? d.kind}</span>
-              <Badge tone={TONE[d.status]}>{DERIVATIVE_STATUS[d.status] ?? d.status}</Badge>
+              <span className="font-medium">{t(`kind.${d.kind}`)}</span>
+              <Badge tone={TONE[d.status]}>{t(`status.${d.status}`)}</Badge>
             </div>
             {d.source && <p className="truncate text-xs text-text-muted">{d.source}</p>}
             {d.content && <p className="max-h-48 overflow-y-auto whitespace-pre-wrap text-sm">{d.content}</p>}
-            {d.status === "FAILED" && <p className="text-sm text-danger">Nie udało się przetworzyć materiału.</p>}
+            {d.status === "FAILED" && <p className="text-sm text-danger">{t("failed")}</p>}
             {d.status === "WAITING_FOR_MODEL" && (
-              <p className="text-sm text-text-muted">
-                Model nie jest skonfigurowany. Materiał zostanie przetworzony automatycznie, gdy administrator wybierze model.
-              </p>
+              <p className="text-sm text-text-muted">{t("waiting")}</p>
             )}
           </Card>
         ),
@@ -54,22 +54,20 @@ export function DerivativesPanel({ noteId, derivatives: all }: { noteId: string;
  * The text is rendered as React text nodes: nothing in it is interpreted.
  */
 export function QuarantineView({ noteId, derivative }: { noteId: string; derivative: Derivative }) {
+  const t = useTranslations("notebook.derivatives");
   const confirm = useConfirmQuarantine(noteId);
   const pieces = segment(derivative.content ?? "", flaggedSpans(derivative));
   return (
-    <Card className="flex flex-col gap-3 border-warn" role="region" aria-label="Materiał w kwarantannie">
+    <Card className="flex flex-col gap-3 border-warn" role="region" aria-label={t("quarantine")}>
       <div className="flex items-center justify-between gap-2">
-        <span className="font-medium">{DERIVATIVE_KIND[derivative.kind] ?? derivative.kind}</span>
-        <Badge tone="warn">Kwarantanna</Badge>
+        <span className="font-medium">{t(`kind.${derivative.kind}`)}</span>
+        <Badge tone="warn">{t("status.QUARANTINED")}</Badge>
       </div>
-      <p className="text-sm">
-        Ten materiał zawiera fragmenty wyglądające jak polecenia dla modelu AI (np. ukryty tekst w PDF). Zaznaczyliśmy je
-        poniżej. Dopóki nie potwierdzisz, że treść jest bezpieczna, nie trafi do wniosków do Wiki.
-      </p>
+      <p className="text-sm">{t("quarantineBody")}</p>
       <p className="max-h-64 overflow-y-auto whitespace-pre-wrap rounded-lg bg-surface-muted p-3 text-sm">
         {pieces.map((piece, i) =>
           piece.flagged ? (
-            <mark key={i} className="rounded bg-warn/30 px-0.5 text-text" title="Podejrzany fragment">
+            <mark key={i} className="rounded bg-warn/30 px-0.5 text-text" title={t("suspicious")}>
               {piece.text}
             </mark>
           ) : (
@@ -79,9 +77,9 @@ export function QuarantineView({ noteId, derivative }: { noteId: string; derivat
       </p>
       <div>
         <Button variant="secondary" busy={confirm.isPending} onClick={() => confirm.mutate(derivative.id)}>
-          Potwierdzam, że treść jest bezpieczna
+          {t("confirm")}
         </Button>
-        {confirm.isError && <p role="alert" className="mt-2 text-sm text-danger">Nie udało się potwierdzić. Spróbuj ponownie.</p>}
+        {confirm.isError && <p role="alert" className="mt-2 text-sm text-danger">{t("confirmFailed")}</p>}
       </div>
     </Card>
   );

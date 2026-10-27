@@ -45,7 +45,8 @@ if TYPE_CHECKING:
 
     from spoldzielnia_ai.vector.sync import VectorOp
 
-REVISION_ALERT = "Wymagana rewizja – wycofano część wkładu autorskiego"  # noqa: RUF001
+# A code, rendered in the reader's language by the frontend (14.1).
+REVISION_ALERT = "revision_required"
 # The count runs inside the transaction: it must not hold the row locks for long.
 COUNT_TIMEOUT_SECONDS = 2.0
 

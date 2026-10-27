@@ -226,3 +226,61 @@ Scenario: nothing left untranslated
   (`/admin/llm`), so this is configuration, not code.
 - **Keycloak** pages stay Polish. A follow-up can pass `ui_locales` to Keycloak and enable its
   English theme.
+
+## Implementation
+
+| Area | Where |
+|---|---|
+| Locale on the account | migration `0028_user_locale` (`app_user.locale` + CHECK; `wiki_article.review_alert` → `revision_required`), `auth/users.py` (`UserRecord.locale`), `auth/provisioning.py` (adopts a visitor's cookie when the account has none), `api/auth.py` (callback sets `lang` from the account) |
+| API | `api/me.py`: `GET /me` with `locale`, `locale_chosen`; `PUT /me/locale` (CSRF, 30/h, `Set-Cookie: lang`) |
+| Server texts | `spoldzielnia_ai/i18n.py`: `Locale`, `parse_locale`, `set_locale_cookie`, `MESSAGES` + `t()` (no-position, no-notes, unknown author/expert, the verbatim refusal, the "answered in Polish" note) |
+| Answers in English | `llm/prompts.py` (`LANGUAGE_RULES`, `{language_rule}` in the answer task, templates `2026-10-27.1`), `rag/synthesis.py` (`Style.language`), `rag/service.py` (`redraft`, localised citations), `rag/private.py`, `shield/guard.py` (`Asker.locale`, Polish fallback), `api/rag.py` |
+| Anti-distillation | `shield/output_verifier.py` extraction intents `przetlumacz_calosc`, `translate_in_full`, `quote_in_full`, `copy_everything` (the injection rules already had English phrasings); `shield/translation.py` (`TranslationCheck`, `TranslationUncheckable`), `shield/output.py` (English answers checked, refusal in the asker's language), `shield/output_verifier.py` (`Verification.translation`, `reason: translation`), `shield/watermark.py` (`PAIRS_EN`, per-language `_Table`, `en:` slots), settings `verbatim_xlang_*` |
+| Frontend i18n | `next-intl` 4.14.9 without routing: `next.config.ts` plugin, `src/i18n/request.ts` (the `lang` cookie), `locales.ts` (`pl` → `pl`, `en` → `en-GB`), `formats.ts`, `metadata.ts` (`titled()` page titles), `global.d.ts` (typed keys), `app/layout.tsx` (`<html lang>`, provider) |
+| Catalogues | `src/messages/{pl,en}/<area>.json` (19 areas), `index.ts`, `README.md` (glossary) |
+| Switch | `components/shell/LanguageSwitch.tsx` (menu, rail globe, drawer; disabled until `/me` answers; account sync once per tab) |
+| Error codes | `lib/messages.ts` (`apiErrorCode`, `knownCode`); every lib maps codes to catalogue keys (`photoErrorKey`, `submissionErrorKey`, `atlasErrorKey`, `usersErrorKey`, `llmErrorKey`, `brandingErrorKey` …) |
+| Checks | `src/i18n/messages.test.ts` (parity, ICU, translated), `src/i18n/hardcoded.test.ts` (Polish letters, literal labels), ESLint `i18next/no-literal-string` (JSX text), `src/test/rtl.tsx` (every Vitest render gets the catalogue; `setTestLocale("en")`) |
+| E2E | `e2e/16-language.spec.ts` (desktop, signed-out visitor, phone width in English) |
+
+### Changes against the plan
+
+- **The "Your data" page needed no server change:** the API already returns purpose codes; the
+  frontend renders them from `privacy.purpose.*`.
+- **Withheld wiki blocks:** the frontend renders the notice from `consent_status`
+  (`wiki.article.withheld.*`); the API's Polish `notice` field stays for compatibility.
+- **English formatting is British (`en-GB`):** "27 Oct 2026". The account and cookie code stays `en`.
+- **The English watermark table is smaller** (54 pairs, not "at least as many as Polish"):
+  English words are often both noun and verb, and a swap must not change grammar or meaning.
+  See SECURITY_REVIEW.md, Stage 14.
+- **ESLint checks JSX text only**; attributes (`aria-label`, `title`, `placeholder` …) and Polish
+  letters anywhere in code are checked by `hardcoded.test.ts`, because the rule's "JSX" mode
+  flags every string argument (format names, message keys) inside JSX expressions.
+- **The BlockNote editor follows the language** (`@blocknote/core/locales`): it showed English
+  menus and placeholders in the Polish UI before.
+- **The language switch waits for `/me`:** E2E found that a click before `/me` answered saved
+  only the cookie, not the account.
+- **Playground presets** (admin-only test scenarios defined by the server) keep their Polish
+  titles and prompts: they are deliberately Polish test material for the models.
+- **Docker:** `docker/backend.Dockerfile` copies `LICENSE`, which `pyproject.toml` now lists
+  (`license-files`); without it the image did not build.
+- **Dependencies:** `next-intl` 4.14.9 (runtime), `eslint-plugin-i18next` 6.1.5 and
+  `@formatjs/icu-messageformat-parser` 3.5.21 (dev; the same version next-intl uses), each pinned
+  exact and released at least two weeks ago.
+
+## Tests
+
+- **Backend:** ruff, pyright, `pytest` 1446 passed, 3 skipped (environment). New:
+  `unit/test_i18n.py`, `unit/test_translation.py`, `unit/test_watermark.py` (English),
+  `unit/test_rag.py` (answer language), `integration/test_ui_language.py` (account, cookie,
+  sign-in, CSRF, rate limit, CHECK), `integration/test_answer_language.py` (English answers,
+  translation refused and audited, Polish fallback, notebook).
+- **Frontend:** lint, typecheck, `next build`, Vitest 1557 passed (the catalogue test checks each
+  of the ~1300 messages in both languages). English render tests for the shell, home, notebook,
+  chat, atlas, privacy, review, users, branding and export; the language switch (save, failure,
+  visitor, account sync, no reload loop, waits for `/me`).
+- **E2E:** 48 passed, 28 skipped (by project or environment), 1 failed: scenario 4 (happy path).
+  Its Push-to-Wiki draft from the configured cloud model said there was no substantive content,
+  so the chat correctly found no official position. The same environmental failure as at the end
+  of Stage 13; the promotion prompt is unchanged in this stage. Scenario 16 passes on desktop
+  and phone.

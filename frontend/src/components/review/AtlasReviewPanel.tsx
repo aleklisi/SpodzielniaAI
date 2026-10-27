@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { useRef, useState, type FormEvent } from "react";
 
 import { ImageAnnotator, markColor } from "@/components/annotator/ImageAnnotator";
@@ -15,7 +16,8 @@ import { useToast } from "@/components/ui/Toast";
 import { StepUpRequired } from "@/lib/api";
 import { useDomains } from "@/lib/atlas";
 import {
-  reviewError,
+  reviewErrorKey,
+  type AtlasReviewErrorKey,
   useAtlasDecision,
   useAtlasQueue,
   useCorrectRegions,
@@ -23,18 +25,19 @@ import {
   type ReviewDecision,
   type ReviewPhoto,
 } from "@/lib/atlas-gallery";
-import { atlasImageUrl, PRIVACY_LABEL } from "@/lib/atlas-submissions";
+import { atlasImageUrl, privacyFlag } from "@/lib/atlas-submissions";
 import type { Mark } from "@/lib/photos";
 
 const INPUT = "w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm";
-const DECISIONS: { decision: ReviewDecision; label: string }[] = [
-  { decision: "APPROVE", label: "Zatwierdź" },
-  { decision: "REQUEST_CHANGES", label: "Poproś o poprawki" },
-  { decision: "REJECT", label: "Odrzuć" },
-];
+const DECISIONS = ["APPROVE", "REQUEST_CHANGES", "REJECT"] as const satisfies readonly ReviewDecision[];
+
+function isDecision(value: string): value is (typeof DECISIONS)[number] {
+  return (DECISIONS as readonly string[]).includes(value);
+}
 
 /** The experts' queue of photos sent to the atlas. Authors are not shown. */
 export function AtlasReviewPanel() {
+  const t = useTranslations("review");
   const queue = useAtlasQueue();
   const domains = useDomains();
   const [selected, setSelected] = useState<string | null>(null);
@@ -45,19 +48,19 @@ export function AtlasReviewPanel() {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        title="Atlas: recenzje"
-        description="Zdjęcia przekazane do atlasu. Autorzy nie są pokazywani."
+        title={t("atlasReview.title")}
+        description={t("atlasReview.description")}
         actions={
           <Link href="/review" className="text-sm font-medium text-primary-strong">
-            Artykuły
+            {t("atlasReview.articles")}
           </Link>
         }
       />
       {/* Queue and photo side by side when there is room; one at a time on a phone (12.6). */}
       <div className="grid gap-6 @4xl:grid-cols-[20rem_minmax(0,1fr)]">
-        <section aria-label="Kolejka" className={cn("flex flex-col gap-3", selected && "@max-4xl:hidden")}>
-          {queue.isPending && <p className="text-text-muted">Ładowanie kolejki…</p>}
-          {queue.data?.length === 0 && <p className="text-text-muted">Nie ma zdjęć do recenzji.</p>}
+        <section aria-label={t("queue")} className={cn("flex flex-col gap-3", selected && "@max-4xl:hidden")}>
+          {queue.isPending && <p className="text-text-muted">{t("loadingQueue")}</p>}
+          {queue.data?.length === 0 && <p className="text-text-muted">{t("atlasReview.empty")}</p>}
           <ul className="flex flex-col gap-2">
             {queue.data?.map((item) => (
               <li key={item.id}>
@@ -73,26 +76,24 @@ export function AtlasReviewPanel() {
                   {/* eslint-disable-next-line @next/next/no-img-element -- authenticated same-origin bytes */}
                   <img src={atlasImageUrl(item.id, "thumb")} alt="" className="h-16 w-20 rounded object-cover" />
                   <span className="flex flex-col gap-1 text-xs">
-                    <span className="text-sm font-medium">{domainName.get(item.domain_id) ?? "Zdjęcie"}</span>
-                    <span>
-                      Oznaczenia: {item.regions} · zatwierdzenia {item.approvals}/{item.quorum}
-                    </span>
-                    {item.proposed_labels > 0 && <span className="text-warn">nowe etykiety: {item.proposed_labels}</span>}
-                    {item.privacy_flags.length > 0 && <span className="text-warn">uwaga: prywatność</span>}
-                    {item.is_own && <span className="text-text-muted">Twoje zdjęcie</span>}
+                    <span className="text-sm font-medium">{domainName.get(item.domain_id) ?? t("atlasReview.photo")}</span>
+                    <span>{t("atlasReview.summary", { regions: item.regions, approvals: item.approvals, quorum: item.quorum })}</span>
+                    {item.proposed_labels > 0 && <span className="text-warn">{t("atlasReview.newLabels", { count: item.proposed_labels })}</span>}
+                    {item.privacy_flags.length > 0 && <span className="text-warn">{t("atlasReview.privacyWarning")}</span>}
+                    {item.is_own && <span className="text-text-muted">{t("atlasReview.yourPhoto")}</span>}
                   </span>
                 </button>
               </li>
             ))}
           </ul>
         </section>
-        <section ref={detail} aria-label="Recenzowane zdjęcie" className={cn("flex scroll-mt-20 flex-col gap-4", !selected && "@max-4xl:hidden")}>
+        <section ref={detail} aria-label={t("atlasReview.reviewed")} className={cn("flex scroll-mt-20 flex-col gap-4", !selected && "@max-4xl:hidden")}>
           {selected && (
             <Button variant="ghost" className="self-start @4xl:hidden" onClick={() => setSelected(null)}>
-              ← Kolejka
+              {t("backToQueue")}
             </Button>
           )}
-          {!selected && <Card className="text-text-muted">Wybierz zdjęcie z kolejki.</Card>}
+          {!selected && <Card className="text-text-muted">{t("atlasReview.choose")}</Card>}
           {selected && <ReviewedPhoto key={selected} id={selected} />}
         </section>
       </div>
@@ -101,13 +102,17 @@ export function AtlasReviewPanel() {
 }
 
 function ReviewedPhoto({ id }: { id: string }) {
+  const t = useTranslations("review");
   const photo = useReviewPhoto(id);
-  if (photo.isPending) return <p className="text-text-muted">Ładowanie…</p>;
-  if (!photo.data) return <p role="alert" className="text-danger">Nie udało się wczytać zdjęcia.</p>;
+  if (photo.isPending) return <p className="text-text-muted">{t("loading")}</p>;
+  if (!photo.data) return <p role="alert" className="text-danger">{t("atlasReview.loadFailed")}</p>;
   return <Reviewer key={photo.data.version} photo={photo.data} />;
 }
 
 function Reviewer({ photo }: { photo: ReviewPhoto }) {
+  const t = useTranslations("review.atlasReview");
+  const notebook = useTranslations("notebook.submission");
+  const errors = useTranslations("atlas.reviewErrors");
   const correct = useCorrectRegions(photo.id);
   const decide = useAtlasDecision(photo.id);
   const toast = useToast();
@@ -118,7 +123,7 @@ function Reviewer({ photo }: { photo: ReviewPhoto }) {
   const [dirty, setDirty] = useState(false);
   const [decision, setDecision] = useState<ReviewDecision>("APPROVE");
   const [comment, setComment] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<AtlasReviewErrorKey | null>(null);
   const known = new Set(photo.regions.map((r) => r.id));
   const proposed = photo.regions.filter((r) => r.label.status === "PROPOSED");
   const readOnly = photo.is_own || photo.status !== "IN_REVIEW";
@@ -143,9 +148,9 @@ function Reviewer({ photo }: { photo: ReviewPhoto }) {
           description: m.description.trim() || null,
         })),
       });
-      toast("Zapisano poprawki. Wcześniejsze zatwierdzenia trzeba powtórzyć.", "ok");
+      toast(t("corrected"), "ok");
     } catch (e) {
-      setError(reviewError(e));
+      setError(reviewErrorKey(e));
     }
   }
 
@@ -154,9 +159,9 @@ function Reviewer({ photo }: { photo: ReviewPhoto }) {
     setError(null);
     try {
       const result = await decide.mutateAsync({ decision, comment: comment.trim() || null, version: photo.version });
-      toast(result.status === "APPROVED" ? "Zdjęcie trafiło do atlasu." : "Decyzja zapisana.", "ok");
+      toast(result.status === "APPROVED" ? t("inAtlas") : t("saved"), "ok");
     } catch (e) {
-      setError(reviewError(e));
+      setError(reviewErrorKey(e));
     }
   }
 
@@ -165,7 +170,7 @@ function Reviewer({ photo }: { photo: ReviewPhoto }) {
       <div className="flex min-w-0 flex-col gap-3">
         <ImageAnnotator
           src={atlasImageUrl(photo.id, "preview")}
-          alt={photo.caption ?? "Zdjęcie do recenzji"}
+          alt={photo.caption ?? t("defaultAlt")}
           aspect={photo.width / photo.height}
           marks={marks}
           selected={selected}
@@ -175,15 +180,19 @@ function Reviewer({ photo }: { photo: ReviewPhoto }) {
         />
         <Card className="text-sm">
           <p className="text-text-muted">{photo.domain_name}</p>
-          <p className="whitespace-pre-wrap">{photo.caption ?? "Bez opisu."}</p>
+          <p className="whitespace-pre-wrap">{photo.caption ?? t("noCaption")}</p>
         </Card>
         {photo.history.length > 0 && (
           <Card className="text-sm">
-            <h3 className="font-medium">Historia</h3>
+            <h3 className="font-medium">{t("history")}</h3>
             <ul className="mt-1 flex flex-col gap-1">
               {photo.history.map((h, i) => (
                 <li key={i} className="text-text-muted">
-                  {h.reviewer ?? "Ekspert"}: {DECISIONS.find((d) => d.decision === h.decision)?.label ?? h.decision} (wersja {h.image_version})
+                  {t("historyEntry", {
+                    reviewer: h.reviewer ?? t("expert"),
+                    decision: isDecision(h.decision) ? t(h.decision) : h.decision,
+                    version: h.image_version,
+                  })}
                   {h.comment && ` — ${h.comment}`}
                 </li>
               ))}
@@ -193,26 +202,33 @@ function Reviewer({ photo }: { photo: ReviewPhoto }) {
       </div>
       <aside className="flex flex-col gap-3 text-sm">
         <p>
-          <Badge tone="primary">
-            Zatwierdzenia {photo.approvals}/{photo.quorum}
-          </Badge>{" "}
-          <span className="text-text-muted">wersja {photo.version}</span>
+          <Badge tone="primary">{t("approvals", { approvals: photo.approvals, quorum: photo.quorum })}</Badge>{" "}
+          <span className="text-text-muted">{t("version", { version: photo.version })}</span>
         </p>
-        {photo.is_own && <p className="text-warn">To Twoje zdjęcie: recenzują je inni eksperci.</p>}
-        {photo.privacy_check === "unavailable" && <p className="text-warn">Automatyczna kontrola prywatności była niedostępna.</p>}
+        {photo.is_own && <p className="text-warn">{t("own")}</p>}
+        {photo.privacy_check === "unavailable" && <p className="text-warn">{t("checkUnavailable")}</p>}
         {photo.privacy_flags.length > 0 && (
           <p role="note" className="text-warn">
-            Możliwe na zdjęciu: {photo.privacy_flags.map((f) => PRIVACY_LABEL[f] ?? f).join(", ")}. Autor potwierdził zgodę lub
-            nierozpoznawalność.
+            {t("mayShow", {
+              flags: photo.privacy_flags
+                .map((f) => {
+                  const flag = privacyFlag(f);
+                  return flag ? notebook(`privacy.${flag}`) : f;
+                })
+                .join(", "),
+            })}
           </p>
         )}
         {proposed.length > 0 && (
           <p className="text-warn">
-            Nowe etykiety ({proposed.map((r) => r.label.name).join(", ")}) trzeba najpierw rozpatrzyć w{" "}
-            <Link className="underline" href="/review/labels">
-              słowniku etykiet
-            </Link>
-            .
+            {t.rich("proposed", {
+              names: proposed.map((r) => r.label.name).join(", "),
+              link: (chunks) => (
+                <Link className="underline" href="/review/labels">
+                  {chunks}
+                </Link>
+              ),
+            })}
           </p>
         )}
         <ol className="flex flex-col gap-2">
@@ -223,14 +239,14 @@ function Reviewer({ photo }: { photo: ReviewPhoto }) {
                 <Card className={cn("flex flex-col gap-2 p-3", mark.key === selected && "border-primary")} onClick={() => setSelected(mark.key)}>
                   <span className="flex items-center gap-2 font-medium">
                     <span aria-hidden className={cn("inline-block h-3 w-3 rounded-sm", markColor(index).chip)} />
-                    Oznaczenie {index + 1}
-                    {region?.corrected && <span className="text-xs text-text-muted">(poprawione)</span>}
-                    {region?.by_reviewer && <span className="text-xs text-text-muted">(dodane przez eksperta)</span>}
-                    {!region && <span className="text-xs text-text-muted">(nowe)</span>}
+                    {t("markN", { n: index + 1 })}
+                    {region?.corrected && <span className="text-xs text-text-muted">{t("corrected_")}</span>}
+                    {region?.by_reviewer && <span className="text-xs text-text-muted">{t("byReviewer")}</span>}
+                    {!region && <span className="text-xs text-text-muted">{t("new")}</span>}
                   </span>
                   <LabelCombobox
                     domainId={photo.domain_id}
-                    label={`Etykieta oznaczenia ${index + 1}`}
+                    label={t("markLabel", { n: index + 1 })}
                     value={mark.label}
                     disabled={readOnly}
                     onChange={(l) => change(marks.map((m) => (m.key === mark.key ? { ...m, label: { id: l.id, name: l.name, status: l.status } } : m)))}
@@ -238,14 +254,14 @@ function Reviewer({ photo }: { photo: ReviewPhoto }) {
                   <textarea
                     className={INPUT}
                     rows={2}
-                    aria-label={`Opis oznaczenia ${index + 1}`}
+                    aria-label={t("markDescription", { n: index + 1 })}
                     disabled={readOnly}
                     value={mark.description}
                     onChange={(e) => change(marks.map((m) => (m.key === mark.key ? { ...m, description: e.target.value } : m)))}
                   />
                   {!readOnly && (
                     <Button variant="ghost" className="self-end px-2 py-1" onClick={() => change(marks.filter((m) => m.key !== mark.key))}>
-                      Usuń
+                      {t("remove")}
                     </Button>
                   )}
                 </Card>
@@ -255,33 +271,36 @@ function Reviewer({ photo }: { photo: ReviewPhoto }) {
         </ol>
         {!readOnly && (
           <Button variant="secondary" onClick={() => void saveCorrections()} busy={correct.isPending} disabled={!dirty || marks.some((m) => !m.label)}>
-            Zapisz poprawki
+            {t("saveCorrections")}
           </Button>
         )}
         {!readOnly && (
-          <form onSubmit={submit} className="flex flex-col gap-2" aria-label="Decyzja">
+          <form onSubmit={submit} className="flex flex-col gap-2" aria-label={t("decision")}>
             <fieldset className="flex flex-col gap-1">
-              <legend className="font-medium">Decyzja</legend>
+              <legend className="font-medium">{t("decision")}</legend>
               {DECISIONS.map((d) => (
-                <label key={d.decision} className="flex items-center gap-2">
-                  <input type="radio" name="atlas-decision" checked={decision === d.decision} onChange={() => setDecision(d.decision)} />
-                  {d.label}
+                <label key={d} className="flex items-center gap-2">
+                  <input type="radio" name="atlas-decision" checked={decision === d} onChange={() => setDecision(d)} />
+                  {t(d)}
                 </label>
               ))}
             </fieldset>
             <label className="flex flex-col gap-1">
-              Komentarz dla autora {decision !== "APPROVE" && "(wymagany)"}
+              <span>
+                {t("comment")}
+                {decision !== "APPROVE" && t("required")}
+              </span>
               <textarea className={INPUT} rows={3} maxLength={2000} value={comment} onChange={(e) => setComment(e.target.value)} />
             </label>
-            {dirty && <p className="text-xs text-warn">Najpierw zapisz poprawki.</p>}
+            {dirty && <p className="text-xs text-warn">{t("saveFirst")}</p>}
             <Button type="submit" busy={decide.isPending} disabled={dirty || (decision !== "APPROVE" && !comment.trim())}>
-              Zapisz decyzję
+              {t("submit")}
             </Button>
           </form>
         )}
         {error && (
           <p role="alert" className="text-danger">
-            {error}
+            {errors(error)}
           </p>
         )}
       </aside>

@@ -6,7 +6,10 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 
 import { ContributionsPanel } from "@/components/contributions/ContributionsPanel";
 import { RevokeDialog } from "@/components/contributions/RevokeDialog";
-import { blocksWord, describeResult } from "@/lib/contributions";
+import { createTranslator } from "next-intl";
+
+import { describeResult } from "@/lib/contributions";
+import { MESSAGES } from "@/messages";
 import { API, renderWithClient } from "@/test/render";
 
 const server = setupServer();
@@ -102,9 +105,22 @@ describe("ContributionsPanel", () => {
   });
 });
 
+const translator = (locale: "pl" | "en") =>
+  createTranslator({ locale: locale === "en" ? "en-GB" : "pl", messages: MESSAGES[locale], namespace: "contributions" });
+
 it("declines the Polish way", () => {
-  expect(describeResult("revoke", { ...result, blocks_affected: 3, degraded: ["a", "b"], withdrawn: ["c", "d", "e", "f", "g"] })).toBe(
+  const t = translator("pl");
+  expect(describeResult(t, "revoke", { ...result, blocks_affected: 3, degraded: ["a", "b"], withdrawn: ["c", "d", "e", "f", "g"] })).toBe(
     "Usunięto trwale 3 bloki. Do recenzji wróciły 2 współtworzone artykuły. Wycofano z bazy wiedzy 5 artykułów.",
   );
-  expect([1, 2, 4, 5, 12, 22, 25, 112].map(blocksWord)).toEqual(["blok", "bloki", "bloki", "bloków", "bloków", "bloki", "bloków", "bloków"]);
+  expect([1, 2, 4, 5, 12, 22, 25, 112].map((count) => t("history.blocks", { count }))).toEqual(
+    [" · 1 blok", " · 2 bloki", " · 4 bloki", " · 5 bloków", " · 12 bloków", " · 22 bloki", " · 25 bloków", " · 112 bloków"],
+  );
+});
+
+it("says it in English", () => {
+  const t = translator("en");
+  expect(describeResult(t, "suspend", { ...result, blocks_affected: 1, degraded: [ARTICLE], withdrawn: [], index_synced: false })).toBe(
+    "Suspended 1 block. 1 co-authored article went back to review. Search will update in a moment.",
+  );
 });

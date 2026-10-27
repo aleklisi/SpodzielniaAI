@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { useState } from "react";
 
 import { StepUpNotice } from "@/components/auth/RequireRole";
@@ -11,14 +12,9 @@ import { Card } from "@/components/ui/Card";
 import { cn } from "@/components/ui/cn";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { StepUpRequired } from "@/lib/api";
-import { blocks } from "@/lib/plural";
 import { useAlerts, useChain, useCoverage, useRiskHistory, type UserCoverage } from "@/lib/admin";
 
-const PERIODS = [
-  { label: "24 h", days: 1 },
-  { label: "7 dni", days: 7 },
-  { label: "30 dni", days: 30 },
-];
+const PERIODS = [1, 7, 30] as const;
 
 function StatTile({ label, value, note, status }: { label: string; value: string; note?: string; status?: "good" | "critical" }) {
   return (
@@ -42,7 +38,8 @@ function StatTile({ label, value, note, status }: { label: string; value: string
  * with MFA, and each read is recorded in the audit log by the backend.
  */
 export function SecurityDashboard() {
-  const [days, setDays] = useState(7);
+  const t = useTranslations("adminSecurity");
+  const [days, setDays] = useState<(typeof PERIODS)[number]>(7);
   const [selected, setSelected] = useState<string | null>(null);
   const [unlocking, setUnlocking] = useState<UserCoverage | null>(null);
   const coverage = useCoverage();
@@ -60,38 +57,38 @@ export function SecurityDashboard() {
   return (
     <div className="flex flex-col gap-8">
       <PageHeader
-        title="Bezpieczeństwo"
-        description="Tarcza anty-destylacyjna, blokady kont i dziennik audytu."
+        title={t("title")}
+        description={t("description")}
         actions={
-          <div className="flex gap-1 text-sm" role="radiogroup" aria-label="Okres alertów">
+          <div className="flex gap-1 text-sm" role="radiogroup" aria-label={t("alertPeriod")}>
             {PERIODS.map((p) => (
               <button
-                key={p.days}
+                key={p}
                 type="button"
                 role="radio"
-                aria-checked={days === p.days}
-                onClick={() => setDays(p.days)}
+                aria-checked={days === p}
+                onClick={() => setDays(p)}
                 className={cn(
                   "rounded-lg border px-3 py-1.5 pointer-coarse:min-h-11",
-                  days === p.days ? "border-primary font-medium" : "border-border text-text-muted",
+                  days === p ? "border-primary font-medium" : "border-border text-text-muted",
                 )}
               >
-                {p.label}
+                {t(`periods.${p}`)}
               </button>
             ))}
           </div>
         }
       />
 
-      <div className="grid gap-3 @xl:grid-cols-2 @5xl:grid-cols-4" aria-label="Wskaźniki">
-        <StatTile label="Zablokowane konta" value={String(users.filter((u) => u.is_locked).length)} note="stan bieżący" />
-        <StatTile label="Pobrane kanarki" value={String(count("HONEYPOT_TRIGGERED"))} note={`w okresie ${PERIODS.find((p) => p.days === days)?.label}`} />
-        <StatTile label="Zablokowane odpowiedzi dosłowne" value={String(count("VERBATIM_BLOCKED"))} note={`w okresie ${PERIODS.find((p) => p.days === days)?.label}`} />
+      <div className="grid gap-3 @xl:grid-cols-2 @5xl:grid-cols-4" aria-label={t("indicators")}>
+        <StatTile label={t("lockedAccounts")} value={String(users.filter((u) => u.is_locked).length)} note={t("current")} />
+        <StatTile label={t("honeypots")} value={String(count("HONEYPOT_TRIGGERED"))} note={t("inPeriod", { period: t(`periods.${days}`) })} />
+        <StatTile label={t("verbatim")} value={String(count("VERBATIM_BLOCKED"))} note={t("inPeriod", { period: t(`periods.${days}`) })} />
         <StatTile
-          label="Łańcuch dziennika audytu"
-          value={chain.data ? (chain.data.ok ? "Nienaruszony" : "Naruszony") : "…"}
+          label={t("chain")}
+          value={chain.data ? (chain.data.ok ? t("intact") : t("broken")) : "…"}
           status={chain.data ? (chain.data.ok ? "good" : "critical") : undefined}
-          note={chain.data ? `${chain.data.rows} wpisów · ${chain.data.head_hash.slice(0, 12)}…` : undefined}
+          note={chain.data ? t("chainNote", { rows: chain.data.rows, hash: chain.data.head_hash.slice(0, 12) }) : undefined}
         />
       </div>
 
@@ -99,15 +96,19 @@ export function SecurityDashboard() {
         <Card className="flex flex-col gap-4">
           {coverage.data && <CoverageHistogram users={users} />}
           <p className="text-xs text-text-muted">
-            Korpus: {coverage.data ? blocks(coverage.data.corpus_blocks) : "…"} · limity: 24 h {pct(coverage.data?.limits["24h"])}, 7 dni{" "}
-            {pct(coverage.data?.limits["7d"])}, 30 dni {pct(coverage.data?.limits["30d"])} · próg bezwzględny{" "}
-            {coverage.data ? blocks(coverage.data.min_blocks_before_lock) : "…"}
+            {t("corpus", {
+              corpus: coverage.data ? t("blocks", { count: coverage.data.corpus_blocks }) : "…",
+              d1: pct(coverage.data?.limits["24h"]),
+              d7: pct(coverage.data?.limits["7d"]),
+              d30: pct(coverage.data?.limits["30d"]),
+              floor: coverage.data ? t("blocks", { count: coverage.data.min_blocks_before_lock }) : "…",
+            })}
           </p>
         </Card>
         {/* A scrolling region must be reachable by keyboard (axe: scrollable-region-focusable). */}
         <Card tabIndex={0} role="region" aria-labelledby="alerts-title" className="flex max-h-[28rem] flex-col gap-3 overflow-y-auto">
           <h2 id="alerts-title" className="font-display text-lg font-semibold">
-            Alerty
+            {t("alerts")}
           </h2>
           {alerts.data && <AlertsList alerts={alerts.data} />}
         </Card>
@@ -115,14 +116,14 @@ export function SecurityDashboard() {
 
       <section className="flex flex-col gap-3" aria-labelledby="users-title">
         <h2 id="users-title" className="font-display text-lg font-semibold">
-          Konta według ryzyka
+          {t("usersByRisk")}
         </h2>
-        {coverage.isPending && <p className="text-text-muted">Ładowanie…</p>}
+        {coverage.isPending && <p className="text-text-muted">{t("loading")}</p>}
         <UsersTable users={users} selected={selected} onSelect={setSelected} onUnlock={setUnlocking} />
       </section>
 
       {current && (
-        <Card className="flex flex-col gap-4" aria-label="Szczegóły konta">
+        <Card className="flex flex-col gap-4" aria-label={t("accountDetails")}>
           <h2 className="font-display text-lg font-semibold">{current.display_name ?? current.email ?? current.user_id}</h2>
           <RiskHistory entries={history.data?.items ?? []} />
           <AuditLog key={current.user_id} initialActor={current.user_id} />

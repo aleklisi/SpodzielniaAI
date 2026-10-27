@@ -1,9 +1,8 @@
-import type { Metadata } from "next";
-
 import { BrandingConsole } from "@/components/admin/branding/BrandingConsole";
 import { RequireRole } from "@/components/auth/RequireRole";
+import { titled } from "@/i18n/metadata";
 
-export const metadata: Metadata = { title: "Wygląd" };
+export const generateMetadata = titled("branding");
 
 export default function BrandingPage() {
   return (

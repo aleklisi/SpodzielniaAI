@@ -1,8 +1,7 @@
-import type { Metadata } from "next";
-
 import { PhotoEditor } from "@/components/notebook/PhotoEditor";
+import { titled } from "@/i18n/metadata";
 
-export const metadata: Metadata = { title: "Zdjęcie" };
+export const generateMetadata = titled("photo");
 
 export default async function PhotoPage(props: PageProps<"/notebook/[noteId]/photos/[attachmentId]">) {
   const { noteId, attachmentId } = await props.params;

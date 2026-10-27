@@ -17,15 +17,20 @@ import {
 } from "lucide-react";
 
 import { hasRole, type Me, type Role } from "@/lib/session";
+import type { Messages } from "@/messages";
+
+/** Labels are message keys: `shell.nav.<key>` (and `home.cards.<key>` on the start page). */
+export type NavKey = keyof Messages["shell"]["nav"];
+export type SectionKey = keyof Messages["shell"]["sections"];
 
 export interface NavItem {
   href: string;
-  label: string;
+  key: NavKey;
   icon: LucideIcon;
 }
 
 export interface NavSection {
-  title: string;
+  key: SectionKey;
   role?: Role;
   items: NavItem[];
 }
@@ -33,44 +38,44 @@ export interface NavSection {
 /** One menu for the sidebar, the rail and the phone drawer (the API enforces the roles regardless). */
 export const SECTIONS: NavSection[] = [
   {
-    title: "Moja praca",
+    key: "work",
     items: [
-      { href: "/notebook", label: "Notatnik", icon: NotebookPen },
-      { href: "/me/drafts", label: "Moje szkice", icon: FilePen },
-      { href: "/me/contributions", label: "Moje kontrybucje", icon: HandHeart },
+      { href: "/notebook", key: "notebook", icon: NotebookPen },
+      { href: "/me/drafts", key: "drafts", icon: FilePen },
+      { href: "/me/contributions", key: "contributions", icon: HandHeart },
     ],
   },
   {
-    title: "Wiedza spółdzielni",
+    key: "knowledge",
     items: [
-      { href: "/wiki", label: "Wiki", icon: BookOpen },
-      { href: "/atlas", label: "Atlas", icon: Images },
-      { href: "/chat", label: "Zapytaj spółdzielnię", icon: MessagesSquare },
+      { href: "/wiki", key: "wiki", icon: BookOpen },
+      { href: "/atlas", key: "atlas", icon: Images },
+      { href: "/chat", key: "chat", icon: MessagesSquare },
     ],
   },
   {
-    title: "Rada Ekspertów",
+    key: "experts",
     role: "EXPERT",
     items: [
-      { href: "/review", label: "Recenzje", icon: ClipboardCheck },
-      { href: "/review/atlas", label: "Recenzje atlasu", icon: Images },
-      { href: "/review/labels", label: "Słownik etykiet", icon: Tags },
+      { href: "/review", key: "review", icon: ClipboardCheck },
+      { href: "/review/atlas", key: "atlasReview", icon: Images },
+      { href: "/review/labels", key: "labels", icon: Tags },
     ],
   },
   {
-    title: "Administracja",
+    key: "admin",
     role: "ADMIN",
     items: [
-      { href: "/admin/security", label: "Bezpieczeństwo", icon: ShieldCheck },
-      { href: "/admin/llm", label: "Modele AI", icon: Bot },
-      { href: "/admin/users", label: "Użytkownicy", icon: Users },
-      { href: "/admin/atlas", label: "Atlas (admin)", icon: Database },
-      { href: "/admin/branding", label: "Wygląd", icon: Palette },
+      { href: "/admin/security", key: "security", icon: ShieldCheck },
+      { href: "/admin/llm", key: "llm", icon: Bot },
+      { href: "/admin/users", key: "users", icon: Users },
+      { href: "/admin/atlas", key: "adminAtlas", icon: Database },
+      { href: "/admin/branding", key: "branding", icon: Palette },
     ],
   },
 ];
 
-export const PRIVACY_ITEM: NavItem = { href: "/privacy", label: "Twoje dane", icon: LockKeyhole };
+export const PRIVACY_ITEM: NavItem = { href: "/privacy", key: "privacy", icon: LockKeyhole };
 
 export function visibleSections(me: Me | undefined): NavSection[] {
   if (!me) return [];

@@ -55,7 +55,9 @@ class FakeUsers:
 
     by_subject: dict[str, UserRecord] = field(default_factory=dict[str, UserRecord])
 
-    async def provision(self, identity: OidcIdentity, provider: str) -> ProvisionedUser:
+    async def provision(
+        self, identity: OidcIdentity, provider: str, locale: str | None = None
+    ) -> ProvisionedUser:
         existing = self.by_subject.get(identity.subject)
         record = UserRecord(
             id=existing.id if existing else uuid4(),

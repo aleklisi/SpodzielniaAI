@@ -10,6 +10,7 @@ import { ProcessorsPage } from "@/components/privacy/ProcessorsPage";
 import { eta, type IndexGeneration, type IndexState } from "@/lib/llm-admin";
 import type { Processors } from "@/lib/processors";
 import { API, renderWithClient } from "@/test/render";
+import { setTestLocale } from "@/test/rtl";
 
 const server = setupServer();
 beforeAll(() => server.listen({ onUnhandledFrame: "error" }));
@@ -145,5 +146,22 @@ describe("index versions (re-embed progress)", () => {
 
     await userEvent.click(within(building).getByRole("button", { name: "Anuluj budowę" }));
     await waitFor(() => expect(cancelled).toBe("2"));
+  });
+});
+
+describe("in English (14.3)", () => {
+  it("explains where private data goes", async () => {
+    setTestLocale("en");
+    server.use(http.get(`${API}/privacy/processors`, () => HttpResponse.json(PROCESSORS)));
+    renderWithClient(<ProcessorsPage />);
+    expect(await screen.findByRole("heading", { name: "Where your data is processed" })).toBeInTheDocument();
+    const local = await screen.findByLabelText("Provider local");
+    expect(local).toHaveTextContent("Cooperative's server");
+    expect(local).toHaveTextContent("answering questions to your notebook");
+    const cloud = screen.getByLabelText("Provider mistral");
+    expect(cloud).toHaveTextContent("Cloud");
+    expect(cloud).toHaveTextContent("Cleared since");
+    expect(cloud).toHaveTextContent("23 October 2026");
+    expect(screen.getByLabelText("Built-in models")).toHaveTextContent("reading scanned documents");
   });
 });

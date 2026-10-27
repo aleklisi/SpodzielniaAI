@@ -197,6 +197,7 @@ def test_migrations_form_a_single_linear_history() -> None:
         "0025_processors_seen",
         "0026_provider_removal",
         "0027_branding",
+        "0028_user_locale",
     ]
 
 

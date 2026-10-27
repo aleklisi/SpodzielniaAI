@@ -38,7 +38,9 @@ def get_guard(request: Request) -> AntiDistillationGuard:
         coverage=get_coverage(request),
         semantic=SemanticAnomalyDetector(redis, shield),
         honeypots=HoneypotMonitor(redis, factory, store, locker, state.notifier, shield),
-        output=OutputShield(factory, store, shield, Watermarker.from_settings(shield)),
+        output=OutputShield(
+            factory, store, shield, Watermarker.from_settings(shield), get_embedder(request)
+        ),
         risk=RiskEngine(store, shield),
         incidents=store,
         challenges=PowChallenges(

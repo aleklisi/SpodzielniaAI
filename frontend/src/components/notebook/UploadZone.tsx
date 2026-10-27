@@ -1,17 +1,19 @@
 "use client";
 
 import { useQueryClient } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
 import { useId, useRef, useState, type DragEvent } from "react";
 
 import { cn } from "@/components/ui/cn";
 import { keys } from "@/lib/notebook";
+import type { UploadErrorKey } from "@/lib/messages";
 import { UploadFailed, uploadAttachment, type Attachment } from "@/lib/upload";
 
 type Phase =
   | { kind: "uploading"; progress: number }
   | { kind: "scanning" }
   | { kind: "stored"; attachment: Attachment }
-  | { kind: "rejected"; message: string; status: number };
+  | { kind: "rejected"; key: UploadErrorKey; status: number };
 
 interface Item {
   id: number;
@@ -22,6 +24,8 @@ interface Item {
 export type Uploader = typeof uploadAttachment;
 
 export function UploadZone({ noteId, upload = uploadAttachment }: { noteId: string; upload?: Uploader }) {
+  const t = useTranslations("notebook.upload");
+  const errors = useTranslations("errors.upload");
   const client = useQueryClient();
   const [items, setItems] = useState<Item[]>([]);
   const [keepLocation, setKeepLocation] = useState(false);
@@ -47,7 +51,7 @@ export function UploadZone({ noteId, upload = uploadAttachment }: { noteId: stri
         void client.invalidateQueries({ queryKey: keys.note(noteId) });
       } catch (error) {
         const failed = error instanceof UploadFailed ? error : new UploadFailed(0, undefined);
-        update(id, { kind: "rejected", message: failed.message, status: failed.status });
+        update(id, { kind: "rejected", key: failed.key, status: failed.status });
       }
     }
   }
@@ -61,7 +65,7 @@ export function UploadZone({ noteId, upload = uploadAttachment }: { noteId: stri
   return (
     <section aria-labelledby={`${hintId}-title`} className="flex flex-col gap-3">
       <h2 id={`${hintId}-title`} className="font-display text-lg font-semibold">
-        Załączniki
+        {t("title")}
       </h2>
       <div
         onDragOver={(event) => {
@@ -75,16 +79,16 @@ export function UploadZone({ noteId, upload = uploadAttachment }: { noteId: stri
           dragging ? "border-primary bg-primary/5" : "border-border",
         )}
       >
-        <p>Przeciągnij tu zdjęcia, nagrania lub dokumenty</p>
+        <p>{t("drop")}</p>
         <button type="button" className="text-primary-strong underline" onClick={() => input.current?.click()}>
-          albo wybierz pliki
+          {t("choose")}
         </button>
         <input
           ref={input}
           type="file"
           multiple
           className="sr-only"
-          aria-label="Wybierz pliki do wgrania"
+          aria-label={t("chooseLabel")}
           onChange={(event) => {
             if (event.target.files?.length) void send(event.target.files);
             event.target.value = "";
@@ -100,15 +104,14 @@ export function UploadZone({ noteId, upload = uploadAttachment }: { noteId: stri
           className="mt-1"
         />
         <span>
-          Zachowaj lokalizację GPS
+          {t("keepLocation")}
           <span id={hintId} className="block text-text-muted">
-            Zdjęcia z telefonu często zawierają współrzędne, np. położenie pasieki. Domyślnie usuwamy je przed
-            zapisaniem pliku.
+            {t("keepLocationHint")}
           </span>
         </span>
       </label>
       {items.length > 0 && (
-        <ul className="flex flex-col gap-2" aria-label="Wgrywane pliki">
+        <ul className="flex flex-col gap-2" aria-label={t("files")}>
           {items.map((item) => (
             <li key={item.id} className="rounded-lg border border-border p-3 text-sm">
               <div className="flex items-center justify-between gap-2">
@@ -116,11 +119,11 @@ export function UploadZone({ noteId, upload = uploadAttachment }: { noteId: stri
                 <UploadStatus phase={item.phase} />
               </div>
               {item.phase.kind === "uploading" && (
-                <progress className="mt-2 w-full" max={1} value={item.phase.progress} aria-label={`Postęp: ${item.name}`} />
+                <progress className="mt-2 w-full" max={1} value={item.phase.progress} aria-label={t("progress", { name: item.name })} />
               )}
               {item.phase.kind === "rejected" && (
                 <p role="alert" className="mt-1 text-danger">
-                  {item.phase.message}
+                  {errors(item.phase.key)}
                 </p>
               )}
             </li>
@@ -132,14 +135,15 @@ export function UploadZone({ noteId, upload = uploadAttachment }: { noteId: stri
 }
 
 function UploadStatus({ phase }: { phase: Phase }) {
+  const t = useTranslations("notebook.upload");
   switch (phase.kind) {
     case "uploading":
-      return <span className="text-text-muted">Wysyłanie {Math.round(phase.progress * 100)}%</span>;
+      return <span className="text-text-muted">{t("sending", { percent: Math.round(phase.progress * 100) })}</span>;
     case "scanning":
-      return <span className="text-text-muted">Skanowanie antywirusowe…</span>;
+      return <span className="text-text-muted">{t("scanning")}</span>;
     case "stored":
-      return <span className="text-ok">Zapisano, przetwarzanie w toku</span>;
+      return <span className="text-ok">{t("stored")}</span>;
     case "rejected":
-      return <span className="text-danger">Odrzucono</span>;
+      return <span className="text-danger">{t("rejected")}</span>;
   }
 }

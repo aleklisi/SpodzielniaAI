@@ -7,7 +7,10 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { previewKind, ProbeReport } from "@/components/admin/llm/Catalog";
 import { LlmConsole } from "@/components/admin/llm/LlmConsole";
 import { changes } from "@/components/admin/llm/Routing";
-import { eligibleModels, llmError, type LlmModel, type LlmStatus, type Provider, type Revision } from "@/lib/llm-admin";
+import { createTranslator } from "next-intl";
+
+import { eligibleModels, llmErrorKey, type LlmModel, type LlmStatus, type Provider, type Revision } from "@/lib/llm-admin";
+import { MESSAGES } from "@/messages";
 import { ApiError } from "@/lib/api";
 import { API, renderWithClient } from "@/test/render";
 
@@ -142,6 +145,8 @@ describe("helpers", () => {
   });
 
   it("explains backend error codes", () => {
+    const t = createTranslator({ locale: "pl", messages: MESSAGES.pl, namespace: "adminLlm.errors" });
+    const llmError = (e: unknown) => t(llmErrorKey(e));
     const error = new ApiError(422, { detail: { error: "provider_not_cleared", purpose: "PROMOTION" } });
     expect(llmError(error)).toMatch(/dopuszczonego do danych prywatnych/);
     expect(llmError(new ApiError(429, { detail: { error: "rate_limited" } }))).toMatch(/Limit/);

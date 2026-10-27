@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { useState, type FormEvent } from "react";
 
 import { StepUpNotice } from "@/components/auth/RequireRole";
@@ -31,6 +32,9 @@ export function RevokeDialog({
   coAuthored: boolean;
   onDone: (result: ConsentResult) => void;
 }) {
+  const t = useTranslations("contributions.revokeDialog");
+  const common = useTranslations("common");
+  const actions = useTranslations("contributions");
   const [typed, setTyped] = useState("");
   const consent = useConsent();
 
@@ -47,29 +51,22 @@ export function RevokeDialog({
   }
 
   return (
-    <Dialog open={open} onClose={onClose} title="Usuń trwale swój wkład">
+    <Dialog open={open} onClose={onClose} title={t("title")}>
       {consent.error instanceof StepUpRequired ? (
         <StepUpNotice
           stepUp={consent.error.stepUp}
-          reason="Trwałe usunięcie wymaga niedawnego logowania. Zaloguj się ponownie i powtórz operację."
+          reason={t("stepUp")}
         />
       ) : (
         <form onSubmit={submit} className="flex flex-col gap-3 text-sm">
-          <p>
-            Usuwasz: <strong>{scopeLabel}</strong>.
-          </p>
+          <p>{t.rich("scope", { scope: scopeLabel, strong: (chunks) => <strong>{chunks}</strong> })}</p>
           <ul className="list-disc pl-5">
-            <li>Treść Twoich bloków zostanie skasowana, a ich wektory usunięte z wyszukiwarki. Tego nie da się cofnąć.</li>
-            {coAuthored && (
-              <li>
-                Artykuły współtworzone z innymi autorami stracą status kanoniczny i wrócą do Rady Ekspertów z informacją o
-                wycofaniu części treści.
-              </li>
-            )}
-            <li>Jeśli chcesz tylko czasowo ukryć swój wkład, użyj „Wstrzymaj”.</li>
+            <li>{t("erased")}</li>
+            {coAuthored && <li>{t("coAuthored")}</li>}
+            <li>{t("suspendInstead")}</li>
           </ul>
           <label className="flex flex-col gap-1">
-            Aby potwierdzić, wpisz <code className="font-mono">{CONFIRM_WORD}</code>
+            <span>{t.rich("confirm", { word: CONFIRM_WORD, code: (chunks) => <code className="font-mono">{chunks}</code> })}</span>
             <input
               value={typed}
               onChange={(event) => setTyped(event.target.value)}
@@ -79,15 +76,15 @@ export function RevokeDialog({
           </label>
           {consent.isError && !(consent.error instanceof StepUpRequired) && (
             <p role="alert" className="text-danger">
-              Nie udało się usunąć. Spróbuj ponownie.
+              {t("failed")}
             </p>
           )}
           <div className="flex justify-end gap-2">
             <Button variant="ghost" onClick={onClose}>
-              Anuluj
+              {common("cancel")}
             </Button>
             <Button type="submit" variant="danger" disabled={typed !== CONFIRM_WORD} busy={consent.isPending}>
-              Usuń trwale
+              {actions("revoke")}
             </Button>
           </div>
         </form>

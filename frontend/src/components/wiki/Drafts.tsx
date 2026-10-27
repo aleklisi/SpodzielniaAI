@@ -2,6 +2,7 @@
 
 import { FilePen } from "lucide-react";
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 
 import { DataTable, TBody, Td, Th, THead, Tr } from "@/components/ui/DataTable";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -13,23 +14,24 @@ import { useContributions } from "@/lib/wiki";
 const OPEN = new Set(["DRAFT", "REVISION_REQUIRED", "IN_REVIEW"]);
 
 export function Drafts() {
+  const t = useTranslations("wiki.drafts");
   const contributions = useContributions();
   const drafts = (contributions.data ?? []).filter((c) => OPEN.has(c.status));
   return (
     <div className="flex flex-col gap-6">
-      <PageHeader title="Moje szkice" description="Artykuły z Twoich wniosków przed zatwierdzeniem przez Radę Ekspertów." />
+      <PageHeader title={t("title")} description={t("description")} />
       {contributions.isPending && <Loading />}
       {contributions.data && drafts.length === 0 && (
-        <EmptyState icon={FilePen} title="Nie masz otwartych szkiców.">
-          Zaznacz notatki w notatniku i utwórz wniosek do Wiki, a szkic pojawi się tutaj.
+        <EmptyState icon={FilePen} title={t("emptyTitle")}>
+          {t("emptyBody")}
         </EmptyState>
       )}
       {drafts.length > 0 && (
-        <DataTable label="Szkice">
+        <DataTable label={t("table")}>
           <THead>
             <Tr>
-              <Th>Artykuł</Th>
-              <Th>Status</Th>
+              <Th>{t("article")}</Th>
+              <Th>{t("status")}</Th>
             </Tr>
           </THead>
           <TBody>
@@ -40,7 +42,7 @@ export function Drafts() {
                     {d.title}
                   </Link>
                 </Td>
-                <Td label="Status">
+                <Td label={t("status")}>
                   <StatusPill status={d.status} />
                 </Td>
               </Tr>

@@ -1,9 +1,9 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { useState } from "react";
 
 import { BUCKETS, histogram, type UserCoverage } from "@/lib/admin";
-import { accounts } from "@/lib/plural";
 
 const W = 560;
 const H = 220;
@@ -31,6 +31,8 @@ function niceMax(value: number): number {
  * below carries every value without hovering.
  */
 export function CoverageHistogram({ users }: { users: UserCoverage[] }) {
+  const t = useTranslations("adminSecurity");
+  const accounts = (count: number) => t("accounts", { count });
   const counts = histogram(users);
   const [active, setActive] = useState<number | null>(null);
   const max = niceMax(Math.max(...counts, 1));
@@ -42,9 +44,9 @@ export function CoverageHistogram({ users }: { users: UserCoverage[] }) {
 
   return (
     <figure className="flex flex-col gap-2">
-      <figcaption className="text-sm font-medium">Konta według bliskości limitu pokrycia</figcaption>
+      <figcaption className="text-sm font-medium">{t("histogram.title")}</figcaption>
       <div className="relative">
-        <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="group" aria-label="Histogram kont według bliskości limitu pokrycia">
+        <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="group" aria-label={t("histogram.label")}>
           {ticks.map((t) => (
             <g key={t}>
               <line x1={M.left} x2={W - M.right} y1={y(t)} y2={y(t)} stroke="var(--viz-grid)" strokeWidth={1} />
@@ -63,7 +65,7 @@ export function CoverageHistogram({ users }: { users: UserCoverage[] }) {
                 key={BUCKETS[i].label}
                 tabIndex={0}
                 role="button"
-                aria-label={`${BUCKETS[i].label} limitu: ${accounts(count)}`}
+                aria-label={t("histogram.bucket", { bucket: BUCKETS[i].label, accounts: accounts(count) })}
                 onPointerEnter={() => setActive(i)}
                 onPointerLeave={() => setActive(null)}
                 onFocus={() => setActive(i)}
@@ -93,17 +95,17 @@ export function CoverageHistogram({ users }: { users: UserCoverage[] }) {
             }}
           >
             <div className="text-sm font-semibold tabular-nums">{accounts(counts[active])}</div>
-            <div className="text-text-muted">{BUCKETS[active].label} limitu</div>
+            <div className="text-text-muted">{t("histogram.ofLimit", { bucket: BUCKETS[active].label })}</div>
           </div>
         )}
       </div>
       <details className="text-sm">
-        <summary className="cursor-pointer text-text-muted">Tabela</summary>
+        <summary className="cursor-pointer text-text-muted">{t("histogram.table")}</summary>
         <table className="mt-2 text-left">
           <thead>
             <tr>
-              <th className="pr-6 font-medium">Bliskość limitu</th>
-              <th className="font-medium">Konta</th>
+              <th className="pr-6 font-medium">{t("histogram.closeness")}</th>
+              <th className="font-medium">{t("histogram.accounts")}</th>
             </tr>
           </thead>
           <tbody>

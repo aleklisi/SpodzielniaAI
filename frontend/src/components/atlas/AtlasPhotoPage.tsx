@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useFormatter, useTranslations } from "next-intl";
 import { useState } from "react";
 
 import { ImageAnnotator, markColor } from "@/components/annotator/ImageAnnotator";
@@ -12,31 +13,32 @@ import { useAtlasPhoto } from "@/lib/atlas-gallery";
 import { atlasImageUrl } from "@/lib/atlas-submissions";
 import type { Mark } from "@/lib/photos";
 
-const DATE = new Intl.DateTimeFormat("pl-PL", { dateStyle: "long" });
-
 export function AtlasPhotoPage({ imageId }: { imageId: string }) {
+  const t = useTranslations("atlas.photo");
+  const gallery = useTranslations("atlas.gallery");
+  const format = useFormatter();
   const photo = useAtlasPhoto(imageId);
   const [selected, setSelected] = useState<string | null>(null);
 
-  if (photo.isPending) return <Loading label="Ładowanie zdjęcia…" rows={1} />;
+  if (photo.isPending) return <Loading label={t("loading")} rows={1} />;
   if (photo.isError || !photo.data) {
     const error = photo.error;
     const message =
       error instanceof RateLimited
-        ? "Obejrzałeś(-aś) dziś bardzo dużo zdjęć atlasu. Spróbuj ponownie za jakiś czas."
+        ? t("rateLimited")
         : error instanceof SecurityLocked
-          ? "Twoje konto zostało zablokowane. Skontaktuj się z administratorem spółdzielni."
+          ? t("locked")
           : error instanceof ApiError && error.status === 404
-            ? "To zdjęcie nie istnieje, zostało wycofane przez autora albo nie masz do niego dostępu."
-            : "Nie udało się wczytać zdjęcia.";
+            ? t("notFound")
+            : t("loadFailed");
     return (
       <div className="flex flex-col gap-2">
-        <h1 className="font-display text-2xl font-semibold">Zdjęcie niedostępne</h1>
+        <h1 className="font-display text-2xl font-semibold">{t("unavailable")}</h1>
         <p role="alert" className="text-text-muted">
           {message}
         </p>
         <Link href="/atlas" className="text-primary-strong underline">
-          Wróć do atlasu
+          {t("back")}
         </Link>
       </div>
     );
@@ -46,9 +48,9 @@ export function AtlasPhotoPage({ imageId }: { imageId: string }) {
   const marks: Mark[] = data.regions.map((r) => ({ key: r.id, label: r.label, x: r.x, y: r.y, w: r.w, h: r.h, description: r.description ?? "", source: "USER" }));
   return (
     <div className="grid gap-6 @3xl:grid-cols-[minmax(0,1fr)_22rem]">
-      <section aria-label="Zdjęcie" className="flex min-w-0 flex-col gap-3">
+      <section aria-label={t("region")} className="flex min-w-0 flex-col gap-3">
         <Link href="/atlas" className="text-sm text-text-muted hover:text-text">
-          ← Atlas
+          {t("backShort")}
         </Link>
         <ImageAnnotator
           src={atlasImageUrl(data.id, "preview")}
@@ -67,15 +69,15 @@ export function AtlasPhotoPage({ imageId }: { imageId: string }) {
           <p className="text-text-muted">{data.domain_name}</p>
           {data.caption && <p className="whitespace-pre-wrap">{data.caption}</p>}
           <p className="text-xs text-text-muted">
-            Autor: {data.is_own ? "Ty" : (data.author_name ?? "Członek spółdzielni")}
-            {data.verified_at && ` · zweryfikowano ${DATE.format(new Date(data.verified_at))}`}
-            {data.reviewers.length > 0 && ` · eksperci: ${data.reviewers.join(", ")}`}
+            {t("author", { name: data.is_own ? t("you") : (data.author_name ?? gallery("member")) })}
+            {data.verified_at && t("verified", { date: format.dateTime(new Date(data.verified_at), "long") })}
+            {data.reviewers.length > 0 && t("experts", { names: data.reviewers.join(", ") })}
           </p>
-          {data.is_own && data.status !== "APPROVED" && <p className="text-xs text-warn">To zdjęcie nie jest jeszcze widoczne dla innych.</p>}
+          {data.is_own && data.status !== "APPROVED" && <p className="text-xs text-warn">{t("notVisible")}</p>}
         </Card>
         <section aria-labelledby="regions-title" className="flex flex-col gap-2">
           <h2 id="regions-title" className="font-display text-lg font-semibold">
-            Oznaczenia
+            {t("marks")}
           </h2>
           <ol className="flex flex-col gap-2">
             {data.regions.map((r, index) => (

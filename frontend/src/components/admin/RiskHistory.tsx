@@ -1,5 +1,6 @@
 "use client";
 
+import { useFormatter, useTranslations } from "next-intl";
 import { useState, type PointerEvent } from "react";
 
 import type { AuditEntry } from "@/lib/admin";
@@ -8,11 +9,10 @@ const W = 560;
 const H = 200;
 const M = { top: 12, right: 72, bottom: 24, left: 32 };
 const THRESHOLDS = [
-  { value: 0.3, label: "Podwyższony" },
-  { value: 0.5, label: "Wysoki" },
-  { value: 0.7, label: "Krytyczny" },
-];
-const TIME = new Intl.DateTimeFormat("pl-PL", { dateStyle: "short", timeStyle: "short" });
+  { value: 0.3, level: "ELEVATED" },
+  { value: 0.5, level: "HIGH" },
+  { value: 0.7, level: "CRITICAL" },
+] as const;
 
 export interface RiskPoint {
   at: number;
@@ -29,9 +29,11 @@ export function riskPoints(entries: AuditEntry[]): RiskPoint[] {
 
 /** One account's risk score at each recorded shield decision (ELEVATED and above). */
 export function RiskHistory({ entries }: { entries: AuditEntry[] }) {
+  const t = useTranslations("adminSecurity");
+  const format = useFormatter();
   const points = riskPoints(entries);
   const [active, setActive] = useState<number | null>(null);
-  if (points.length === 0) return <p className="text-sm text-text-muted">Brak zapisanych decyzji tarczy dla tego konta.</p>;
+  if (points.length === 0) return <p className="text-sm text-text-muted">{t("risk.none")}</p>;
 
   const t0 = points[0].at;
   const t1 = Math.max(points[points.length - 1].at, t0 + 1);
@@ -55,14 +57,14 @@ export function RiskHistory({ entries }: { entries: AuditEntry[] }) {
   const shown = active === null ? null : points[active];
   return (
     <figure className="flex flex-col gap-2">
-      <figcaption className="text-sm font-medium">Wynik ryzyka w kolejnych decyzjach tarczy</figcaption>
+      <figcaption className="text-sm font-medium">{t("risk.title")}</figcaption>
       <div className="relative">
-        <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="group" aria-label="Historia wyniku ryzyka konta">
-          {THRESHOLDS.map((t) => (
-            <g key={t.value}>
-              <line x1={M.left} x2={W - M.right} y1={y(t.value)} y2={y(t.value)} stroke="var(--viz-grid)" strokeWidth={1} />
-              <text x={W - M.right + 6} y={y(t.value)} dominantBaseline="middle" fontSize={11} className="fill-text-muted">
-                {t.label}
+        <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="group" aria-label={t("risk.label")}>
+          {THRESHOLDS.map((threshold) => (
+            <g key={threshold.value}>
+              <line x1={M.left} x2={W - M.right} y1={y(threshold.value)} y2={y(threshold.value)} stroke="var(--viz-grid)" strokeWidth={1} />
+              <text x={W - M.right + 6} y={y(threshold.value)} dominantBaseline="middle" fontSize={11} className="fill-text-muted">
+                {t(`levels.${threshold.level}`)}
               </text>
             </g>
           ))}
@@ -85,7 +87,7 @@ export function RiskHistory({ entries }: { entries: AuditEntry[] }) {
             height={plotH}
             fill="transparent"
             tabIndex={0}
-            aria-label="Przesuń, aby zobaczyć wartości"
+            aria-label={t("risk.explore")}
             onPointerMove={nearest}
             onPointerLeave={() => setActive(null)}
             onFocus={() => setActive(points.length - 1)}
@@ -106,7 +108,7 @@ export function RiskHistory({ entries }: { entries: AuditEntry[] }) {
           >
             <div className="text-sm font-semibold tabular-nums">{shown.score.toFixed(2)}</div>
             <div className="text-text-muted">
-              {shown.level} · {TIME.format(shown.at)}
+              {shown.level} · {format.dateTime(shown.at, "dateTimeShort")}
             </div>
           </div>
         )}

@@ -1,0 +1,71 @@
+{
+  "loading": "Loading…",
+  "skipToContent": "Skip to content",
+  "description": "The shared knowledge base of a beekeeping cooperative",
+  "save": "Save",
+  "saving": "Saving…",
+  "saved": "Saved",
+  "cancel": "Cancel",
+  "close": "Close",
+  "delete": "Delete",
+  "edit": "Edit",
+  "back": "Back",
+  "retry": "Try again",
+  "yes": "Yes",
+  "no": "No",
+  "none": "none",
+  "account": "account",
+  "error": {
+    "title": "Something went wrong",
+    "body": "Please try again in a moment.",
+    "generic": "Something went wrong. Please try again."
+  },
+  "notFound": {
+    "title": "Page not found",
+    "body": "This page does not exist or you do not have access to it.",
+    "home": "Back to the home page"
+  },
+  "access": {
+    "deniedTitle": "No access",
+    "deniedBody": "This part of the service is for another role in the cooperative.",
+    "stepUpTitle": "Confirm your identity",
+    "stepUpBody": "This action needs a sign-in with a second factor (such as a code from an app).",
+    "stepUpAction": "Sign in again with MFA"
+  },
+  "modelMissing": {
+    "title": "No model is configured",
+    "body": "{what} is off until an administrator chooses a model in “AI models”."
+  },
+  "status": {
+    "DRAFT": "Draft",
+    "IN_REVIEW": "In review",
+    "CANONICAL": "Canonical",
+    "SUPERSEDED": "Superseded",
+    "DISPUTED": "Disputed",
+    "REVISION_REQUIRED": "Revision required",
+    "REJECTED": "Rejected",
+    "ACTIVE": "Active",
+    "SUSPENDED": "Suspended",
+    "REVOKED": "Revoked"
+  },
+  "alerts": {
+    "revision_required": "Revision required – part of an author's contribution was revoked"
+  },
+  "processorsBanner": {
+    "text": "The cooperative has cleared a new cloud provider for processing private data.",
+    "link": "Where your data is processed",
+    "ack": "Got it"
+  },
+  "atlasStatus": {
+    "DRAFT": "Prepared, not sent",
+    "IN_REVIEW": "In expert review",
+    "APPROVED": "In the atlas",
+    "REVISION_REQUIRED": "The experts ask for corrections",
+    "REJECTED": "Rejected by the experts"
+  },
+  "photoConsent": {
+    "ACTIVE": "Shared",
+    "SUSPENDED": "Suspended",
+    "REVOKED": "Permanently revoked"
+  }
+}

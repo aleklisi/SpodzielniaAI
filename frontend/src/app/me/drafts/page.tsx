@@ -1,8 +1,7 @@
-import type { Metadata } from "next";
-
 import { Drafts } from "@/components/wiki/Drafts";
+import { titled } from "@/i18n/metadata";
 
-export const metadata: Metadata = { title: "Moje szkice" };
+export const generateMetadata = titled("drafts");
 
 export default function DraftsPage() {
   return <Drafts />;

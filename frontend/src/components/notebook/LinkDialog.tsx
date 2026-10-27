@@ -1,14 +1,18 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { useState, type FormEvent } from "react";
 
 import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
 import { useToast } from "@/components/ui/Toast";
-import { ssrfError } from "@/lib/messages";
+import { ssrfErrorKey } from "@/lib/messages";
 import { useAddLink } from "@/lib/notebook";
 
 export function LinkDialog({ noteId, open, onClose }: { noteId: string; open: boolean; onClose: () => void }) {
+  const t = useTranslations("notebook.link");
+  const common = useTranslations("common");
+  const ssrf = useTranslations("errors.ssrf");
   const [url, setUrl] = useState("");
   const [error, setError] = useState<string | null>(null);
   const addLink = useAddLink(noteId);
@@ -20,22 +24,22 @@ export function LinkDialog({ noteId, open, onClose }: { noteId: string; open: bo
     try {
       const result = await addLink.mutateAsync(url.trim());
       if (!result.ok) {
-        setError(ssrfError(result.reason));
+        setError(ssrf(ssrfErrorKey(result.reason)));
         return;
       }
-      toast("Strona zostanie pobrana i dodana do notatki.", "ok");
+      toast(t("added"), "ok");
       setUrl("");
       onClose();
     } catch {
-      setError("Nie udało się dodać adresu.");
+      setError(t("failed"));
     }
   }
 
   return (
-    <Dialog open={open} onClose={onClose} title="Dodaj stronę internetową">
+    <Dialog open={open} onClose={onClose} title={t("title")}>
       <form onSubmit={submit} className="flex flex-col gap-3">
         <label className="flex flex-col gap-1 text-sm">
-          Adres strony
+          {t("address")}
           <input
             type="url"
             required
@@ -52,10 +56,10 @@ export function LinkDialog({ noteId, open, onClose }: { noteId: string; open: bo
         )}
         <div className="flex justify-end gap-2">
           <Button variant="ghost" onClick={onClose}>
-            Anuluj
+            {common("cancel")}
           </Button>
           <Button type="submit" busy={addLink.isPending}>
-            Dodaj
+            {t("add")}
           </Button>
         </div>
       </form>

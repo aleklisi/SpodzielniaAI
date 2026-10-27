@@ -3,10 +3,10 @@
 /** Creator's Exit Strategy (6.4, backend 4.3): suspend / resume / revoke own contributions. */
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { useTranslations } from "next-intl";
 
 import { api } from "@/lib/api";
 import type { components } from "@/lib/api-schema";
-import { plural } from "@/lib/plural";
 import { unwrap } from "@/lib/query";
 import { wikiKeys } from "@/lib/wiki";
 
@@ -40,23 +40,13 @@ export function useConsent() {
   });
 }
 
-const VERB: Record<ConsentAction, string> = { suspend: "Wstrzymano", resume: "Wznowiono", revoke: "Usunięto trwale" };
+type Translate = ReturnType<typeof useTranslations<"contributions">>;
 
-export function blocksWord(n: number): string {
-  return plural(n, "blok", "bloki", "bloków");
-}
-
-export function describeResult(action: ConsentAction, result: ConsentResult): string {
-  const parts = [`${VERB[action]} ${result.blocks_affected} ${blocksWord(result.blocks_affected)}.`];
-  const degraded = result.degraded.length;
-  if (degraded) {
-    parts.push(
-      `Do recenzji ${plural(degraded, "wrócił", "wróciły", "wróciło")} ${degraded} ` +
-        `${plural(degraded, "współtworzony artykuł", "współtworzone artykuły", "współtworzonych artykułów")}.`,
-    );
-  }
-  const withdrawn = result.withdrawn.length;
-  if (withdrawn) parts.push(`Wycofano z bazy wiedzy ${withdrawn} ${plural(withdrawn, "artykuł", "artykuły", "artykułów")}.`);
-  if (!result.index_synced) parts.push("Wyszukiwarka zaktualizuje się za chwilę.");
+/** The toast after a consent change, in the current language (`t` of `contributions`). */
+export function describeResult(t: Translate, action: ConsentAction, result: ConsentResult): string {
+  const parts = [t(`result.${action}`, { count: result.blocks_affected })];
+  if (result.degraded.length) parts.push(t("result.degraded", { count: result.degraded.length }));
+  if (result.withdrawn.length) parts.push(t("result.withdrawn", { count: result.withdrawn.length }));
+  if (!result.index_synced) parts.push(t("result.syncing"));
   return parts.join(" ");
 }

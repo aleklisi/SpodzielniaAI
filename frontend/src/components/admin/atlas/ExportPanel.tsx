@@ -1,5 +1,6 @@
 "use client";
 
+import { useFormatter, useTranslations } from "next-intl";
 import { useState, type FormEvent } from "react";
 
 import { StepUpNotice } from "@/components/auth/RequireRole";
@@ -9,16 +10,17 @@ import { Card } from "@/components/ui/Card";
 import { DataTable, TBody, Td, Th, THead, Tr } from "@/components/ui/DataTable";
 import { StepUpRequired } from "@/lib/api";
 import { useDomains, useLabels } from "@/lib/atlas";
-import { downloadUrl, EXPORT_STATUS, exportError, useCreateExport, useExports } from "@/lib/atlas-export";
+import { downloadUrl, exportErrorKey, useCreateExport, useExports, type ExportErrorKey } from "@/lib/atlas-export";
 
 const INPUT = "rounded-lg border border-border bg-surface px-3 py-2 text-sm";
-const DATE = new Intl.DateTimeFormat("pl-PL", { dateStyle: "short", timeStyle: "short" });
 
 /**
- * „Eksport zbioru danych”: approved photos whose authors allowed export, as COCO or YOLO. The
+ * "Dataset export": approved photos whose authors allowed export, as COCO or YOLO. The
  * download link works once and is known only to this page (the token is shown once).
  */
 export function ExportPanel() {
+  const t = useTranslations("adminAtlas.export");
+  const formatter = useFormatter();
   const exports = useExports();
   const domains = useDomains();
   const create = useCreateExport();
@@ -27,7 +29,7 @@ export function ExportPanel() {
   const [labelIds, setLabelIds] = useState<string[]>([]);
   const [since, setSince] = useState("");
   const [tokens, setTokens] = useState<Record<string, string>>({});
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<ExportErrorKey | null>(null);
   const [stepUp, setStepUp] = useState<string | null>(null);
   const labels = useLabels(domainId || null, "");
 
@@ -35,11 +37,9 @@ export function ExportPanel() {
     return (
       <section aria-labelledby="export-title" className="flex flex-col gap-2">
         <h2 id="export-title" className="font-display text-xl font-semibold">
-          Eksport zbioru danych
+          {t("title")}
         </h2>
-        <Card className="text-sm text-text-muted">
-          Eksport jest wyłączony. Operator serwera może go włączyć ustawieniem <code>ATLAS_EXPORT_ENABLED=true</code> w pliku <code>.env</code>.
-        </Card>
+        <Card className="text-sm text-text-muted">{t.rich("disabled", { code: (chunks) => <code>{chunks}</code> })}</Card>
       </section>
     );
   }
@@ -54,10 +54,10 @@ export function ExportPanel() {
         label_ids: labelIds.length ? labelIds : null,
         min_verified_at: since ? new Date(`${since}T00:00:00Z`).toISOString() : null,
       });
-      setTokens((t) => ({ ...t, [created.export.id]: created.download_token }));
+      setTokens((current) => ({ ...current, [created.export.id]: created.download_token }));
     } catch (e) {
       if (e instanceof StepUpRequired) setStepUp(e.stepUp);
-      else setError(exportError(e));
+      else setError(exportErrorKey(e));
     }
   }
 
@@ -65,21 +65,18 @@ export function ExportPanel() {
     <section aria-labelledby="export-title" className="flex flex-col gap-4">
       <div>
         <h2 id="export-title" className="font-display text-xl font-semibold">
-          Eksport zbioru danych
+          {t("title")}
         </h2>
-        <p className="text-sm text-text-muted">
-          Zatwierdzone zdjęcia jednej dziedziny, których autorzy zgodzili się na eksport, z oznaczeniami w formacie COCO lub YOLO. Pobranego
-          pliku nie da się wycofać: później wycofane zdjęcia są tylko oznaczane na liście poniżej.
-        </p>
+        <p className="text-sm text-text-muted">{t("intro")}</p>
       </div>
       {stepUp ? (
-        <StepUpNotice stepUp={stepUp} reason="Eksport zbioru danych wymaga świeżego logowania." />
+        <StepUpNotice stepUp={stepUp} reason={t("stepUp")} />
       ) : (
         <Card>
-          <form onSubmit={submit} className="flex flex-col gap-3 text-sm" aria-label="Nowy eksport">
+          <form onSubmit={submit} className="flex flex-col gap-3 text-sm" aria-label={t("new")}>
             <div className="flex flex-wrap gap-3">
               <label className="flex flex-col gap-1">
-                Dziedzina
+                {t("domain")}
                 <select
                   className={INPUT}
                   required
@@ -89,7 +86,7 @@ export function ExportPanel() {
                     setLabelIds([]);
                   }}
                 >
-                  <option value="">Wybierz…</option>
+                  <option value="">{t("choose")}</option>
                   {domains.data?.map((d) => (
                     <option key={d.id} value={d.id}>
                       {d.name}
@@ -98,7 +95,7 @@ export function ExportPanel() {
                 </select>
               </label>
               <fieldset className="flex flex-col gap-1">
-                <legend>Format</legend>
+                <legend>{t("format")}</legend>
                 <span className="flex gap-3">
                   {(["COCO", "YOLO"] as const).map((f) => (
                     <label key={f} className="flex items-center gap-1">
@@ -109,13 +106,13 @@ export function ExportPanel() {
                 </span>
               </fieldset>
               <label className="flex flex-col gap-1">
-                Zweryfikowane od (opcjonalnie)
+                {t("since")}
                 <input className={INPUT} type="date" value={since} onChange={(e) => setSince(e.target.value)} />
               </label>
             </div>
             {domainId && (labels.data?.length ?? 0) > 0 && (
               <fieldset className="flex flex-col gap-1">
-                <legend>Tylko etykiety (puste: wszystkie)</legend>
+                <legend>{t("labels")}</legend>
                 <span className="flex flex-wrap gap-3">
                   {labels.data
                     ?.filter((l) => l.status === "ACTIVE")
@@ -134,26 +131,26 @@ export function ExportPanel() {
             )}
             {error && (
               <p role="alert" className="text-danger">
-                {error}
+                {t(`errors.${error}`)}
               </p>
             )}
             <Button type="submit" busy={create.isPending} disabled={!domainId} className="self-start">
-              Utwórz eksport
+              {t("create")}
             </Button>
           </form>
         </Card>
       )}
       {exports.data && exports.data.exports.length > 0 && (
-        <DataTable caption="Eksporty">
+        <DataTable caption={t("exports")}>
           <THead>
             <Tr>
-              <Th>Utworzony</Th>
-              <Th>Dziedzina</Th>
-              <Th>Format</Th>
-              <Th>Zdjęcia</Th>
-              <Th>Stan</Th>
+              <Th>{t("created")}</Th>
+              <Th>{t("domain")}</Th>
+              <Th>{t("format")}</Th>
+              <Th>{t("photos")}</Th>
+              <Th>{t("state")}</Th>
               <Th>
-                <span className="sr-only">Pobierz</span>
+                <span className="sr-only">{t("download")}</span>
               </Th>
             </Tr>
           </THead>
@@ -161,29 +158,29 @@ export function ExportPanel() {
             {exports.data.exports.map((e) => (
               <Tr key={e.id}>
                 <Td primary>
-                  {DATE.format(new Date(e.created_at))}
+                  {formatter.dateTime(new Date(e.created_at), "dateTimeShort")}
                   <span className="block text-xs font-normal text-text-muted">{e.created_by_name}</span>
                 </Td>
-                <Td label="Dziedzina">{e.domain_name}</Td>
-                <Td label="Format">{e.format}</Td>
-                <Td label="Zdjęcia">
-                  {e.image_count} ({e.region_count} oznaczeń)
-                  {e.revoked_since > 0 && <span className="block text-xs text-warn">wycofane od eksportu: {e.revoked_since}</span>}
+                <Td label={t("domain")}>{e.domain_name}</Td>
+                <Td label={t("format")}>{e.format}</Td>
+                <Td label={t("photos")}>
+                  {t("count", { images: e.image_count, regions: e.region_count })}
+                  {e.revoked_since > 0 && <span className="block text-xs text-warn">{t("revokedSince", { count: e.revoked_since })}</span>}
                 </Td>
-                <Td label="Stan">
-                  <Badge tone={e.status === "READY" ? "ok" : e.status === "FAILED" ? "danger" : "neutral"}>{EXPORT_STATUS[e.status]}</Badge>
+                <Td label={t("state")}>
+                  <Badge tone={e.status === "READY" ? "ok" : e.status === "FAILED" ? "danger" : "neutral"}>{t(`status.${e.status}`)}</Badge>
                 </Td>
                 <Td>
                   {e.status === "READY" && tokens[e.id] ? (
                     <a
                       className="font-medium text-primary-strong underline"
                       href={downloadUrl(e.id, tokens[e.id])}
-                      onClick={() => setTokens((t) => Object.fromEntries(Object.entries(t).filter(([id]) => id !== e.id)))}
+                      onClick={() => setTokens((current) => Object.fromEntries(Object.entries(current).filter(([id]) => id !== e.id)))}
                     >
-                      Pobierz (jednorazowo)
+                      {t("downloadOnce")}
                     </a>
                   ) : e.status === "READY" ? (
-                    <span className="text-xs text-text-muted">link pokazany przy tworzeniu</span>
+                    <span className="text-xs text-text-muted">{t("linkShown")}</span>
                   ) : null}
                 </Td>
               </Tr>

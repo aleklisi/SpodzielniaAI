@@ -6,17 +6,21 @@
 
 import { API_BASE, CSRF_COOKIE, CSRF_HEADER, readCookie } from "@/lib/api";
 import type { components } from "@/lib/api-schema";
-import { uploadError } from "@/lib/messages";
+import { uploadErrorKey, type UploadErrorKey } from "@/lib/messages";
 
 export type Attachment = components["schemas"]["AttachmentOut"];
 
 export class UploadFailed extends Error {
+  /** The message key in `errors.upload` (14.3). */
+  readonly key: UploadErrorKey;
+
   constructor(
     readonly status: number,
     readonly code: string | undefined,
   ) {
-    super(uploadError(code, status));
+    super(`upload failed: ${code ?? status}`);
     this.name = "UploadFailed";
+    this.key = uploadErrorKey(code, status);
   }
 }
 

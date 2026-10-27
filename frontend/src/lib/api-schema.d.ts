@@ -1543,6 +1543,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/me/locale": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Set Locale
+         * @description Save the UI language on the account and set the ``lang`` cookie. Not audited: a display
+         *     preference, not a security fact.
+         */
+        put: operations["set_locale_me_locale_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/notes": {
         parameters: {
             query?: never;
@@ -2914,6 +2935,14 @@ export interface components {
          * @enum {string}
          */
         LlmRoutePurpose: "PII_SCRUB" | "PRIVATE_NOTE" | "PROMOTION" | "VLM" | "EMBED" | "RAG" | "TRANSCRIBE" | "OCR" | "IMAGE_EMBED";
+        /** LocaleIn */
+        LocaleIn: {
+            /**
+             * Locale
+             * @enum {string}
+             */
+            locale: "pl" | "en";
+        };
         /** LogoutResponse */
         LogoutResponse: {
             /** Logout Url */
@@ -2930,6 +2959,13 @@ export interface components {
              * Format: uuid
              */
             id: string;
+            /**
+             * Locale
+             * @enum {string}
+             */
+            locale: "pl" | "en";
+            /** Locale Chosen */
+            locale_chosen: boolean;
             /** Mfa Satisfied */
             mfa_satisfied: boolean;
             /** Roles */
@@ -7147,6 +7183,37 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ConsentOut"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    set_locale_me_locale_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LocaleIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

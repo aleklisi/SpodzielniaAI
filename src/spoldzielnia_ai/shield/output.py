@@ -1,5 +1,9 @@
 """The output side of the shield (5.5): verify, then refuse or watermark.
 
+An answer in another language than the sources (English, 14.5) is also checked for a
+translation of a source (``shield.translation``); if that check cannot run,
+``TranslationUncheckable`` reaches the caller, which answers in Polish instead.
+
 A draft that copies its sources is replaced by a refusal that still cites the articles (the
 member can read them in the Wiki, where reading counts against coverage), audited as
 ``VERBATIM_BLOCKED`` with the measurements only, and adds ``verbatim_penalty`` to the
@@ -14,8 +18,10 @@ from typing import TYPE_CHECKING
 from spoldzielnia_ai.audit.events import EventType
 from spoldzielnia_ai.audit.service import AuditService, AuditTarget
 from spoldzielnia_ai.core.logging import get_logger
+from spoldzielnia_ai.i18n import t
 from spoldzielnia_ai.rag.synthesis import markers
-from spoldzielnia_ai.shield.output_verifier import REFUSAL, OutputVerifier, Verification
+from spoldzielnia_ai.shield.output_verifier import OutputVerifier, Verification
+from spoldzielnia_ai.shield.translation import TranslationCheck
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -23,9 +29,11 @@ if TYPE_CHECKING:
 
     from spoldzielnia_ai.core.settings import ShieldSettings
     from spoldzielnia_ai.db.session import SessionFactory
+    from spoldzielnia_ai.i18n import Locale
     from spoldzielnia_ai.rag.synthesis import Source
     from spoldzielnia_ai.shield.risk import RiskStore
     from spoldzielnia_ai.shield.watermark import Watermarker
+    from spoldzielnia_ai.vector.embedding import Embedder
 
 log = get_logger(__name__)
 
@@ -44,19 +52,31 @@ class OutputShield:
         risk: RiskStore,
         settings: ShieldSettings,
         watermarker: Watermarker | None,
+        embedder: Embedder | None = None,
     ) -> None:
         self._factory = factory
         self._risk = risk
         self._settings = settings
         self._verifier = OutputVerifier(settings)
+        self._translation = TranslationCheck(embedder, settings)
         self._watermarker = watermarker
 
     async def check(
-        self, user_id: UUID, request_id: UUID, draft: str, sources: Sequence[Source]
+        self,
+        user_id: UUID,
+        request_id: UUID,
+        draft: str,
+        sources: Sequence[Source],
+        language: Locale = "pl",
     ) -> Checked:
-        verification = self._verifier.verify(draft, [s.text for s in sources])
+        texts = [s.text for s in sources]
+        verification = self._verifier.verify(draft, texts)
+        if not verification.blocked and language != "pl":
+            # Raises TranslationUncheckable: the caller falls back to a Polish answer.
+            translation = await self._translation.check(draft, texts)
+            verification = verification.with_translation(translation)
         if not verification.blocked:
-            text = self._watermarker.apply(draft, user_id) if self._watermarker else draft
+            text = self._watermarker.apply(draft, user_id, language) if self._watermarker else draft
             return Checked(text, False, verification)
         risk = await self._risk.add(user_id, self._settings.verbatim_penalty)
         async with self._factory() as session, session.begin():
@@ -69,4 +89,5 @@ class OutputShield:
         log.warning("shield.verbatim_blocked", user_id=str(user_id), reason=verification.reason)
         labels = {s.label for s in sources}
         cited = [m for m in dict.fromkeys(markers(draft)) if m in labels]
-        return Checked(REFUSAL + " " + "".join(f"[{m}]" for m in cited), True, verification)
+        refusal = t("shield.verbatim_refusal", language)
+        return Checked(refusal + " " + "".join(f"[{m}]" for m in cited), True, verification)

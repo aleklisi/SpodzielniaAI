@@ -17,7 +17,7 @@ this module directly.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Protocol
 
 from sqlalchemy import select
@@ -26,9 +26,10 @@ from spoldzielnia_ai.core.ids import uuid7
 from spoldzielnia_ai.core.logging import get_logger
 from spoldzielnia_ai.db.enums import ConsentStatus, ReviewDecision
 from spoldzielnia_ai.db.models import ArticleBlock, ExpertReview, User, WikiArticle
+from spoldzielnia_ai.i18n import t
 from spoldzielnia_ai.llm.gateway import LLMPurpose
 from spoldzielnia_ai.llm.prompts import RAG_ANSWER
-from spoldzielnia_ai.rag.schemas import NO_OFFICIAL_POSITION, Citation, RagAnswer
+from spoldzielnia_ai.rag.schemas import Citation, RagAnswer
 from spoldzielnia_ai.rag.synthesis import Style, Synthesizer, label_sources, renumber
 from spoldzielnia_ai.vector.repositories import CanonicalVectorRepo
 from spoldzielnia_ai.vector.revalidate import load_retrievable, repair_ops
@@ -42,6 +43,7 @@ if TYPE_CHECKING:
 
     from spoldzielnia_ai.core.settings import RagSettings
     from spoldzielnia_ai.db.session import SessionFactory
+    from spoldzielnia_ai.i18n import Locale
     from spoldzielnia_ai.llm.gateway import LLMGateway
     from spoldzielnia_ai.rag.schemas import AnswerDraft
     from spoldzielnia_ai.rag.synthesis import Source
@@ -49,9 +51,6 @@ if TYPE_CHECKING:
     from spoldzielnia_ai.vector.revalidate import LiveBlock
 
 log = get_logger(__name__)
-
-UNKNOWN_AUTHOR = "Członek spółdzielni"
-UNKNOWN_EXPERT = "Ekspert spółdzielni"
 
 
 @dataclass(frozen=True, slots=True)
@@ -140,28 +139,42 @@ class RAGService:
         draft = await self._synth.draft(question, sources, style) if sources else None
         return Outcome(retrieval, admitted, sources, draft)
 
+    async def redraft(self, outcome: Outcome, question: str, style: Style) -> Outcome:
+        """The same sources written again in another style (14.5: Polish instead of English
+        when the English answer cannot be checked)."""
+        draft = (
+            await self._synth.draft(question, outcome.sources, style) if outcome.sources else None
+        )
+        return replace(outcome, draft=draft)
+
     async def answer(
-        self, outcome: Outcome, text: str | None = None, request_id: UUID | None = None
+        self,
+        outcome: Outcome,
+        text: str | None = None,
+        request_id: UUID | None = None,
+        locale: Locale = "pl",
     ) -> RagAnswer:
         """The client-facing answer. ``text`` is the draft after output checks (5.5)."""
         request_id = request_id or uuid7()
         if outcome.draft is None:
-            return self.no_position(request_id)
+            return self.no_position(request_id, locale)
         body, cited = renumber(text or outcome.draft.answer_markdown, outcome.sources)
         return RagAnswer(
-            answer_markdown=body, citations=await self.citations(cited), request_id=request_id
+            answer_markdown=body,
+            citations=await self.citations(cited, locale),
+            request_id=request_id,
         )
 
     @staticmethod
-    def no_position(request_id: UUID | None = None) -> RagAnswer:
+    def no_position(request_id: UUID | None = None, locale: Locale = "pl") -> RagAnswer:
         return RagAnswer(
-            answer_markdown=NO_OFFICIAL_POSITION,
+            answer_markdown=t("rag.no_official_position", locale),
             citations=[],
             no_official_position=True,
             request_id=request_id or uuid7(),
         )
 
-    async def citations(self, article_ids: Sequence[UUID]) -> list[Citation]:
+    async def citations(self, article_ids: Sequence[UUID], locale: Locale = "pl") -> list[Citation]:
         """Article-level citations, in the given order."""
         if not article_ids:
             return []
@@ -189,8 +202,8 @@ class RAGService:
                 )
                 .distinct()
             )
-        authors = _names(author_rows.all(), UNKNOWN_AUTHOR)
-        experts = _names(expert_rows.all(), UNKNOWN_EXPERT)
+        authors = _names(author_rows.all(), t("rag.unknown_author", locale))
+        experts = _names(expert_rows.all(), t("rag.unknown_expert", locale))
         return [
             Citation(
                 article_id=a,

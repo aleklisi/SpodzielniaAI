@@ -27,10 +27,13 @@ class ProvisionedUser:
     roles: tuple[Role, ...]
     is_locked: bool
     created: bool
+    locale: str | None = None  # the account's UI language after this login (14.1)
 
 
 class UserProvisioner(Protocol):
-    async def provision(self, identity: OidcIdentity, provider: str) -> ProvisionedUser: ...
+    async def provision(
+        self, identity: OidcIdentity, provider: str, locale: str | None = None
+    ) -> ProvisionedUser: ...
 
 
 class DbUserProvisioner:
@@ -40,13 +43,16 @@ class DbUserProvisioner:
     ``risk_score`` belong to the application and are never touched here. A locked or blocked user
     is still upserted, but the login is audited with ``outcome="locked"``, and the caller
     refuses it. An account an admin created (8.3) is a row with the same ``(issuer, subject)``,
-    adopted here without a special case.
+    adopted here without a special case. ``locale`` is a signed-out visitor's choice (the
+    ``lang`` cookie): it is saved only if the account has none yet (14.1).
     """
 
     def __init__(self, factory: SessionFactory) -> None:
         self._factory = factory
 
-    async def provision(self, identity: OidcIdentity, provider: str) -> ProvisionedUser:
+    async def provision(
+        self, identity: OidcIdentity, provider: str, locale: str | None = None
+    ) -> ProvisionedUser:
         roles = list(identity.roles)
         stmt = insert(User).values(
             id=uuid7(),
@@ -57,6 +63,7 @@ class DbUserProvisioner:
             username=identity.username,
             roles=roles,
             last_login_at=func.now(),
+            locale=locale,
         )
         stmt = stmt.on_conflict_do_update(
             index_elements=[User.oidc_issuer, User.oidc_subject],
@@ -68,10 +75,12 @@ class DbUserProvisioner:
                 "last_login_at": func.now(),
                 # Keycloak issues tokens only after every required action is done.
                 "required_actions": [],
+                "locale": func.coalesce(User.locale, stmt.excluded.locale),
                 "updated_at": func.now(),
             },
         ).returning(
             User.id,
+            User.locale,
             or_(User.is_locked, User.blocked_at.is_not(None)).label("is_locked"),
             # xmax is 0 only for a freshly inserted row version.
             literal_column("(xmax = 0)", Boolean).label("created"),
@@ -80,7 +89,11 @@ class DbUserProvisioner:
         async with self._factory() as session, session.begin():
             row = (await session.execute(stmt)).one()
             user = ProvisionedUser(
-                id=row.id, roles=identity.roles, is_locked=row.is_locked, created=row.created
+                id=row.id,
+                roles=identity.roles,
+                is_locked=row.is_locked,
+                created=row.created,
+                locale=row.locale,
             )
             audit = AuditService(session)
             target = AuditTarget("app_user", str(user.id))

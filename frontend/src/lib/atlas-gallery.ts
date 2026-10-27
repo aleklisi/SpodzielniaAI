@@ -8,9 +8,11 @@
 
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { api, ApiError } from "@/lib/api";
+import { api } from "@/lib/api";
 import type { components } from "@/lib/api-schema";
 import { unwrap } from "@/lib/query";
+import { apiErrorCode, knownCode } from "@/lib/messages";
+import type { Messages } from "@/messages";
 
 export type PhotoCard = components["schemas"]["PhotoCardOut"];
 export type PhotoDetail = components["schemas"]["PhotoDetailOut"];
@@ -90,22 +92,21 @@ export function useAtlasDecision(id: string) {
   );
 }
 
-const ERRORS: Record<string, string> = {
-  stale_version: "Ktoś właśnie zmienił to zdjęcie. Wczytaj je ponownie.",
-  not_in_review: "To zdjęcie nie czeka już na recenzję.",
-  own_photo: "Nie recenzujesz własnych zdjęć.",
-  already_approved: "Już zatwierdziłeś(-aś) tę wersję.",
-  proposed_labels_pending: "Zdjęcie używa propozycji etykiet. Najpierw rozpatrz je w słowniku etykiet.",
-  comment_required: "Napisz autorowi, co trzeba zmienić lub dlaczego zdjęcie jest odrzucane.",
-  invalid_box: "Któreś oznaczenie wychodzi poza zdjęcie albo jest za małe.",
-  label_not_usable: "Użyj aktywnej etykiety.",
-  label_not_found: "Etykieta nie należy do dziedziny zdjęcia.",
-  too_many_regions: "Najwyżej 50 oznaczeń.",
-};
+export type AtlasReviewErrorKey = keyof Messages["atlas"]["reviewErrors"];
 
-export function reviewError(error: unknown): string {
-  if (!(error instanceof ApiError)) return "Operacja nie powiodła się.";
-  const detail = (error.detail as { detail?: unknown } | null)?.detail ?? error.detail;
-  const code = detail && typeof detail === "object" && "error" in detail && typeof detail.error === "string" ? detail.error : null;
-  return (code && ERRORS[code]) || "Operacja nie powiodła się.";
+const CODES = [
+  "stale_version",
+  "not_in_review",
+  "own_photo",
+  "already_approved",
+  "proposed_labels_pending",
+  "comment_required",
+  "invalid_box",
+  "label_not_usable",
+  "label_not_found",
+  "too_many_regions",
+] as const satisfies readonly AtlasReviewErrorKey[];
+
+export function reviewErrorKey(error: unknown): AtlasReviewErrorKey {
+  return knownCode(CODES, apiErrorCode(error)) ?? "failed";
 }

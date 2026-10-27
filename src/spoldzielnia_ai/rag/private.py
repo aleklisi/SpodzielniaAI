@@ -12,9 +12,10 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from spoldzielnia_ai.core.ids import uuid7
+from spoldzielnia_ai.i18n import t
 from spoldzielnia_ai.llm.gateway import LLMPurpose
 from spoldzielnia_ai.llm.prompts import NOTEBOOK_ANSWER
-from spoldzielnia_ai.rag.schemas import NO_NOTES_ANSWER, NoteAnswer, NoteCitation
+from spoldzielnia_ai.rag.schemas import NoteAnswer, NoteCitation
 from spoldzielnia_ai.rag.synthesis import Style, Synthesizer, label_sources, renumber
 from spoldzielnia_ai.vector.chunking import chunk_text
 from spoldzielnia_ai.vector.repositories import PrivateVectorRepo
@@ -25,6 +26,7 @@ if TYPE_CHECKING:
     from qdrant_client import AsyncQdrantClient
 
     from spoldzielnia_ai.core.settings import RagSettings
+    from spoldzielnia_ai.i18n import Locale
     from spoldzielnia_ai.llm.gateway import LLMGateway
     from spoldzielnia_ai.notebook.service import NotebookService
     from spoldzielnia_ai.vector.embedding import Embedder
@@ -45,7 +47,10 @@ class NotebookQA:
         )
         self._settings = settings
 
-    async def ask(self, notebook: NotebookService, user_id: UUID, question: str) -> NoteAnswer:
+    async def ask(
+        self, notebook: NotebookService, user_id: UUID, question: str, locale: Locale = "pl"
+    ) -> NoteAnswer:
+        """Answered in ``locale``: the member's own notes, so no anti-distillation check."""
         request_id = uuid7()
         query = await self._embedder.query([question])
         repo = PrivateVectorRepo(self._client, user_id, query.generation.private_collection)
@@ -64,11 +69,14 @@ class NotebookQA:
             if hit.chunk < len(chunks):
                 passages.append((chunks[hit.chunk], hit.note_id))
         sources = label_sources(passages)
-        style = Style(max_words=self._settings.answer_max_words)
+        style = Style(max_words=self._settings.answer_max_words, language=locale)
         draft = await self._synth.draft(question, sources, style) if sources else None
         if draft is None:
             return NoteAnswer(
-                answer_markdown=NO_NOTES_ANSWER, citations=[], no_answer=True, request_id=request_id
+                answer_markdown=t("rag.no_notes_answer", locale),
+                citations=[],
+                no_answer=True,
+                request_id=request_id,
             )
         body, cited = renumber(draft.answer_markdown, sources)
         titles = await notebook.titles(cited)

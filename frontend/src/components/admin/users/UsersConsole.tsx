@@ -2,6 +2,7 @@
 
 import { useQueryClient } from "@tanstack/react-query";
 import { RefreshCw, UserPlus } from "lucide-react";
+import { useFormatter, useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 
 import { CreateUserDialog } from "@/components/admin/users/CreateUserDialog";
@@ -18,25 +19,25 @@ import { StepUpRequired } from "@/lib/api";
 import {
   displayName,
   PAGE_SIZE,
-  ROLE_LABEL,
   ROLES,
-  STATUS,
+  STATUS_TONE,
   useSyncUsers,
   useUsers,
-  usersError,
+  usersErrorKey,
   type Role,
   type UserFilters,
   type UserStatus,
 } from "@/lib/users-admin";
 
 const INPUT = "w-full rounded-lg border border-border bg-surface px-3 py-2 @4xl:w-auto";
-const DATE = new Intl.DateTimeFormat("pl-PL", { dateStyle: "short" });
 
 /**
  * Who can use the cooperative's system (Stage 8): accounts, passwords, blocks and roles.
  * Keycloak keeps passwords; this console never sees one except a temporary password, once.
  */
 export function UsersConsole() {
+  const t = useTranslations("adminUsers");
+  const format = useFormatter();
   const [filters, setFilters] = useState<UserFilters>({ q: "", role: "", status: "", offset: 0 });
   const [search, setSearch] = useState("");
   // `/admin/users?user=<id>` opens a user (links from the security dashboard). The console
@@ -67,9 +68,9 @@ export function UsersConsole() {
   async function runSync() {
     try {
       const report = await sync.mutateAsync();
-      toast(`Synchronizacja: ${report.seen} kont w Keycloak, nowych ${report.created}, zmienionych ${report.updated}.`, "ok");
+      toast(t("synced", { seen: report.seen, created: report.created, updated: report.updated }), "ok");
     } catch (error) {
-      toast(usersError(error), "error");
+      toast(t(`errors.${usersErrorKey(error)}`), "error");
     }
   }
 
@@ -80,17 +81,17 @@ export function UsersConsole() {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        title="Użytkownicy"
-        description="Konta, hasła, blokady i role. Każda zmiana trafia do dziennika audytu."
+        title={t("title")}
+        description={t("description")}
         actions={
           <>
-            <Button variant="secondary" busy={sync.isPending} onClick={() => void runSync()} title="Pobierz konta utworzone w konsoli Keycloak">
+            <Button variant="secondary" busy={sync.isPending} onClick={() => void runSync()} title={t("syncHint")}>
               <RefreshCw aria-hidden className="size-4" />
-              Synchronizuj z Keycloak
+              {t("sync")}
             </Button>
             <Button onClick={() => setCreating(true)}>
               <UserPlus aria-hidden className="size-4" />
-              Dodaj użytkownika
+              {t("add")}
             </Button>
           </>
         }
@@ -98,42 +99,42 @@ export function UsersConsole() {
 
       <div className="grid gap-3 text-sm @xl:grid-cols-3 @4xl:flex @4xl:flex-wrap @4xl:items-end" role="search">
         <label className="flex flex-col gap-1">
-          Szukaj
+          {t("search")}
           <input
             type="search"
             className={INPUT}
-            placeholder="nazwa, imię lub e-mail"
+            placeholder={t("searchPlaceholder")}
             value={search}
             maxLength={100}
             onChange={(e) => setSearch(e.target.value)}
           />
         </label>
         <label className="flex flex-col gap-1">
-          Rola
+          {t("role")}
           <select
             className={INPUT}
             value={filters.role}
             onChange={(e) => setFilters({ ...filters, role: e.target.value as Role | "", offset: 0 })}
           >
-            <option value="">wszystkie</option>
+            <option value="">{t("all")}</option>
             {ROLES.map((r) => (
-              <option key={r.role} value={r.role}>
-                {r.label}
+              <option key={r} value={r}>
+                {t(`roleNames.${r}`)}
               </option>
             ))}
           </select>
         </label>
         <label className="flex flex-col gap-1">
-          Status
+          {t("status")}
           <select
             className={INPUT}
             value={filters.status}
             onChange={(e) => setFilters({ ...filters, status: e.target.value as UserStatus | "", offset: 0 })}
           >
-            <option value="">wszystkie</option>
-            {(Object.keys(STATUS) as UserStatus[]).map((s) => (
+            <option value="">{t("all")}</option>
+            {(Object.keys(STATUS_TONE) as UserStatus[]).map((s) => (
               <option key={s} value={s}>
-                {STATUS[s].label}
+                {t(`statuses.${s}`)}
               </option>
             ))}
           </select>
@@ -144,19 +145,19 @@ export function UsersConsole() {
       <div className={cn("grid gap-6", selected && "@4xl:grid-cols-[minmax(0,1fr)_minmax(0,26rem)]")}>
         <div className={cn("flex min-w-0 flex-col gap-3", selected && "@max-4xl:hidden")}>
           {users.isPending ? (
-            <p className="text-text-muted">Ładowanie…</p>
+            <p className="text-text-muted">{t("loading")}</p>
           ) : !page ? (
-            <Card role="alert">{usersError(users.error, "Nie udało się wczytać użytkowników.")}</Card>
+            <Card role="alert">{t(`errors.${usersErrorKey(users.error, "failed")}`)}</Card>
           ) : page.items.length === 0 ? (
-            <p className="text-text-muted">Brak użytkowników spełniających kryteria.</p>
+            <p className="text-text-muted">{t("empty")}</p>
           ) : (
-            <DataTable label="Użytkownicy">
+            <DataTable label={t("table")}>
               <THead>
                 <Tr>
-                  <Th>Użytkownik</Th>
-                  <Th>Role</Th>
-                  <Th>Status</Th>
-                  <Th>Ostatnie logowanie</Th>
+                  <Th>{t("user")}</Th>
+                  <Th>{t("roles")}</Th>
+                  <Th>{t("status")}</Th>
+                  <Th>{t("lastLogin")}</Th>
                 </Tr>
               </THead>
               <TBody>
@@ -166,7 +167,7 @@ export function UsersConsole() {
                       <button
                         type="button"
                         className="text-left font-medium text-primary-strong hover:underline"
-                        aria-label={`Szczegóły: ${displayName(u)}`}
+                        aria-label={t("details", { name: displayName(u) })}
                         onClick={() => show(u.id)}
                       >
                         {displayName(u)}
@@ -176,22 +177,24 @@ export function UsersConsole() {
                         {u.email ? ` · ${u.email}` : ""}
                       </div>
                     </Td>
-                    <Td label="Role">
+                    <Td label={t("roles")}>
                       <span className="flex flex-wrap gap-1">
                         {u.roles
                           .filter((r) => r !== "MEMBER")
                           .map((r) => (
                             <Badge key={r} tone={r === "ADMIN" ? "accent" : "primary"}>
-                              {ROLE_LABEL[r]}
+                              {t(`roleNames.${r}`)}
                             </Badge>
                           ))}
-                        {u.roles.every((r) => r === "MEMBER") && <span className="text-text-muted">{ROLE_LABEL.MEMBER}</span>}
+                        {u.roles.every((r) => r === "MEMBER") && <span className="text-text-muted">{t("roleNames.MEMBER")}</span>}
                       </span>
                     </Td>
-                    <Td label="Status">
-                      <Badge tone={STATUS[u.status].tone}>{STATUS[u.status].label}</Badge>
+                    <Td label={t("status")}>
+                      <Badge tone={STATUS_TONE[u.status]}>{t(`statuses.${u.status}`)}</Badge>
                     </Td>
-                    <Td label="Ostatnie logowanie" className="text-text-muted">{u.last_login_at ? DATE.format(new Date(u.last_login_at)) : "nigdy"}</Td>
+                    <Td label={t("lastLogin")} className="text-text-muted">
+                      {u.last_login_at ? format.dateTime(new Date(u.last_login_at), "short") : t("never")}
+                    </Td>
                   </Tr>
                 ))}
               </TBody>
@@ -199,23 +202,21 @@ export function UsersConsole() {
           )}
           {page && page.total > PAGE_SIZE && (
             <div className="flex items-center justify-between gap-2 text-sm">
-              <span className="text-text-muted">
-                {from}–{to} z {page.total}
-              </span>
+              <span className="text-text-muted">{t("range", { from, to, total: page.total })}</span>
               <div className="flex gap-2">
                 <Button
                   variant="secondary"
                   disabled={filters.offset === 0}
                   onClick={() => setFilters({ ...filters, offset: Math.max(0, filters.offset - PAGE_SIZE) })}
                 >
-                  Poprzednia
+                  {t("previous")}
                 </Button>
                 <Button
                   variant="secondary"
                   disabled={to >= page.total}
                   onClick={() => setFilters({ ...filters, offset: filters.offset + PAGE_SIZE })}
                 >
-                  Następna
+                  {t("next")}
                 </Button>
               </div>
             </div>
@@ -224,7 +225,7 @@ export function UsersConsole() {
         {selected && (
           <div className="flex min-w-0 flex-col gap-3">
             <Button variant="ghost" className="self-start @4xl:hidden" onClick={() => setSelected(null)}>
-              ← Lista użytkowników
+              {t("backToList")}
             </Button>
             <UserPanel key={selected} userId={selected} onClose={() => setSelected(null)} />
           </div>

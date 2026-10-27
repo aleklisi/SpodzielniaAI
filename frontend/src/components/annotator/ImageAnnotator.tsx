@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { useRef, useState, type KeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
 
 import { cn } from "@/components/ui/cn";
@@ -90,6 +91,7 @@ export function ImageAnnotator({
   /** Suggestions (dashed, not editable) until accepted or dismissed. */
   ghosts?: { key: string; label: string; x: number; y: number; w: number; h: number }[];
 }) {
+  const t = useTranslations("notebook.annotator");
   const surface = useRef<HTMLDivElement>(null);
   const [drag, setDrag] = useState<Drag | null>(null);
   const [zoom, setZoom] = useState(1);
@@ -196,13 +198,13 @@ export function ImageAnnotator({
 
   return (
     <div className="flex flex-col gap-2">
-      <div className="flex items-center gap-2 text-sm" role="group" aria-label="Powiększenie">
+      <div className="flex items-center gap-2 text-sm" role="group" aria-label={t("zoom")}>
         <button
           type="button"
           className="rounded-md border border-border px-2 py-1 disabled:opacity-50"
           onClick={() => setZoom((z) => Math.max(1, z / 2))}
           disabled={zoom <= 1}
-          aria-label="Pomniejsz"
+          aria-label={t("zoomOut")}
         >
           −
         </button>
@@ -212,11 +214,11 @@ export function ImageAnnotator({
           className="rounded-md border border-border px-2 py-1 disabled:opacity-50"
           onClick={() => setZoom((z) => Math.min(4, z * 2))}
           disabled={zoom >= 4}
-          aria-label="Powiększ"
+          aria-label={t("zoomIn")}
         >
           +
         </button>
-        {!readOnly && <span className="text-text-muted">Przeciągnij po zdjęciu, aby zaznaczyć element.</span>}
+        {!readOnly && <span className="text-text-muted">{t("hint")}</span>}
       </div>
       <div className="max-h-[75vh] overflow-auto rounded-lg border border-border bg-surface-muted">
         <div
@@ -243,7 +245,7 @@ export function ImageAnnotator({
           {ghosts.map((g) => (
             <div
               key={g.key}
-              aria-label={`Podpowiedź: ${g.label}`}
+              aria-label={t("suggestion", { label: g.label })}
               role="img"
               className="pointer-events-none absolute border-2 border-dashed border-white/90 bg-primary/10"
               style={{ left: `${g.x * 100}%`, top: `${g.y * 100}%`, width: `${g.w * 100}%`, height: `${g.h * 100}%` }}
@@ -260,7 +262,7 @@ export function ImageAnnotator({
                 role="button"
                 tabIndex={0}
                 aria-pressed={active}
-                aria-label={`Oznaczenie ${index + 1}: ${mark.label?.name ?? "bez etykiety"}`}
+                aria-label={t("mark", { n: index + 1, label: mark.label?.name ?? t("unlabeled") })}
                 className={cn(
                   "absolute border-2 outline-none",
                   color.border,

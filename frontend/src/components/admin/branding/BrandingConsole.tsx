@@ -1,6 +1,7 @@
 "use client";
 
 import { ImageUp, RotateCcw, Save, Trash2 } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 
 import { StepUpNotice } from "@/components/auth/RequireRole";
@@ -13,7 +14,8 @@ import { Loading } from "@/components/ui/Skeleton";
 import { useToast } from "@/components/ui/Toast";
 import { StepUpRequired } from "@/lib/api";
 import {
-  brandingError,
+  brandingErrorKey,
+  type BrandingErrorKey,
   useAdminBranding,
   usePreview,
   useRemoveLogo,
@@ -57,30 +59,23 @@ const DEFAULT_TOKENS: Record<Mode, Record<(typeof TOKENS)[number], string>> = {
 const HEX = /^#[0-9a-f]{6}$/i;
 const INPUT = "w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm";
 
-const TOKEN_LABEL: Record<string, string> = {
-  primary: "Przyciski",
-  "primary-contrast": "Tekst na przycisku",
-  "primary-strong": "Linki i aktywne menu",
-  accent: "Akcent",
-  "sidebar-accent": "Menu",
-};
+const TOKEN_LABELS = ["primary", "primary-contrast", "primary-strong", "accent", "sidebar-accent"] as const;
+const AGAINST_LABELS = ["primary", "bg", "surfaces", "text-muted"] as const;
 
-const AGAINST_LABEL: Record<string, string> = {
-  primary: "przycisk",
-  bg: "tło",
-  surfaces: "tła i plakietki",
-  "text-muted": "tekst menu",
-};
+function known<K extends string>(list: readonly K[], value: string): value is K {
+  return (list as readonly string[]).includes(value);
+}
 
-/** „Wygląd” (13.5): the organisation's name, logo and two colours, with a live preview. */
+/** "Appearance" (13.5): the organisation's name, logo and two colours, with a live preview. */
 export function BrandingConsole() {
+  const t = useTranslations("adminBranding");
   const branding = useAdminBranding();
   if (branding.error instanceof StepUpRequired) return <StepUpNotice stepUp={branding.error.stepUp} />;
   if (branding.isPending) return <Loading />;
   if (!branding.data) {
     return (
       <Card role="alert" className="max-w-xl">
-        Nie udało się wczytać ustawień wyglądu.
+        {t("loadFailed")}
       </Card>
     );
   }
@@ -89,6 +84,8 @@ export function BrandingConsole() {
 }
 
 function Console({ current }: { current: AdminBranding }) {
+  const t = useTranslations("adminBranding");
+  const common = useTranslations("common");
   const toast = useToast();
   const save = useSaveBranding();
   const reset = useResetBranding();
@@ -107,9 +104,9 @@ function Console({ current }: { current: AdminBranding }) {
         brand: custom ? brand.toLowerCase() : null,
         accent: custom ? accent.toLowerCase() : null,
       });
-      toast("Zapisano. Członkowie zobaczą zmiany przy następnym wczytaniu strony.", "ok");
+      toast(t("saved"), "ok");
     } catch (error) {
-      toast(brandingError(error), "error");
+      toast(t(`errors.${brandingErrorKey(error)}`), "error");
     }
   }
 
@@ -117,23 +114,23 @@ function Console({ current }: { current: AdminBranding }) {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        title="Wygląd"
-        description="Nazwa, logo i kolory spółdzielni. Pozostałe odcienie (również w trybie ciemnym) są dobierane automatycznie tak, aby tekst był czytelny."
+        title={t("title")}
+        description={t("description")}
         actions={
           <Button variant="ghost" className="text-danger" onClick={() => setConfirmReset(true)}>
             <RotateCcw aria-hidden className="size-4" />
-            Przywróć domyślne
+            {t("reset")}
           </Button>
         }
       />
       <div className="grid gap-6 @4xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
         <div className="flex flex-col gap-6">
           <Card>
-            <form onSubmit={submit} className="flex flex-col gap-4 text-sm" aria-label="Nazwa i kolory">
-              <h2 className="font-display text-lg font-semibold">Nazwa i kolory</h2>
+            <form onSubmit={submit} className="flex flex-col gap-4 text-sm" aria-label={t("nameAndColours")}>
+              <h2 className="font-display text-lg font-semibold">{t("nameAndColours")}</h2>
               <div className="flex flex-col gap-1">
                 <label htmlFor="org-name" className="font-medium">
-                  Nazwa organizacji
+                  {t("orgName")}
                 </label>
                 <input
                   id="org-name"
@@ -145,42 +142,42 @@ function Console({ current }: { current: AdminBranding }) {
                   onChange={(e) => setName(e.target.value)}
                 />
                 <span id="org-name-hint" className="text-xs text-text-muted">
-                  Puste pole: „{DEFAULT_NAME}”. Widoczna w menu, na stronie głównej i w tytule karty.
+                  {t("orgNameHint", { name: DEFAULT_NAME })}
                 </span>
               </div>
               <label className="flex items-center gap-2">
                 <input type="checkbox" className="size-4 accent-primary" checked={custom} onChange={(e) => setCustom(e.target.checked)} />
-                Własne kolory
+                {t("customColours")}
               </label>
               {custom && (
                 <div className="grid gap-4 @lg:grid-cols-2">
-                  <ColourField label="Kolor marki" hint="Przyciski, linki, zaznaczenia" value={brand} onChange={setBrand} />
-                  <ColourField label="Kolor akcentu" hint="Plakietki i wyróżnienia" value={accent} onChange={setAccent} />
+                  <ColourField id="brand-colour" label={t("brand")} hint={t("brandHint")} value={brand} onChange={setBrand} />
+                  <ColourField id="accent-colour" label={t("accent")} hint={t("accentHint")} value={accent} onChange={setAccent} />
                 </div>
               )}
               {preview.error && (
                 <p role="alert" className="text-danger">
-                  {preview.error}
+                  {t(`errors.${preview.error}`)}
                 </p>
               )}
               {preview.data && preview.data.adjusted.length > 0 && (
                 <p role="status" className="rounded-lg bg-surface-muted px-3 py-2">
-                  {preview.data.adjusted.includes("brand") && "Kolor marki przyciemniony, aby tekst był czytelny. "}
-                  {preview.data.adjusted.includes("accent") && "Kolor akcentu dostosowany, aby tekst był czytelny."}
+                  {preview.data.adjusted.includes("brand") && t("brandAdjusted")}
+                  {preview.data.adjusted.includes("accent") && t("accentAdjusted")}
                 </p>
               )}
               <div>
                 <Button type="submit" busy={save.isPending} disabled={custom && (!HEX.test(brand) || !HEX.test(accent) || !!preview.error)}>
                   <Save aria-hidden className="size-4" />
-                  Zapisz
+                  {common("save")}
                 </Button>
               </div>
             </form>
           </Card>
           <LogoCard current={current} />
         </div>
-        <section aria-label="Podgląd" className="flex flex-col gap-4">
-          <h2 className="font-display text-lg font-semibold">Podgląd</h2>
+        <section aria-label={t("preview")} className="flex flex-col gap-4">
+          <h2 className="font-display text-lg font-semibold">{t("preview")}</h2>
           <div className="grid gap-4 @lg:grid-cols-2 @4xl:grid-cols-1 @6xl:grid-cols-2">
             {(["light", "dark"] as const).map((mode) => (
               <PreviewPanel
@@ -196,13 +193,11 @@ function Console({ current }: { current: AdminBranding }) {
           {custom && preview.data && <Ratios preview={preview.data} />}
         </section>
       </div>
-      <Dialog open={confirmReset} onClose={() => setConfirmReset(false)} title="Przywrócić domyślny wygląd?">
-        <p className="text-sm">
-          Nazwa, logo i kolory wrócą do „{DEFAULT_NAME}” dla wszystkich. Wgrane logo zostanie usunięte.
-        </p>
+      <Dialog open={confirmReset} onClose={() => setConfirmReset(false)} title={t("resetTitle")}>
+        <p className="text-sm">{t("resetBody", { name: DEFAULT_NAME })}</p>
         <div className="mt-4 flex justify-end gap-2">
           <Button variant="ghost" onClick={() => setConfirmReset(false)}>
-            Anuluj
+            {common("cancel")}
           </Button>
           <Button
             variant="danger"
@@ -213,13 +208,13 @@ function Console({ current }: { current: AdminBranding }) {
                 setName("");
                 setCustom(false);
                 setConfirmReset(false);
-                toast("Przywrócono domyślny wygląd.", "ok");
+                toast(t("resetDone"), "ok");
               } catch (error) {
-                toast(brandingError(error), "error");
+                toast(t(`errors.${brandingErrorKey(error)}`), "error");
               }
             }}
           >
-            Przywróć
+            {t("resetSubmit")}
           </Button>
         </div>
       </Dialog>
@@ -228,9 +223,9 @@ function Console({ current }: { current: AdminBranding }) {
 }
 
 /** The server's palette for the chosen colours, asked again 300 ms after the last change. */
-function useLivePreview(enabled: boolean, brand: string, accent: string): { data: Preview | null; error: string | null } {
+function useLivePreview(enabled: boolean, brand: string, accent: string): { data: Preview | null; error: BrandingErrorKey | null } {
   const { mutate } = usePreview();
-  const [state, setState] = useState<{ key: string; data: Preview | null; error: string | null }>({ key: "", data: null, error: null });
+  const [state, setState] = useState<{ key: string; data: Preview | null; error: BrandingErrorKey | null }>({ key: "", data: null, error: null });
   const key = `${brand.toLowerCase()}|${accent.toLowerCase()}`;
   const valid = enabled && HEX.test(brand) && HEX.test(accent);
   useEffect(() => {
@@ -240,19 +235,31 @@ function useLivePreview(enabled: boolean, brand: string, accent: string): { data
         { brand: brand.toLowerCase(), accent: accent.toLowerCase() },
         {
           onSuccess: (data) => setState({ key, data, error: null }),
-          onError: (error) => setState({ key, data: null, error: brandingError(error) }),
+          onError: (error) => setState({ key, data: null, error: brandingErrorKey(error) }),
         },
       );
     }, 300);
     return () => window.clearTimeout(timer);
   }, [valid, key, brand, accent, mutate]);
   if (!enabled) return { data: null, error: null };
-  if (!HEX.test(brand) || !HEX.test(accent)) return { data: null, error: "Kolor musi mieć postać #rrggbb." };
+  if (!HEX.test(brand) || !HEX.test(accent)) return { data: null, error: "invalid_colour" };
   return state.key === key ? state : { data: null, error: null };
 }
 
-function ColourField({ label, hint, value, onChange }: { label: string; hint: string; value: string; onChange: (value: string) => void }) {
-  const id = label.replace(/\s/g, "-").toLowerCase();
+function ColourField({
+  id,
+  label,
+  hint,
+  value,
+  onChange,
+}: {
+  id: string;
+  label: string;
+  hint: string;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  const t = useTranslations("adminBranding");
   return (
     <div className="flex flex-col gap-1">
       <label htmlFor={id} className="font-medium">
@@ -261,7 +268,7 @@ function ColourField({ label, hint, value, onChange }: { label: string; hint: st
       <div className="flex items-center gap-2">
         <input
           type="color"
-          aria-label={`${label}: próbnik`}
+          aria-label={t("picker", { label })}
           value={HEX.test(value) ? value.toLowerCase() : "#000000"}
           onChange={(e) => onChange(e.target.value)}
           className="h-10 w-12 shrink-0 cursor-pointer rounded-lg border border-border bg-surface p-1"
@@ -289,6 +296,8 @@ function PreviewPanel({
   logo: string | null;
   tokens: Record<string, string> | null;
 }) {
+  const t = useTranslations("adminBranding");
+  const nav = useTranslations("shell.nav");
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const element = ref.current;
@@ -301,7 +310,7 @@ function PreviewPanel({
   }, [mode, tokens]);
   return (
     <figure className="flex flex-col gap-2">
-      <figcaption className="text-xs font-medium text-text-muted">{mode === "light" ? "Tryb jasny" : "Tryb ciemny"}</figcaption>
+      <figcaption className="text-xs font-medium text-text-muted">{mode === "light" ? t("light") : t("dark")}</figcaption>
       <div
         ref={ref}
         data-testid={`preview-${mode}`}
@@ -313,19 +322,19 @@ function PreviewPanel({
             {logo && <img src={logo} alt="" className="h-4 w-auto max-w-10 object-contain" />}
             <span className="truncate">{name}</span>
           </span>
-          <span className="rounded bg-sidebar-accent px-2 py-1 font-medium">Notatnik</span>
-          <span className="px-2 py-1 text-text-muted">Wiki</span>
-          <span className="px-2 py-1 text-text-muted">Atlas</span>
+          <span className="rounded bg-sidebar-accent px-2 py-1 font-medium">{nav("notebook")}</span>
+          <span className="px-2 py-1 text-text-muted">{nav("wiki")}</span>
+          <span className="px-2 py-1 text-text-muted">{nav("atlas")}</span>
         </div>
         <div className="flex min-w-0 flex-1 flex-col gap-2 p-3 text-xs">
-          <span className="font-display text-sm font-semibold">Nagłówek strony</span>
+          <span className="font-display text-sm font-semibold">{t("sample.heading")}</span>
           <div className="rounded-lg border border-border bg-surface p-2">
-            Karta z <span className="font-medium text-primary-strong underline">linkiem</span>
+            {t.rich("sample.card", { link: (chunks) => <span className="font-medium text-primary-strong underline">{chunks}</span> })}
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <span className="rounded-lg bg-primary px-2 py-1 font-medium text-primary-contrast">Przycisk</span>
-            <Badge tone="primary">Plakietka</Badge>
-            <Badge tone="accent">Akcent</Badge>
+            <span className="rounded-lg bg-primary px-2 py-1 font-medium text-primary-contrast">{t("sample.button")}</span>
+            <Badge tone="primary">{t("sample.badge")}</Badge>
+            <Badge tone="accent">{t("sample.accent")}</Badge>
           </div>
         </div>
       </div>
@@ -334,17 +343,19 @@ function PreviewPanel({
 }
 
 function Ratios({ preview }: { preview: Preview }) {
+  const t = useTranslations("adminBranding");
   return (
     <details className="text-sm">
-      <summary className="cursor-pointer font-medium">Kontrast (WCAG AA)</summary>
-      <ul className="mt-2 flex flex-col gap-1" aria-label="Kontrast">
+      <summary className="cursor-pointer font-medium">{t("contrast")}</summary>
+      <ul className="mt-2 flex flex-col gap-1" aria-label={t("contrastList")}>
         {preview.checks.map((c) => (
           <li key={`${c.mode}-${c.token}-${c.against}`} className="flex flex-wrap justify-between gap-2 border-b border-border pb-1 last:border-0">
             <span>
-              {c.mode === "light" ? "Jasny" : "Ciemny"} · {TOKEN_LABEL[c.token] ?? c.token} / {AGAINST_LABEL[c.against] ?? c.against}
+              {c.mode === "light" ? t("lightShort") : t("darkShort")} · {known(TOKEN_LABELS, c.token) ? t(`tokens.${c.token}`) : c.token} /{" "}
+              {known(AGAINST_LABELS, c.against) ? t(`against.${c.against}`) : c.against}
             </span>
             <span className={c.ratio >= c.required ? "text-ok" : "text-danger"}>
-              {c.ratio.toFixed(2)}:1 (min. {c.required}:1)
+              {t("minimum", { ratio: c.ratio.toFixed(2), required: c.required })}
             </span>
           </li>
         ))}
@@ -354,27 +365,25 @@ function Ratios({ preview }: { preview: Preview }) {
 }
 
 function LogoCard({ current }: { current: AdminBranding }) {
+  const t = useTranslations("adminBranding");
   const upload = useUploadLogo();
   const remove = useRemoveLogo();
   const toast = useToast();
   const input = useRef<HTMLInputElement>(null);
   return (
     <Card className="flex flex-col gap-3 text-sm">
-      <h2 className="font-display text-lg font-semibold">Logo</h2>
+      <h2 className="font-display text-lg font-semibold">{t("logo.title")}</h2>
       <div className="flex min-h-20 items-center justify-center rounded-lg border border-dashed border-border bg-surface-muted p-3">
         {current.logo_url ? (
           // eslint-disable-next-line @next/next/no-img-element -- the current same-origin logo
-          <img src={current.logo_url} alt={`Logo: ${current.org_name}`} className="max-h-16 w-auto object-contain" />
+          <img src={current.logo_url} alt={t("logo.alt", { name: current.org_name })} className="max-h-16 w-auto object-contain" />
         ) : (
-          <span className="text-text-muted">Brak logo: menu pokazuje znak spółdzielni.</span>
+          <span className="text-text-muted">{t("logo.none")}</span>
         )}
       </div>
-      <p className="text-xs text-text-muted">
-        PNG, JPEG lub WebP do 2 MB (bez SVG). Obraz jest zapisywany ponownie, bez metadanych, w rozmiarze do 512 × 128 pikseli; z niego
-        powstaje ikona karty przeglądarki.
-      </p>
+      <p className="text-xs text-text-muted">{t("logo.hint")}</p>
       <label className="sr-only" htmlFor="logo-file">
-        Plik logo
+        {t("logo.file")}
       </label>
       <input
         ref={input}
@@ -388,16 +397,16 @@ function LogoCard({ current }: { current: AdminBranding }) {
           if (!file) return;
           try {
             await upload.mutateAsync(file);
-            toast("Logo zapisane.", "ok");
+            toast(t("logo.saved"), "ok");
           } catch (error) {
-            toast(brandingError(error), "error");
+            toast(t(`errors.${brandingErrorKey(error)}`), "error");
           }
         }}
       />
       <div className="flex flex-wrap gap-2">
         <Button variant="secondary" busy={upload.isPending} onClick={() => input.current?.click()}>
           <ImageUp aria-hidden className="size-4" />
-          {current.logo_url ? "Zmień logo" : "Wgraj logo"}
+          {current.logo_url ? t("logo.change") : t("logo.upload")}
         </Button>
         {current.logo_url && (
           <Button
@@ -407,14 +416,14 @@ function LogoCard({ current }: { current: AdminBranding }) {
             onClick={async () => {
               try {
                 await remove.mutateAsync();
-                toast("Logo usunięte.", "ok");
+                toast(t("logo.removed"), "ok");
               } catch (error) {
-                toast(brandingError(error), "error");
+                toast(t(`errors.${brandingErrorKey(error)}`), "error");
               }
             }}
           >
             <Trash2 aria-hidden className="size-4" />
-            Usuń logo
+            {t("logo.remove")}
           </Button>
         )}
       </div>

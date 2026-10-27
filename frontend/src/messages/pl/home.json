@@ -1,0 +1,20 @@
+{
+  "greeting": "Dzień dobry, {name}",
+  "tagline": "Wspólna, zweryfikowana wiedza pszczelarska – z poszanowaniem prywatności i praw autorów.",
+  "cards": {
+    "notebook": "Twoje notatki, zdjęcia i nagrania. Widzisz je tylko Ty.",
+    "drafts": "Artykuły z Twoich wniosków, zanim zatwierdzi je Rada Ekspertów.",
+    "contributions": "Wstrzymaj lub wycofaj swój wkład w dowolnym momencie.",
+    "wiki": "Artykuły zatwierdzone przez Radę Ekspertów.",
+    "atlas": "Zdjęcia z oznaczonymi elementami, sprawdzone przez ekspertów.",
+    "chat": "Odpowiedzi wyłącznie na podstawie zatwierdzonej wiedzy, z cytowaniami.",
+    "review": "Szkice artykułów czekające na Twoją decyzję.",
+    "atlasReview": "Zdjęcia przekazane do atlasu czekające na weryfikację.",
+    "labels": "Etykiety dziedzin i propozycje członków.",
+    "security": "Ryzyko kont, blokady i dziennik zdarzeń.",
+    "llm": "Dostawcy, modele i przypisania funkcji.",
+    "users": "Konta, role, hasła i blokady.",
+    "adminAtlas": "Dziedziny atlasu i eksport zbioru danych.",
+    "branding": "Nazwa, logo i kolory spółdzielni."
+  }
+}

@@ -335,6 +335,11 @@ class ShieldSettings(BaseModel):
     verbatim_rouge_l_max: float = Field(default=0.70, gt=0, le=1)  # vs. all sources
     verbatim_span_max_words: int = Field(default=40, ge=5)
     verbatim_penalty: float = Field(default=0.3, ge=0, le=1)
+    # Answers in another language than the sources (14.5, shield.translation): a source counts
+    # as translated when sentences matched above the similarity hold this share of its words.
+    verbatim_xlang_similarity: float = Field(default=0.86, gt=0, le=1)
+    verbatim_xlang_share: float = Field(default=0.5, gt=0, le=1)
+    verbatim_xlang_min_words: int = Field(default=20, ge=1)
     extraction_intent_penalty: float = Field(default=0.1, ge=0, le=1)
     # Watermark (5.5): Docker secret `watermark_key`. Without it answers are not watermarked.
     watermark_key: SecretStr | None = None

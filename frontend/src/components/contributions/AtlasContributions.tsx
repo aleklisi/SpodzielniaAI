@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { useState, type FormEvent } from "react";
 
 import { StepUpNotice } from "@/components/auth/RequireRole";
@@ -11,9 +12,9 @@ import { Dialog } from "@/components/ui/Dialog";
 import { useToast } from "@/components/ui/Toast";
 import { StepUpRequired } from "@/lib/api";
 import {
-  ATLAS_STATUS,
+  ATLAS_STATUS_TONE,
   atlasImageUrl,
-  CONSENT_LABEL,
+  CONSENT_TONE,
   useMyAtlasPhotos,
   usePhotoConsent,
   usePhotoPreferences,
@@ -22,8 +23,9 @@ import {
 
 const CONFIRM_WORD = "REVOKE";
 
-/** „Zdjęcia w atlasie”: the author's consent and choices per photo (9.6). */
+/** "Photos in the atlas": the author's consent and choices per photo (9.6). */
 export function AtlasContributions() {
+  const t = useTranslations("contributions.atlas");
   const photos = useMyAtlasPhotos();
   const [revoking, setRevoking] = useState<MyPhoto | null>(null);
   if (!photos.data || photos.data.length === 0) return null;
@@ -31,12 +33,9 @@ export function AtlasContributions() {
     <section aria-labelledby="atlas-contributions-title" className="flex flex-col gap-3">
       <div>
         <h2 id="atlas-contributions-title" className="font-display text-xl font-semibold">
-          Zdjęcia w atlasie
+          {t("title")}
         </h2>
-        <p className="text-sm text-text-muted">
-          Wstrzymanie ukrywa zdjęcie w atlasie, w rozpoznawaniu i w eksportach; możesz je cofnąć. Trwałe wycofanie usuwa zdjęcie, opisy i
-          oznaczenia. Eksportu, który już ktoś pobrał, nie da się cofnąć.
-        </p>
+        <p className="text-sm text-text-muted">{t("intro")}</p>
       </div>
       <ul className="flex flex-col gap-2">
         {photos.data.map((photo) => (
@@ -51,18 +50,21 @@ export function AtlasContributions() {
 }
 
 function PhotoRow({ photo, onRevoke }: { photo: MyPhoto; onRevoke: () => void }) {
+  const t = useTranslations("contributions.atlas");
+  const actions = useTranslations("contributions");
+  const status = useTranslations("common");
   const consent = usePhotoConsent();
   const preferences = usePhotoPreferences();
   const toast = useToast();
   const revoked = photo.consent_status === "REVOKED";
-  const title = photo.labels.join(", ") || "Zdjęcie";
+  const title = photo.labels.join(", ") || t("photo");
 
   async function run(action: "suspend" | "resume") {
     try {
       await consent.mutateAsync({ id: photo.id, action });
-      toast(action === "suspend" ? "Zdjęcie wstrzymane." : "Zdjęcie znów udostępnione.", "ok");
+      toast(action === "suspend" ? t("suspended") : t("resumed"), "ok");
     } catch {
-      toast("Nie udało się zmienić zgody.", "error");
+      toast(t("consentFailed"), "error");
     }
   }
 
@@ -70,7 +72,7 @@ function PhotoRow({ photo, onRevoke }: { photo: MyPhoto; onRevoke: () => void })
     try {
       await preferences.mutateAsync({ id: photo.id, ...patch });
     } catch {
-      toast("Nie udało się zapisać zmiany.", "error");
+      toast(t("saveFailed"), "error");
     }
   }
 
@@ -85,8 +87,8 @@ function PhotoRow({ photo, onRevoke }: { photo: MyPhoto; onRevoke: () => void })
       <div className="flex min-w-0 flex-1 flex-col gap-1 text-sm">
         <p className="font-medium">
           {revoked ? title : <Link href={`/atlas/${photo.id}`}>{title}</Link>}{" "}
-          <Badge tone={CONSENT_LABEL[photo.consent_status].tone}>{CONSENT_LABEL[photo.consent_status].label}</Badge>{" "}
-          {!revoked && <Badge tone={ATLAS_STATUS[photo.status].tone}>{ATLAS_STATUS[photo.status].label}</Badge>}
+          <Badge tone={CONSENT_TONE[photo.consent_status]}>{status(`photoConsent.${photo.consent_status}`)}</Badge>{" "}
+          {!revoked && <Badge tone={ATLAS_STATUS_TONE[photo.status]}>{status(`atlasStatus.${photo.status}`)}</Badge>}
         </p>
         {photo.review_alert && !revoked && <p className="text-xs text-warn">{photo.review_alert}</p>}
         {!revoked && (
@@ -98,7 +100,7 @@ function PhotoRow({ photo, onRevoke }: { photo: MyPhoto; onRevoke: () => void })
                 disabled={preferences.isPending}
                 onChange={(e) => void prefer({ show_author: e.target.checked })}
               />
-              Pokazuj moje imię i nazwisko przy zdjęciu
+              {t("showName")}
             </label>
             <label className="flex items-center gap-2">
               <input
@@ -107,7 +109,7 @@ function PhotoRow({ photo, onRevoke }: { photo: MyPhoto; onRevoke: () => void })
                 disabled={preferences.isPending}
                 onChange={(e) => void prefer({ allow_export: e.target.checked })}
               />
-              Zgoda na użycie w eksporcie zbioru danych
+              {t("allowExport")}
             </label>
           </div>
         )}
@@ -116,15 +118,15 @@ function PhotoRow({ photo, onRevoke }: { photo: MyPhoto; onRevoke: () => void })
         <div className="flex flex-wrap gap-2">
           {photo.consent_status === "ACTIVE" ? (
             <Button variant="secondary" busy={consent.isPending} onClick={() => void run("suspend")}>
-              Wstrzymaj
+              {actions("suspend")}
             </Button>
           ) : (
             <Button variant="secondary" busy={consent.isPending} onClick={() => void run("resume")}>
-              Wznów
+              {actions("resume")}
             </Button>
           )}
           <Button variant="danger" onClick={onRevoke}>
-            Wycofaj trwale
+            {t("revoke")}
           </Button>
         </div>
       )}
@@ -133,6 +135,8 @@ function PhotoRow({ photo, onRevoke }: { photo: MyPhoto; onRevoke: () => void })
 }
 
 function RevokePhotoDialog({ photo, onClose }: { photo: MyPhoto; onClose: () => void }) {
+  const t = useTranslations("contributions.atlas");
+  const common = useTranslations("common");
   const [typed, setTyped] = useState("");
   const consent = usePhotoConsent();
   const toast = useToast();
@@ -142,7 +146,7 @@ function RevokePhotoDialog({ photo, onClose }: { photo: MyPhoto; onClose: () => 
     if (typed !== CONFIRM_WORD) return;
     try {
       await consent.mutateAsync({ id: photo.id, action: "revoke" });
-      toast("Zdjęcie wycofane z atlasu.", "ok");
+      toast(t("revoked"), "ok");
       onClose();
     } catch {
       // Shown below (step-up or a generic error).
@@ -150,32 +154,29 @@ function RevokePhotoDialog({ photo, onClose }: { photo: MyPhoto; onClose: () => 
   }
 
   return (
-    <Dialog open onClose={onClose} title="Wycofaj zdjęcie trwale">
+    <Dialog open onClose={onClose} title={t("dialogTitle")}>
       {consent.error instanceof StepUpRequired ? (
-        <StepUpNotice stepUp={consent.error.stepUp} reason="Trwałe wycofanie wymaga świeżego logowania." />
+        <StepUpNotice stepUp={consent.error.stepUp} reason={t("stepUp")} />
       ) : (
-        <form onSubmit={submit} className="flex flex-col gap-3 text-sm" aria-label="Wycofanie zdjęcia">
-          <p>
-            Zdjęcie „{photo.labels.join(", ")}” zniknie z atlasu razem z opisami i oznaczeniami. Tej operacji nie można cofnąć. Wpisz{" "}
-            <strong>{CONFIRM_WORD}</strong>, aby potwierdzić.
-          </p>
+        <form onSubmit={submit} className="flex flex-col gap-3 text-sm" aria-label={t("form")}>
+          <p>{t.rich("body", { labels: photo.labels.join(", "), word: CONFIRM_WORD, strong: (chunks) => <strong>{chunks}</strong> })}</p>
           <input
             className="rounded-lg border border-border bg-surface px-3 py-2"
-            aria-label="Potwierdzenie"
+            aria-label={t("confirmation")}
             value={typed}
             onChange={(e) => setTyped(e.target.value)}
           />
           {consent.isError && !(consent.error instanceof StepUpRequired) && (
             <p role="alert" className="text-danger">
-              Nie udało się wycofać zdjęcia.
+              {t("failed")}
             </p>
           )}
           <div className="flex justify-end gap-2">
             <Button variant="ghost" onClick={onClose}>
-              Anuluj
+              {common("cancel")}
             </Button>
             <Button type="submit" variant="danger" busy={consent.isPending} disabled={typed !== CONFIRM_WORD}>
-              Wycofaj trwale
+              {t("revoke")}
             </Button>
           </div>
         </form>

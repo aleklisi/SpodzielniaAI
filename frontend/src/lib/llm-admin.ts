@@ -11,7 +11,9 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { api, ApiError } from "@/lib/api";
 import type { components } from "@/lib/api-schema";
+import { knownCode } from "@/lib/messages";
 import { unwrap } from "@/lib/query";
+import type { Messages } from "@/messages";
 
 export type LlmStatus = components["schemas"]["StatusOut"];
 export type Provider = components["schemas"]["ProviderOut"];
@@ -129,20 +131,24 @@ export function useDeleteProvider() {
   });
 }
 
-/** Why "Usuń" is unavailable (``ProviderOut.removal_blocked``), shown next to the button. */
-export function removalBlocked(provider: Pick<Provider, "removal_blocked" | "removal_draft">): string | null {
+type Removal = keyof Messages["adminLlm"]["removal"];
+
+/** Why "Remove" is unavailable (``ProviderOut.removal_blocked``): a key in `adminLlm.removal`
+ * and its values, shown next to the button. */
+export function removalBlocked(
+  provider: Pick<Provider, "removal_blocked" | "removal_draft">,
+): { key: Removal; values?: { number: number } } | null {
   switch (provider.removal_blocked) {
     case null:
     case undefined:
       return null;
     case "provider_in_use":
-      return "Używany przez aktywną konfigurację";
     case "provider_in_index":
-      return "Używany przez indeks wyszukiwania";
+      return { key: provider.removal_blocked };
     case "provider_in_draft":
-      return provider.removal_draft ? `Używany w szkicu rewizji ${provider.removal_draft}` : "Używany w szkicu zmian";
+      return provider.removal_draft ? { key: "inDraftN", values: { number: provider.removal_draft } } : { key: "provider_in_draft" };
     default:
-      return "Nie można teraz usunąć";
+      return { key: "other" };
   }
 }
 
@@ -220,75 +226,54 @@ export function usePlayground() {
 
 // --- Labels -------------------------------------------------------------------------------------
 
-export const PURPOSES: Record<Purpose, { label: string; hint: string }> = {
-  RAG: { label: "Czat spółdzielni (RAG)", hint: "Odpowiedzi z kanonicznej wiedzy Wiki." },
-  PROMOTION: { label: "Wnioski do Wiki", hint: "Przekształcanie notatek w szkic artykułu." },
-  PRIVATE_NOTE: { label: "Prywatny notatnik", hint: "Pytania do własnych notatek." },
-  PII_SCRUB: { label: "Anonimizacja", hint: "Usuwanie danych osobowych." },
-  VLM: { label: "Opisy zdjęć", hint: "Model wizyjny dla załączników." },
-  EMBED: { label: "Embeddingi", hint: "Wektory indeksu wiedzy (zmiana przebudowuje indeks w tle)." },
-  TRANSCRIBE: { label: "Transkrypcja nagrań", hint: "Zamiana mowy na tekst w nagraniach z notatek." },
-  IMAGE_EMBED: { label: "Atlas: wektory zdjęć", hint: "Embeddingi zdjęć atlasu i fragmentów do „Rozpoznaj” (zmiana przebudowuje indeks atlasu w tle)." },
-  OCR: { label: "Odczyt skanów (OCR)", hint: "Model wizyjny odczytuje strony dokumentów bez warstwy tekstowej." },
-};
-
+/** Names and hints in `adminLlm.purposes.<purpose>`. */
 export const PURPOSE_ORDER: Purpose[] = ["RAG", "PROMOTION", "PRIVATE_NOTE", "PII_SCRUB", "VLM", "OCR", "TRANSCRIBE", "EMBED", "IMAGE_EMBED"];
 
-export const CAPABILITIES: Record<Capability, string> = {
-  CHAT: "Czat",
-  VLM: "Wizyjny",
-  EMBED: "Embeddingi",
-  TRANSCRIBE: "Mowa na tekst",
-  IMAGE_EMBED: "Embeddingi zdjęć",
-};
+/** Every capability, in order; names in `adminLlm.capabilities`. */
+export const CAPABILITIES: Capability[] = ["CHAT", "VLM", "EMBED", "TRANSCRIBE", "IMAGE_EMBED"];
 
 /** Models that generate text from a prompt: temperature and token limit apply. */
 export function generates(capability: Capability): boolean {
   return capability === "CHAT" || capability === "VLM";
 }
 
-export const REVISION_STATUS: Record<Revision["status"], string> = {
-  DRAFT: "Szkic",
-  ACTIVE: "Aktywna",
-  ARCHIVED: "Archiwalna",
-};
 
-const ERRORS: Record<string, string> = {
-  endpoint_not_allowed: "Ten adres nie jest na liście dozwolonych serwerów (ustawia ją administrator serwera w .env).",
-  cloud_requires_https: "Serwer chmurowy musi używać https:// na porcie 443.",
-  credentials_in_url: "Adres nie może zawierać loginu ani hasła; klucz API podaj w osobnym polu.",
-  invalid_url: "Nieprawidłowy adres.",
-  name_taken: "Ta nazwa jest już zajęta.",
-  provider_type_not_allowed: "Ten typ dostawcy nie jest obsługiwany.",
-  provider_in_use: "Dostawca jest używany przez aktywną konfigurację.",
-  provider_in_index: "Dostawca obsługuje indeks wyszukiwania (bieżący lub budowany): najpierw zmień model embeddingów.",
-  provider_in_draft: "Dostawca jest używany w szkicu zmian: zmień przypisania w szkicu albo go odrzuć.",
-  provider_removed: "Ta rewizja korzysta z usuniętego dostawcy, nie można jej przywrócić.",
-  provider_disabled: "Dostawca jest wyłączony.",
-  model_in_use: "Model jest używany przez aktywną konfigurację.",
-  model_exists: "Ten model jest już dodany.",
-  model_disabled: "Model lub jego dostawca jest wyłączony.",
-  embed_dimension_only_for_embed: "Wymiar wektora dotyczy tylko modeli embeddingów.",
-  capability_mismatch: "Ten model nie nadaje się do tego zastosowania.",
-  provider_not_cleared:
-    "To zastosowanie przetwarza dane prywatne: wybierz model dostawcy dopuszczonego do danych prywatnych.",
-  endpoint_not_clearable:
-    "Tego adresu nie ma na liście serwerów, które mogą otrzymywać dane prywatne (LLM_PRIVATE_DATA_ENDPOINTS w .env).",
-  provider_cleared: "Dostawca jest dopuszczony do danych prywatnych: najpierw cofnij dopuszczenie, potem zmień adres.",
-  cloud_not_allowed: "Modele chmurowe są wyłączone w konfiguracji serwera (LLM_ALLOW_CLOUD).",
-  probe_required: "Najpierw przetestuj model — aktywacja wymaga udanego testu z ostatnich godzin.",
-  embed_model_unavailable: "Model embeddingów jest niedostępny albo jego dostawca nie jest dopuszczony do danych prywatnych.",
-  generation_not_found: "Ta wersja indeksu nie istnieje.",
-  generation_not_building: "Tę wersję indeksu już zbudowano albo anulowano.",
-  not_draft: "Tę rewizję już aktywowano; zmiany wprowadzaj w nowym szkicu.",
-  not_archived: "Przywrócić można tylko rewizję archiwalną.",
-  revision_not_found: "Rewizja nie istnieje.",
-  model_not_found: "Model nie istnieje.",
-  provider_not_found: "Dostawca nie istnieje.",
-  rate_limited: "Limit testów na godzinę został wyczerpany. Spróbuj później.",
-  prompt_or_preset: "Podaj własne polecenie albo wybierz gotowy scenariusz.",
-  duplicate_models: "Każdy model można wybrać tylko raz.",
-};
+export type LlmErrorKey = keyof Messages["adminLlm"]["errors"];
+
+const CODES = [
+  "endpoint_not_allowed",
+  "cloud_requires_https",
+  "credentials_in_url",
+  "invalid_url",
+  "name_taken",
+  "provider_type_not_allowed",
+  "provider_in_use",
+  "provider_in_index",
+  "provider_in_draft",
+  "provider_removed",
+  "provider_disabled",
+  "model_in_use",
+  "model_exists",
+  "model_disabled",
+  "embed_dimension_only_for_embed",
+  "capability_mismatch",
+  "provider_not_cleared",
+  "endpoint_not_clearable",
+  "provider_cleared",
+  "cloud_not_allowed",
+  "probe_required",
+  "embed_model_unavailable",
+  "generation_not_found",
+  "generation_not_building",
+  "not_draft",
+  "not_archived",
+  "revision_not_found",
+  "model_not_found",
+  "provider_not_found",
+  "rate_limited",
+  "prompt_or_preset",
+  "duplicate_models",
+] as const satisfies readonly LlmErrorKey[];
 
 export function llmErrorCode(error: unknown): string | null {
   if (!(error instanceof ApiError)) return null;
@@ -297,10 +282,12 @@ export function llmErrorCode(error: unknown): string | null {
   return error.status === 429 ? "rate_limited" : null;
 }
 
-export function llmError(error: unknown, fallback = "Operacja nie powiodła się."): string {
+/** The key in `adminLlm.errors`; `fallback` when the code is unknown. */
+export function llmErrorKey(error: unknown, fallback: LlmErrorKey = "failed"): LlmErrorKey {
   const code = llmErrorCode(error);
-  if (code && ERRORS[code]) return ERRORS[code];
-  if (error instanceof ApiError && error.status === 422 && !code) return "Sprawdź wprowadzone wartości.";
+  const known = knownCode(CODES, code);
+  if (known) return known;
+  if (error instanceof ApiError && error.status === 422 && !code) return "invalid";
   return fallback;
 }
 

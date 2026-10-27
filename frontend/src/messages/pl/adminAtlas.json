@@ -1,0 +1,55 @@
+{
+  "title": "Atlas: administracja",
+  "description": "Dziedziny atlasu, ich słowniki i eksport zweryfikowanego zbioru danych.",
+  "domains": {
+    "title": "Dziedziny atlasu",
+    "intro": "Każda dziedzina pracy spółdzielni (np. pszczelarstwo, ogrodnictwo) ma własny słownik etykiet, który prowadzą eksperci. Zarchiwizowana dziedzina zachowuje zdjęcia i etykiety, ale nie przyjmuje nowych.",
+    "new": "Nowa dziedzina",
+    "name": "Nazwa",
+    "description": "Opis",
+    "add": "Dodaj dziedzinę",
+    "none": "Nie ma jeszcze żadnej dziedziny.",
+    "list": "Dziedziny",
+    "rename": "Zmień nazwę: {name}",
+    "newName": "Nowa nazwa",
+    "archived": "Archiwum",
+    "renameButton": "Zmień nazwę",
+    "restore": "Przywróć",
+    "archive": "Archiwizuj"
+  },
+  "export": {
+    "title": "Eksport zbioru danych",
+    "disabled": "Eksport jest wyłączony. Operator serwera może go włączyć ustawieniem <code>ATLAS_EXPORT_ENABLED=true</code> w pliku <code>.env</code>.",
+    "intro": "Zatwierdzone zdjęcia jednej dziedziny, których autorzy zgodzili się na eksport, z oznaczeniami w formacie COCO lub YOLO. Pobranego pliku nie da się wycofać: później wycofane zdjęcia są tylko oznaczane na liście poniżej.",
+    "stepUp": "Eksport zbioru danych wymaga świeżego logowania.",
+    "new": "Nowy eksport",
+    "domain": "Dziedzina",
+    "choose": "Wybierz…",
+    "format": "Format",
+    "since": "Zweryfikowane od (opcjonalnie)",
+    "labels": "Tylko etykiety (puste: wszystkie)",
+    "create": "Utwórz eksport",
+    "exports": "Eksporty",
+    "created": "Utworzony",
+    "photos": "Zdjęcia",
+    "state": "Stan",
+    "download": "Pobierz",
+    "count": "{images} ({regions} oznaczeń)",
+    "revokedSince": "wycofane od eksportu: {count}",
+    "downloadOnce": "Pobierz (jednorazowo)",
+    "linkShown": "link pokazany przy tworzeniu",
+    "status": {
+      "PENDING": "Przygotowywany…",
+      "READY": "Gotowy do pobrania",
+      "FAILED": "Błąd",
+      "DOWNLOADED": "Pobrany",
+      "EXPIRED": "Wygasł"
+    },
+    "errors": {
+      "export_disabled": "Eksport jest wyłączony w konfiguracji serwera.",
+      "rate_limited": "Dzienny limit eksportów został wyczerpany.",
+      "domain_not_found": "Nie znaleziono dziedziny.",
+      "failed": "Nie udało się utworzyć eksportu."
+    }
+  }
+}

@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * „Gdzie przetwarzane są Twoje dane” (10.8, P4): the providers cleared for private data, and the
+ * "Where your data is processed" (10.8, P4): the providers cleared for private data, and the
  * one-time banner after a new cloud provider is cleared.
  */
 
@@ -15,18 +15,7 @@ export type Processors = components["schemas"]["ProcessorsOut"];
 export type Processor = components["schemas"]["ProcessorOut"];
 export type PrivatePurpose = Processor["purposes"][number];
 
-/** What each private purpose means for a member (plain words, no model names). */
-export const PURPOSE_TEXT: Record<PrivatePurpose, string> = {
-  PII_SCRUB: "usuwanie danych osobowych z tekstów przed udostępnieniem",
-  PRIVATE_NOTE: "odpowiedzi na pytania do Twojego notatnika",
-  PROMOTION: "przygotowanie szkicu artykułu z Twoich notatek",
-  VLM: "opisy zdjęć i sprawdzanie zdjęć przed wysłaniem do atlasu",
-  EMBED: "wyszukiwanie w notatkach i w wiki (wektory tekstu)",
-  TRANSCRIBE: "transkrypcja nagrań",
-  OCR: "odczyt zeskanowanych dokumentów",
-  IMAGE_EMBED: "atlas i „Rozpoznaj” (wektory zdjęć)",
-  RAG: "odpowiedzi z wiki spółdzielni",
-};
+/** What each private purpose means for a member: `privacy.purpose.<purpose>` in the catalogue. */
 
 export function useProcessors(enabled = true) {
   return useQuery<Processors>({

@@ -10,6 +10,7 @@ import type { AdminBranding, Preview } from "@/lib/branding-admin";
 import { BrandingProvider } from "@/lib/branding-context";
 import { brandingCss, DEFAULT_BRANDING, sanitizeBranding, TOKENS } from "@/lib/branding-css";
 import { API, renderWithClient } from "@/test/render";
+import { setTestLocale } from "@/test/rtl";
 
 const server = setupServer();
 beforeAll(() => server.listen({ onUnhandledFrame: "error" }));
@@ -201,5 +202,23 @@ describe("BrandingConsole (13.5)", () => {
     renderWithClient(<BrandingConsole />);
     expect(await screen.findByRole("link", { name: "Zaloguj ponownie z MFA" })).toBeInTheDocument();
     vi.unstubAllGlobals();
+  });
+});
+
+describe("in English (14.4)", () => {
+  it("previews and explains the adjustment in English", async () => {
+    setTestLocale("en");
+    server.use(
+      http.get(`${API}/admin/branding`, () => HttpResponse.json(ADMIN)),
+      http.post(`${API}/admin/branding/preview`, () => HttpResponse.json(PREVIEW)),
+    );
+    renderWithClient(<BrandingConsole />);
+    expect(await screen.findByRole("heading", { name: "Appearance", level: 1 })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("checkbox", { name: "Custom colours" }));
+    const brand = screen.getByLabelText("Brand colour");
+    await userEvent.clear(brand);
+    await userEvent.type(brand, "#fff59d");
+    expect(await screen.findByText(/Brand colour darkened/)).toBeInTheDocument();
+    expect(within(screen.getByRole("region", { name: "Preview" })).getAllByText("Notebook")).toHaveLength(2);
   });
 });

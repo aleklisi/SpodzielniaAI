@@ -1,14 +1,14 @@
 "use client";
 
+import { useFormatter, useTranslations } from "next-intl";
 import { useState } from "react";
 
 import { LevelBadge } from "@/components/admin/LevelBadge";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/components/ui/cn";
 import { DataTable, TBody, Td, Th, THead, Tr } from "@/components/ui/DataTable";
-import { EVENT_LABELS, useAuditPage, type AuditEntry, type AuditFilters, type UserCoverage } from "@/lib/admin";
+import { EVENT_TYPES, isEventType, useAuditPage, type AuditEntry, type AuditFilters, type UserCoverage } from "@/lib/admin";
 
-const TIME = new Intl.DateTimeFormat("pl-PL", { dateStyle: "short", timeStyle: "medium" });
 const pct = (v: number) => `${(v * 100).toFixed(1)}%`;
 
 export function UsersTable({
@@ -22,17 +22,18 @@ export function UsersTable({
   onSelect: (id: string) => void;
   onUnlock: (user: UserCoverage) => void;
 }) {
+  const t = useTranslations("adminSecurity");
   return (
-    <DataTable caption="Konta według ryzyka">
+    <DataTable caption={t("usersByRisk")}>
       <THead>
         <Tr>
-          <Th>Konto</Th>
-          <Th>Ryzyko</Th>
-          <Th align="right">24 h</Th>
-          <Th align="right">7 dni</Th>
-          <Th align="right">30 dni</Th>
-          <Th align="right">Bloki (7 dni)</Th>
-          <Th>Stan</Th>
+          <Th>{t("table.account")}</Th>
+          <Th>{t("table.risk")}</Th>
+          <Th align="right">{t("table.d1")}</Th>
+          <Th align="right">{t("table.d7")}</Th>
+          <Th align="right">{t("table.d30")}</Th>
+          <Th align="right">{t("table.blocks7")}</Th>
+          <Th>{t("table.state")}</Th>
         </Tr>
       </THead>
       <TBody>
@@ -45,28 +46,28 @@ export function UsersTable({
               <a
                 href={`/admin/users?user=${u.user_id}`}
                 className="ml-2 text-xs text-text-muted hover:text-primary-strong"
-                aria-label={`Konto: ${u.display_name ?? u.email ?? u.user_id.slice(0, 8)}`}
+                aria-label={t("table.accountLink", { name: u.display_name ?? u.email ?? u.user_id.slice(0, 8) })}
               >
-                konto
+                {t("table.accountShort")}
               </a>
             </Td>
-            <Td label="Ryzyko">
+            <Td label={t("table.risk")}>
               <LevelBadge level={u.level} /> <span className="text-xs text-text-muted">{u.risk.toFixed(2)}</span>
             </Td>
-            <Td label="24 h" align="right">{pct(u.ratios["24h"] ?? 0)}</Td>
-            <Td label="7 dni" align="right">{pct(u.ratios["7d"] ?? 0)}</Td>
-            <Td label="30 dni" align="right">{pct(u.ratios["30d"] ?? 0)}</Td>
-            <Td label="Bloki (7 dni)" align="right">{u.blocks["7d"] ?? 0}</Td>
-            <Td label="Stan">
+            <Td label={t("table.d1")} align="right">{pct(u.ratios["24h"] ?? 0)}</Td>
+            <Td label={t("table.d7")} align="right">{pct(u.ratios["7d"] ?? 0)}</Td>
+            <Td label={t("table.d30")} align="right">{pct(u.ratios["30d"] ?? 0)}</Td>
+            <Td label={t("table.blocks7")} align="right">{u.blocks["7d"] ?? 0}</Td>
+            <Td label={t("table.state")}>
               {u.is_locked ? (
                 <span className="inline-flex items-center gap-2">
-                  <span className="text-xs">Zablokowane ({u.locked_reason ?? "?"})</span>
+                  <span className="text-xs">{t("table.locked", { reason: u.locked_reason ?? "?" })}</span>
                   <Button variant="secondary" size="sm" onClick={() => onUnlock(u)}>
-                    Odblokuj
+                    {t("table.unlock")}
                   </Button>
                 </span>
               ) : (
-                <span className="text-xs text-text-muted">aktywne</span>
+                <span className="text-xs text-text-muted">{t("table.active")}</span>
               )}
             </Td>
           </Tr>
@@ -85,19 +86,27 @@ function Payload({ payload }: { payload: Record<string, unknown> }) {
   );
 }
 
+function useEventLabel() {
+  const t = useTranslations("adminSecurity.events");
+  return (type: string) => (isEventType(type) ? t(type) : type);
+}
+
 export function AlertsList({ alerts }: { alerts: AuditEntry[] }) {
-  if (alerts.length === 0) return <p className="text-sm text-text-muted">Brak alertów w wybranym okresie.</p>;
+  const t = useTranslations("adminSecurity");
+  const format = useFormatter();
+  const eventLabel = useEventLabel();
+  if (alerts.length === 0) return <p className="text-sm text-text-muted">{t("noAlerts")}</p>;
   return (
-    <ol className="flex flex-col gap-2 text-sm" aria-label="Alerty">
+    <ol className="flex flex-col gap-2 text-sm" aria-label={t("alerts")}>
       {alerts.map((a) => (
         <li key={a.id} className="flex flex-col gap-0.5 border-l-2 border-border pl-3">
           <span>
-            <span className="font-medium">{EVENT_LABELS[a.event_type] ?? a.event_type}</span>{" "}
+            <span className="font-medium">{eventLabel(a.event_type)}</span>{" "}
             <time dateTime={a.occurred_at} className="text-xs text-text-muted">
-              {TIME.format(new Date(a.occurred_at))}
+              {format.dateTime(new Date(a.occurred_at), "dateTimeSeconds")}
             </time>
           </span>
-          <span className="text-xs text-text-muted">konto {a.actor_id?.slice(0, 8) ?? "–"}</span>
+          <span className="text-xs text-text-muted">{t("alertAccount", { id: a.actor_id?.slice(0, 8) ?? "–" })}</span>
           <Payload payload={a.payload} />
         </li>
       ))}
@@ -105,14 +114,17 @@ export function AlertsList({ alerts }: { alerts: AuditEntry[] }) {
   );
 }
 
-const PERIODS: Array<{ label: string; days: number | null }> = [
-  { label: "24 h", days: 1 },
-  { label: "7 dni", days: 7 },
-  { label: "30 dni", days: 30 },
-  { label: "Wszystko", days: null },
-];
+const PERIODS = [
+  { key: "1", days: 1 },
+  { key: "7", days: 7 },
+  { key: "30", days: 30 },
+  { key: "all", days: null },
+] as const;
 
 export function AuditLog({ initialActor = "" }: { initialActor?: string }) {
+  const t = useTranslations("adminSecurity");
+  const format = useFormatter();
+  const eventLabel = useEventLabel();
   const [filters, setFilters] = useState<AuditFilters>({ eventTypes: [], actor: initialActor, sinceDays: 7 });
   const [cursors, setCursors] = useState<Array<number | null>>([null]);
   const cursor = cursors[cursors.length - 1] ?? null;
@@ -125,13 +137,13 @@ export function AuditLog({ initialActor = "" }: { initialActor?: string }) {
   return (
     <section className="flex flex-col gap-3" aria-labelledby="audit-title">
       <h2 id="audit-title" className="font-display text-lg font-semibold">
-        Dziennik audytu
+        {t("audit.title")}
       </h2>
-      <div className="flex flex-wrap items-end gap-3 text-sm" role="group" aria-label="Filtry dziennika">
-        <div className="flex gap-1" role="radiogroup" aria-label="Okres">
+      <div className="flex flex-wrap items-end gap-3 text-sm" role="group" aria-label={t("audit.filters")}>
+        <div className="flex gap-1" role="radiogroup" aria-label={t("audit.period")}>
           {PERIODS.map((p) => (
             <button
-              key={p.label}
+              key={p.key}
               type="button"
               role="radio"
               aria-checked={filters.sinceDays === p.days}
@@ -141,27 +153,27 @@ export function AuditLog({ initialActor = "" }: { initialActor?: string }) {
                 filters.sinceDays === p.days ? "border-primary font-medium" : "border-border text-text-muted",
               )}
             >
-              {p.label}
+              {t(`periods.${p.key}`)}
             </button>
           ))}
         </div>
         <label className="flex flex-col gap-1">
-          Zdarzenie
+          {t("audit.event")}
           <select
             value={filters.eventTypes[0] ?? ""}
             onChange={(event) => change({ eventTypes: event.target.value ? [event.target.value] : [] })}
             className="rounded-lg border border-border bg-surface px-2 py-1.5"
           >
-            <option value="">wszystkie</option>
-            {Object.entries(EVENT_LABELS).map(([value, label]) => (
+            <option value="">{t("audit.allEvents")}</option>
+            {EVENT_TYPES.map((value) => (
               <option key={value} value={value}>
-                {label}
+                {eventLabel(value)}
               </option>
             ))}
           </select>
         </label>
         <label className="flex flex-col gap-1">
-          Konto (ID)
+          {t("audit.actor")}
           <input
             value={filters.actor}
             onChange={(event) => change({ actor: event.target.value })}
@@ -171,14 +183,14 @@ export function AuditLog({ initialActor = "" }: { initialActor?: string }) {
         </label>
       </div>
       <div className={cn("transition-opacity", page.isFetching && page.isPlaceholderData && "opacity-50")}>
-        <DataTable caption="Wpisy dziennika audytu">
+        <DataTable caption={t("audit.entries")}>
           <THead>
             <Tr>
               <Th>#</Th>
-              <Th>Czas</Th>
-              <Th>Zdarzenie</Th>
-              <Th>Konto</Th>
-              <Th>Szczegóły</Th>
+              <Th>{t("audit.time")}</Th>
+              <Th>{t("audit.event")}</Th>
+              <Th>{t("table.account")}</Th>
+              <Th>{t("audit.details")}</Th>
             </Tr>
           </THead>
           <TBody>
@@ -187,34 +199,34 @@ export function AuditLog({ initialActor = "" }: { initialActor?: string }) {
                 <Td label="#" className="text-text-muted tabular-nums">
                   {e.id}
                 </Td>
-                <Td label="Czas" className="md:whitespace-nowrap">
-                  {TIME.format(new Date(e.occurred_at))}
+                <Td label={t("audit.time")} className="md:whitespace-nowrap">
+                  {format.dateTime(new Date(e.occurred_at), "dateTimeSeconds")}
                 </Td>
                 <Td primary className="max-md:order-first">
-                  {EVENT_LABELS[e.event_type] ?? e.event_type}
+                  {eventLabel(e.event_type)}
                 </Td>
-                <Td label="Konto" className="font-mono text-xs">
+                <Td label={t("table.account")} className="font-mono text-xs">
                   {e.actor_id?.slice(0, 8) ?? "–"}
                 </Td>
-                <Td label="Szczegóły" className="min-w-0 break-words">
+                <Td label={t("audit.details")} className="min-w-0 break-words">
                   <Payload payload={e.payload} />
                 </Td>
               </Tr>
             ))}
           </TBody>
         </DataTable>
-        {page.data?.items.length === 0 && <p className="py-3 text-sm text-text-muted">Brak wpisów.</p>}
+        {page.data?.items.length === 0 && <p className="py-3 text-sm text-text-muted">{t("audit.empty")}</p>}
       </div>
       <div className="flex gap-2">
         <Button variant="secondary" disabled={cursors.length === 1} onClick={() => setCursors((c) => c.slice(0, -1))}>
-          Nowsze
+          {t("audit.newer")}
         </Button>
         <Button
           variant="secondary"
           disabled={!page.data?.next_cursor}
           onClick={() => setCursors((c) => [...c, page.data?.next_cursor ?? null])}
         >
-          Starsze
+          {t("audit.older")}
         </Button>
       </div>
     </section>

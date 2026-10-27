@@ -1,8 +1,7 @@
-import type { Metadata } from "next";
-
 import { WikiList } from "@/components/wiki/WikiList";
+import { titled } from "@/i18n/metadata";
 
-export const metadata: Metadata = { title: "Baza wiedzy" };
+export const generateMetadata = titled("wiki");
 
 export default function WikiPage() {
   return <WikiList />;

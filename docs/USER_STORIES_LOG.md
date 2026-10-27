@@ -22,7 +22,7 @@ committed, add the commit hash to the story's *Delivery* list.
 | [US-05](#us-05) | Administrator removes an LLM provider that is no longer used, so unused configurations and keys do not stay | DONE | [11_PROVIDER_REMOVAL.md](implementation/11_PROVIDER_REMOVAL.md) · Etap 11 | 2026-10-26 |
 | [US-06](#us-06) | The UI works like Open Notebook — menu on the left, workspace on the right — on desktops and phones | DONE | [12_APP_SHELL_RESPONSIVE.md](implementation/12_APP_SHELL_RESPONSIVE.md) · Etap 12 | 2026-10-26 |
 | [US-07](#us-07) | Administrator brands the UI: organisation name, logo (and favicon) and colours | DONE | [13_BRANDING.md](implementation/13_BRANDING.md) · Etap 13 | 2026-10-26 |
-| [US-08](#us-08) | User selects the UI language (Polish or English); the UI reloads in the chosen language | PLANNED | [14_UI_LANGUAGE.md](implementation/14_UI_LANGUAGE.md) · Etap 14 | 2026-10-26 |
+| [US-08](#us-08) | User selects the UI language (Polish or English); the UI reloads in the chosen language | DONE | [14_UI_LANGUAGE.md](implementation/14_UI_LANGUAGE.md) · Etap 14 | 2026-10-26 |
 
 ---
 
@@ -286,7 +286,7 @@ English. Given a user, when the user switches the language, the UI reloads and t
 is in the chosen language.
 
 - **Source:** product owner request, 2026-10-26.
-- **Status:** PLANNED 2026-10-26 (14.1–14.6).
+- **Status:** DONE 2026-10-27 (14.1–14.6, one commit).
 - **Plan:** [docs/implementation/14_UI_LANGUAGE.md](implementation/14_UI_LANGUAGE.md)
 - **Refinement decisions (accepted 2026-10-26):** Polish (default, always, until the user
   chooses) and English; every screen, message, date and number plus the server's fixed texts
@@ -302,4 +302,4 @@ is in the chosen language.
      the same verbatim and watermark checks as Polish ones (fail-closed otherwise).
   4. No user-visible string is hard-coded in the frontend; the two catalogues have the same keys
      and placeholders; existing E2E scenarios pass in Polish.
-- **Delivery:** plan (this commit).
+- **Delivery:** `14bef00` plan · 14.1–14.6 locale on the account and the `lang` cookie (migration 0028), server texts in both languages, English answers with a cross-language verbatim check and an English watermark, `next-intl` catalogues for every screen, the language switch, E2E scenario 16 (this commit).

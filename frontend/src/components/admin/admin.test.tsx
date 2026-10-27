@@ -143,7 +143,9 @@ describe("SecurityDashboard", () => {
 });
 
 it("declines accounts and blocks the Polish way", async () => {
-  const { accounts, blocks } = await import("@/lib/plural");
-  expect([1, 3, 5, 22].map(accounts)).toEqual(["1 konto", "3 konta", "5 kont", "22 konta"]);
-  expect(blocks(1)).toBe("1 blok");
+  const { createTranslator } = await import("next-intl");
+  const { MESSAGES } = await import("@/messages");
+  const t = createTranslator({ locale: "pl", messages: MESSAGES.pl, namespace: "adminSecurity" });
+  expect([1, 3, 5, 22].map((count) => t("accounts", { count }))).toEqual(["1 konto", "3 konta", "5 kont", "22 konta"]);
+  expect(t("blocks", { count: 1 })).toBe("1 blok");
 });

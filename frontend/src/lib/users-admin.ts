@@ -11,7 +11,9 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { api, ApiError } from "@/lib/api";
 import type { components } from "@/lib/api-schema";
+import { apiErrorCode, knownCode } from "@/lib/messages";
 import { unwrap } from "@/lib/query";
+import type { Messages } from "@/messages";
 
 export type UserSummary = components["schemas"]["UserOut"];
 export type UserDetail = components["schemas"]["UserDetailOut"];
@@ -22,45 +24,31 @@ export type UserStatus = UserSummary["status"];
 export type BlockReason = components["schemas"]["BlockIn"]["reason"];
 export type PasswordMode = components["schemas"]["PasswordResetIn"]["mode"];
 
-export const ROLES: { role: Role; label: string; hint: string }[] = [
-  { role: "MEMBER", label: "Członek", hint: "Notatnik, Wiki, czat spółdzielni. Każde konto ma tę rolę." },
-  { role: "EXPERT", label: "Ekspert", hint: "Recenzuje artykuły Wiki. Wymaga MFA." },
-  { role: "ADMIN", label: "Administrator", hint: "Panel bezpieczeństwa, modele AI, użytkownicy. Wymaga MFA." },
-];
+/** The roles in their order; names in `adminUsers.roleNames`, hints in `adminUsers.roleHints`. */
+export const ROLES: Role[] = ["MEMBER", "EXPERT", "ADMIN"];
 
-export const ROLE_LABEL: Record<Role, string> = { MEMBER: "Członek", EXPERT: "Ekspert", ADMIN: "Administrator" };
-
-export const STATUS: Record<UserStatus, { label: string; tone: "ok" | "danger" | "warn" | "primary" }> = {
-  active: { label: "Aktywny", tone: "ok" },
-  blocked: { label: "Zablokowany", tone: "danger" },
-  shield_locked: { label: "Zablokowany przez system ochrony", tone: "warn" },
-  pending_setup: { label: "Oczekuje na konfigurację", tone: "primary" },
+/** Labels in `adminUsers.statuses`. */
+export const STATUS_TONE: Record<UserStatus, "ok" | "danger" | "warn" | "primary"> = {
+  active: "ok",
+  blocked: "danger",
+  shield_locked: "warn",
+  pending_setup: "primary",
 };
 
-export const BLOCK_REASONS: { reason: BlockReason; label: string }[] = [
-  { reason: "left_cooperative", label: "Odejście ze spółdzielni" },
-  { reason: "security", label: "Bezpieczeństwo konta" },
-  { reason: "policy_violation", label: "Naruszenie zasad" },
-  { reason: "other", label: "Inny powód" },
-];
+/** Labels in `adminUsers.blockReasons` (which also names `idp_disabled`, set by a sync). */
+export const BLOCK_REASONS: BlockReason[] = ["left_cooperative", "security", "policy_violation", "other"];
+export type BlockReasonKey = keyof Messages["adminUsers"]["blockReasons"];
+const BLOCK_REASON_KEYS = [...BLOCK_REASONS, "idp_disabled"] as const satisfies readonly BlockReasonKey[];
 
-const BLOCK_REASON_LABEL: Record<string, string> = {
-  ...Object.fromEntries(BLOCK_REASONS.map((r) => [r.reason, r.label])),
-  idp_disabled: "Wyłączony w konsoli Keycloak",
-};
-
-export function blockReasonLabel(reason: string | null | undefined): string {
-  return reason ? (BLOCK_REASON_LABEL[reason] ?? reason) : "—";
+export function blockReasonKey(reason: string | null | undefined): BlockReasonKey | null {
+  return knownCode(BLOCK_REASON_KEYS, reason);
 }
 
-const ACTION_LABEL: Record<string, string> = {
-  UPDATE_PASSWORD: "ustawienie hasła",
-  CONFIGURE_TOTP: "konfiguracja MFA",
-  VERIFY_EMAIL: "potwierdzenie e-maila",
-};
+export type RequiredActionKey = keyof Messages["adminUsers"]["actions"];
+const ACTION_KEYS = ["UPDATE_PASSWORD", "CONFIGURE_TOTP", "VERIFY_EMAIL"] as const satisfies readonly RequiredActionKey[];
 
-export function actionsLabel(actions: string[]): string {
-  return actions.map((a) => ACTION_LABEL[a] ?? a).join(", ");
+export function requiredActionKey(action: string): RequiredActionKey | null {
+  return knownCode(ACTION_KEYS, action);
 }
 
 export function displayName(user: Pick<UserSummary, "display_name" | "username" | "email">): string {
@@ -159,50 +147,52 @@ export function useSignOut() {
 
 // --- Errors -------------------------------------------------------------------------------------
 
-const ERRORS: Record<string, string> = {
-  user_exists: "Użytkownik o tej nazwie lub adresie e-mail już istnieje.",
-  invalid_username: "Nazwa użytkownika: 3–64 znaki, małe litery, cyfry, kropka, myślnik lub podkreślenie.",
-  email_required: "Do wysłania linku potrzebny jest adres e-mail.",
-  profile_required: "Podaj e-mail, imię i nazwisko (Keycloak wymaga ich od każdego użytkownika).",
-  email_failed: "Nie udało się wysłać e-maila (sprawdź pocztę w Keycloak). Wybierz hasło tymczasowe.",
-  password_policy: "Keycloak odrzucił wygenerowane hasło (polityka haseł). Spróbuj ponownie.",
-  cannot_demote_self: "Nie możesz odebrać sobie roli administratora.",
-  cannot_block_self: "Nie możesz zablokować własnego konta.",
-  last_admin: "To ostatni aktywny administrator. Najpierw nadaj tę rolę komuś innemu.",
-  already_blocked: "To konto jest już zablokowane.",
-  not_blocked: "To konto nie jest zablokowane.",
-  external_identity: "To konto loguje się przez zewnętrznego dostawcę; hasłem zarządza tamten serwis.",
-  foreign_identity: "To konto pochodzi z innego dostawcy tożsamości.",
-  user_not_found: "Nie znaleziono użytkownika.",
-  user_missing_in_idp: "Tego konta nie ma w Keycloak (usunięte w konsoli?). Uruchom synchronizację.",
-  user_admin_unavailable:
-    "Zarządzanie użytkownikami nie jest skonfigurowane (brak klienta Keycloak). Administrator serwera: make keycloak-setup.",
-  idp_unavailable: "Keycloak jest chwilowo niedostępny. Spróbuj ponownie za chwilę.",
-  idp_error: "Keycloak odrzucił operację.",
-  rate_limited: "Zbyt wiele operacji. Odczekaj chwilę.",
-};
+export type UsersErrorKey = keyof Messages["adminUsers"]["errors"];
+
+const CODES = [
+  "user_exists",
+  "invalid_username",
+  "email_required",
+  "profile_required",
+  "email_failed",
+  "password_policy",
+  "cannot_demote_self",
+  "cannot_block_self",
+  "last_admin",
+  "already_blocked",
+  "not_blocked",
+  "external_identity",
+  "foreign_identity",
+  "user_not_found",
+  "user_missing_in_idp",
+  "user_admin_unavailable",
+  "idp_unavailable",
+  "idp_error",
+  "rate_limited",
+] as const satisfies readonly UsersErrorKey[];
 
 export function usersErrorCode(error: unknown): string | null {
   if (!(error instanceof ApiError)) return null;
-  const detail = (error.detail as { detail?: unknown } | null)?.detail ?? error.detail;
-  if (detail && typeof detail === "object" && "error" in detail && typeof detail.error === "string") return detail.error;
-  return error.status === 429 ? "rate_limited" : null;
+  return apiErrorCode(error) ?? (error.status === 429 ? "rate_limited" : null);
 }
 
-export function usersError(error: unknown, fallback = "Operacja nie powiodła się."): string {
-  const code = usersErrorCode(error);
-  if (code && ERRORS[code]) return ERRORS[code];
-  if (error instanceof ApiError && error.status === 422) return "Sprawdź wprowadzone wartości.";
+/** The key in `adminUsers.errors`; `fallback` when the code is unknown. */
+export function usersErrorKey(error: unknown, fallback: UsersErrorKey = "failed"): UsersErrorKey {
+  const code = knownCode(CODES, usersErrorCode(error));
+  if (code) return code;
+  if (error instanceof ApiError && error.status === 422) return "invalid";
   return fallback;
 }
 
 // --- Guardrails (the backend enforces the same) --------------------------------------------------
 
-/** Why the admin role can't be removed / the account can't be blocked, or null if it can. */
-export function lockoutReason(user: UserDetail): string | null {
-  if (user.is_self) return "To Twoje konto.";
+export type Lockout = keyof Messages["adminUsers"]["lockout"];
+
+/** Why the admin role can't be removed / the account can't be blocked (`adminUsers.lockout`), or null if it can. */
+export function lockoutReason(user: UserDetail): Lockout | null {
+  if (user.is_self) return "self";
   if (user.roles.includes("ADMIN") && user.status !== "blocked" && user.status !== "shield_locked" && user.other_active_admins === 0) {
-    return "To ostatni aktywny administrator.";
+    return "lastAdmin";
   }
   return null;
 }

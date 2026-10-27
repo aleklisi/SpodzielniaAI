@@ -2,7 +2,7 @@
 
 /**
  * Which features have the models they need (10.2). A feature without one is shown as off with
- * „Model nie jest skonfigurowany”, never silently routed elsewhere. While the answer is loading
+ * "No model is configured", never silently routed elsewhere. While the answer is loading
  * (or if it fails) features count as available: the API still refuses with 503.
  */
 
@@ -22,7 +22,6 @@ export type Feature =
   | "transcription"
   | "ocr";
 
-export const MODEL_MISSING = "Model nie jest skonfigurowany";
 
 type Capabilities = components["schemas"]["CapabilitiesOut"];
 

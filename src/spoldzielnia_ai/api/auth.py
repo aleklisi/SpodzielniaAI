@@ -27,6 +27,8 @@ from spoldzielnia_ai.auth.oidc_client import OidcProviderError, OidcTokenError
 from spoldzielnia_ai.auth.pkce import LoginSecrets
 from spoldzielnia_ai.auth.redirects import safe_return_to
 from spoldzielnia_ai.core.logging import get_logger
+from spoldzielnia_ai.i18n import COOKIE as LANG_COOKIE
+from spoldzielnia_ai.i18n import parse_locale, set_locale_cookie
 
 if TYPE_CHECKING:
     from spoldzielnia_ai.auth.crypto import CsrfTokens
@@ -148,7 +150,9 @@ async def callback(
         return _error(status.HTTP_502_BAD_GATEWAY, "Identity provider unavailable")
 
     identity = identity_from_token(verified, settings.oidc.roles_claim)
-    user = await provisioner.provision(identity, settings.oidc.provider)
+    user = await provisioner.provision(
+        identity, settings.oidc.provider, parse_locale(request.cookies.get(LANG_COOKIE))
+    )
     if user.is_locked:
         log.warning("auth.callback.user_locked", user_id=str(user.id))
         return _error(status.HTTP_423_LOCKED, "Account locked")
@@ -163,6 +167,9 @@ async def callback(
     response = RedirectResponse(login_state.return_to, status_code=status.HTTP_303_SEE_OTHER)
     _clear_login_cookie(response)
     set_session_cookies(response, new.sid, csrf.for_session(new.sid))
+    if (locale := parse_locale(user.locale)) is not None:
+        # The account's language from the first page on this device (14.1).
+        set_locale_cookie(response, locale)
     return response
 
 

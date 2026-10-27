@@ -83,3 +83,4 @@ Ze względu na wymóg możliwości wstrzymania lub usunięcia własnego wkładu 
 * **Baza Relacyjna i Dokumentowa:** PostgreSQL (uprawnienia, wersjonowanie bloków tekstu, historia zgód, obieg dokumentów).
 * **Lokalny Serwer Modeli:** vLLM lub Ollama (obsługa modeli językowych, np. Bielik / Llama 3, oraz modeli wizyjnych i Whispera).
 * **Frontend:** Edytor blokowy (np. oparty na BlockNote / TipTap / ProseMirror) zapewniający przypisanie każdego akapitu do konkretnego autora.
+* **Język interfejsu (Etap 14, US-08):** polski (domyślny) i angielski. Wybór zapisany na koncie (`app_user.locale`) i w cookie `lang` (tylko `pl`/`en`); katalogi komunikatów `next-intl` (ICU) w `frontend/src/messages/`, teksty serwera w `spoldzielnia_ai/i18n.py`. Treści (notatki, Wiki, atlas) nie są tłumaczone. Odpowiedzi czatu powstają w języku użytkownika i przechodzą te same kontrole anty-destylacyjne, plus kontrolę tłumaczenia (`shield/translation.py`).

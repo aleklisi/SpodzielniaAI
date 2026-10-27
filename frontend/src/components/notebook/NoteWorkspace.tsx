@@ -3,6 +3,7 @@
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { Link2, Trash2 } from "lucide-react";
 import { useState } from "react";
 
@@ -20,32 +21,22 @@ import { useDeleteNote, useNote, useSaveNote } from "@/lib/notebook";
 
 const NoteEditor = dynamic(() => import("@/components/notebook/NoteEditor"), {
   ssr: false,
-  loading: () => <div className="min-h-64 rounded-xl border border-border bg-surface p-4 text-text-muted">Ładowanie edytora…</div>,
+  loading: () => <EditorLoading />,
 });
 
-const SAVE_LABEL: Record<SaveState, string> = {
-  idle: "",
-  pending: "Niezapisane zmiany",
-  saving: "Zapisywanie…",
-  saved: "Zapisano",
-  error: "Nie udało się zapisać",
-};
+function EditorLoading() {
+  const t = useTranslations("notebook.workspace");
+  return <div className="min-h-64 rounded-xl border border-border bg-surface p-4 text-text-muted">{t("loadingEditor")}</div>;
+}
 
 type Panel = "sources" | "note" | "ask";
 
-const PHONE_TABS = [
-  { key: "sources", label: "Źródła" },
-  { key: "note", label: "Notatka" },
-  { key: "ask", label: "Zapytaj" },
-] as const satisfies ReadonlyArray<{ key: Panel; label: string }>;
-
-const SIDE_TABS = [
-  { key: "sources", label: "Źródła" },
-  { key: "ask", label: "Zapytaj" },
-] as const satisfies ReadonlyArray<{ key: Panel; label: string }>;
-
-/** Open Notebook's notebook layout (12.3): Źródła | Notatka | Zapytaj. */
+/** Open Notebook's notebook layout (12.3): Sources | Note | Ask. */
 export function NoteWorkspace({ noteId }: { noteId: string }) {
+  const t = useTranslations("notebook.workspace");
+  const saveLabel = (state: SaveState) => (state === "idle" ? "" : t(`save.${state}`));
+  const phoneTabs = (["sources", "note", "ask"] as const).map((key) => ({ key, label: t(`tabs.${key}`) }));
+  const sideTabs = (["sources", "ask"] as const).map((key) => ({ key, label: t(`tabs.${key}`) }));
   const note = useNote(noteId);
   const save = useSaveNote(noteId);
   const remove = useDeleteNote();
@@ -54,17 +45,17 @@ export function NoteWorkspace({ noteId }: { noteId: string }) {
   const [tab, setTab] = useState<Panel>("note");
   const autosave = useAutosave((change: { title?: string; body?: string }) => save.mutateAsync(change));
 
-  if (note.isPending) return <p className="text-text-muted">Ładowanie notatki…</p>;
+  if (note.isPending) return <p className="text-text-muted">{t("loading")}</p>;
   if (note.isError) {
     const missing = note.error instanceof ApiError && note.error.status === 404;
     return (
       <div className="flex flex-col gap-2">
-        <h1 className="font-display text-2xl font-semibold">{missing ? "Nie znaleziono notatki" : "Błąd"}</h1>
+        <h1 className="font-display text-2xl font-semibold">{missing ? t("notFound") : t("error")}</h1>
         <p className="text-text-muted">
-          {missing ? "Ta notatka nie istnieje albo nie masz do niej dostępu." : "Nie udało się wczytać notatki."}
+          {missing ? t("notFoundBody") : t("loadFailed")}
         </p>
         <Link href="/notebook" className="text-primary-strong underline">
-          Wróć do notatnika
+          {t("back")}
         </Link>
       </div>
     );
@@ -72,7 +63,7 @@ export function NoteWorkspace({ noteId }: { noteId: string }) {
 
   const data = note.data;
   // One DOM for every width; the workspace's own width (a container query, so the collapsed
-  // menu counts) decides what shows: tabs below 48rem, the note beside Źródła/Zapytaj up to
+  // menu counts) decides what shows: tabs below 48rem, the note beside Sources/Ask up to
   // 72rem, all three columns above (12.3). Hidden panels stay mounted: the editor keeps its state.
   const sources = cn(tab !== "sources" && "@max-3xl:hidden", tab === "ask" && "@3xl:@max-6xl:hidden");
   const ask = cn(tab !== "ask" && "@max-6xl:hidden");
@@ -81,21 +72,21 @@ export function NoteWorkspace({ noteId }: { noteId: string }) {
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Link href="/notebook" className="text-sm text-text-muted hover:text-text">
-          ← Notatnik
+          {t("backShort")}
         </Link>
         <span role="status" className="text-sm text-text-muted">
-          {SAVE_LABEL[autosave.state]}
+          {saveLabel(autosave.state)}
         </span>
       </div>
-      <Tabs tabs={PHONE_TABS} value={tab} onChange={setTab} label="Widok notatki" idPrefix="nb" panelPrefix="nb" fill className="@3xl:hidden" />
+      <Tabs tabs={phoneTabs} value={tab} onChange={setTab} label={t("view")} idPrefix="nb" panelPrefix="nb" fill className="@3xl:hidden" />
       <div className="grid gap-6 @3xl:grid-cols-[minmax(0,1fr)_20rem] @6xl:grid-cols-[17rem_minmax(0,1fr)_20rem]">
         <section
           id="nb-panel-note"
-          aria-label="Notatka"
+          aria-label={t("tabs.note")}
           className={cn("flex min-w-0 flex-col gap-4 @6xl:col-start-2 @6xl:row-start-1", tab !== "note" && "@max-3xl:hidden")}
         >
           <label className="sr-only" htmlFor="note-title">
-            Tytuł notatki
+            {t("noteTitle")}
           </label>
           <input
             id="note-title"
@@ -113,23 +104,23 @@ export function NoteWorkspace({ noteId }: { noteId: string }) {
               className="text-danger"
               busy={remove.isPending}
               onClick={async () => {
-                if (window.confirm("Usunąć notatkę wraz z załącznikami? Tej operacji nie można cofnąć.")) {
+                if (window.confirm(t("confirmDelete"))) {
                   await remove.mutateAsync(noteId);
                   router.push("/notebook");
                 }
               }}
             >
               <Trash2 aria-hidden className="size-4" />
-              Usuń notatkę
+              {t("delete")}
             </Button>
           </div>
         </section>
         <div className="flex min-w-0 flex-col gap-4 @6xl:contents">
           <Tabs
-            tabs={SIDE_TABS}
+            tabs={sideTabs}
             value={tab === "ask" ? "ask" : "sources"}
             onChange={setTab}
-            label="Panel boczny"
+            label={t("sidePanel")}
             idPrefix="nb-side"
             panelPrefix="nb"
             fill
@@ -137,19 +128,19 @@ export function NoteWorkspace({ noteId }: { noteId: string }) {
           />
           <section
             id="nb-panel-sources"
-            aria-label="Źródła"
+            aria-label={t("tabs.sources")}
             className={cn("flex min-w-0 flex-col gap-6 @6xl:col-start-1 @6xl:row-start-1", side, sources)}
           >
-            <h2 className="hidden font-display text-sm font-semibold tracking-wide text-text-muted uppercase @6xl:block">Źródła</h2>
+            <h2 className="hidden font-display text-sm font-semibold tracking-wide text-text-muted uppercase @6xl:block">{t("tabs.sources")}</h2>
             <Button variant="secondary" onClick={() => setLinkOpen(true)}>
               <Link2 aria-hidden className="size-4" />
-              Dodaj stronę internetową
+              {t("addLink")}
             </Button>
             <UploadZone noteId={noteId} />
             <PhotosPanel noteId={noteId} attachments={data.attachments} />
             <DerivativesPanel noteId={noteId} derivatives={data.derivatives} />
           </section>
-          <section id="nb-panel-ask" aria-label="Zapytaj" className={cn("min-w-0 @6xl:col-start-3 @6xl:row-start-1", side, ask)}>
+          <section id="nb-panel-ask" aria-label={t("tabs.ask")} className={cn("min-w-0 @6xl:col-start-3 @6xl:row-start-1", side, ask)}>
             <AskPanel />
           </section>
         </div>

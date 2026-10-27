@@ -1,12 +1,14 @@
 "use client";
 
-/** „Rozpoznaj” on a notebook photo (9.9): local model + verified atlas examples. */
+/** "Recognise" on a notebook photo (9.9): local model + verified atlas examples. */
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { api, ApiError } from "@/lib/api";
 import type { components } from "@/lib/api-schema";
+import { apiErrorCode, knownCode } from "@/lib/messages";
 import { unwrap } from "@/lib/query";
+import type { Messages } from "@/messages";
 
 export type Recognition = components["schemas"]["RecognitionOut"];
 export type Suggestion = components["schemas"]["SuggestionOut"];
@@ -45,19 +47,19 @@ export function isRunning(r: Recognition | undefined): boolean {
   return !!r && RUNNING.has(r.status);
 }
 
-const ERRORS: Record<string, string> = {
-  domain_required: "Wybierz dziedzinę zdjęcia albo szukaj we wszystkich dziedzinach.",
-  recognition_in_progress: "Rozpoznawanie już trwa.",
-  domain_not_found: "Nie znaleziono dziedziny.",
-  rate_limited: "Dzienny limit rozpoznawania został wyczerpany.",
-  model_not_configured: "Model nie jest skonfigurowany: rozpoznawanie jest wyłączone.",
-};
+export type RecognitionErrorKey = keyof Messages["notebook"]["recognition"]["errors"];
 
-export function recognitionError(error: unknown): string {
-  if (!(error instanceof ApiError)) return "Nie udało się uruchomić rozpoznawania.";
-  const detail = (error.detail as { detail?: unknown } | null)?.detail ?? error.detail;
-  const code = detail && typeof detail === "object" && "error" in detail && typeof detail.error === "string" ? detail.error : null;
-  if (code && ERRORS[code]) return ERRORS[code];
-  if (error.status === 429) return ERRORS.rate_limited;
-  return "Nie udało się uruchomić rozpoznawania.";
+const CODES = [
+  "domain_required",
+  "recognition_in_progress",
+  "domain_not_found",
+  "rate_limited",
+  "model_not_configured",
+] as const satisfies readonly RecognitionErrorKey[];
+
+export function recognitionErrorKey(error: unknown): RecognitionErrorKey {
+  const code = knownCode(CODES, apiErrorCode(error));
+  if (code) return code;
+  if (error instanceof ApiError && error.status === 429) return "rate_limited";
+  return "failed";
 }

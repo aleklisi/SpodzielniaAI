@@ -2720,6 +2720,23 @@
         "title": "LlmRoutePurpose",
         "type": "string"
       },
+      "LocaleIn": {
+        "properties": {
+          "locale": {
+            "enum": [
+              "pl",
+              "en"
+            ],
+            "title": "Locale",
+            "type": "string"
+          }
+        },
+        "required": [
+          "locale"
+        ],
+        "title": "LocaleIn",
+        "type": "object"
+      },
       "LogoutResponse": {
         "properties": {
           "logout_url": {
@@ -2769,6 +2786,18 @@
             "title": "Id",
             "type": "string"
           },
+          "locale": {
+            "enum": [
+              "pl",
+              "en"
+            ],
+            "title": "Locale",
+            "type": "string"
+          },
+          "locale_chosen": {
+            "title": "Locale Chosen",
+            "type": "boolean"
+          },
           "mfa_satisfied": {
             "title": "Mfa Satisfied",
             "type": "boolean"
@@ -2786,7 +2815,9 @@
           "display_name",
           "email",
           "roles",
-          "mfa_satisfied"
+          "mfa_satisfied",
+          "locale",
+          "locale_chosen"
         ],
         "title": "MeResponse",
         "type": "object"
@@ -10987,6 +11018,41 @@
         "summary": "Suspend",
         "tags": [
           "contributions"
+        ]
+      }
+    },
+    "/me/locale": {
+      "put": {
+        "description": "Save the UI language on the account and set the ``lang`` cookie. Not audited: a display\npreference, not a security fact.",
+        "operationId": "set_locale_me_locale_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LocaleIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Set Locale",
+        "tags": [
+          "me"
         ]
       }
     },

@@ -7,6 +7,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { ExportPanel } from "@/components/admin/atlas/ExportPanel";
 import type { AtlasExport } from "@/lib/atlas-export";
 import { API, renderWithClient } from "@/test/render";
+import { setTestLocale } from "@/test/rtl";
 
 const server = setupServer();
 beforeAll(() => server.listen({ onUnhandledFrame: "error" }));
@@ -86,5 +87,17 @@ describe("ExportPanel", () => {
     await userEvent.selectOptions(within(form).getByLabelText("Dziedzina"), "d1");
     await userEvent.click(within(form).getByRole("button", { name: "Utwórz eksport" }));
     expect(await screen.findByText("Potwierdź swoją tożsamość")).toBeInTheDocument();
+  });
+});
+
+describe("in English (14.4)", () => {
+  it("explains that the operator disabled exports", async () => {
+    setTestLocale("en");
+    server.use(
+      http.get(`${API}/admin/atlas/exports`, () => HttpResponse.json({ enabled: false, exports: [] })),
+      http.get(`${API}/atlas/domains`, () => HttpResponse.json([BEES])),
+    );
+    renderWithClient(<ExportPanel />);
+    expect(await screen.findByText(/Export is off/)).toHaveTextContent("ATLAS_EXPORT_ENABLED=true");
   });
 });

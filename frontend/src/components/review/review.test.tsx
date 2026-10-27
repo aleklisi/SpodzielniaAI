@@ -9,9 +9,13 @@ vi.mock("next/navigation", () => ({ useSearchParams: () => new URLSearchParams()
 import { RequireRole } from "@/components/auth/RequireRole";
 import { DecisionForm } from "@/components/review/DecisionForm";
 import { orderQueue } from "@/components/review/ReviewPanel";
+import { createTranslator } from "next-intl";
+
 import { validateDecision } from "@/components/review/validate";
+import { MESSAGES } from "@/messages";
 import type { Article, QueueItem } from "@/lib/wiki";
 import { API, renderWithClient } from "@/test/render";
+import { setTestLocale } from "@/test/rtl";
 
 const server = setupServer();
 beforeAll(() => server.listen({ onUnhandledFrame: "error" }));
@@ -59,7 +63,8 @@ describe("decision validation", () => {
     [{ decision: "REJECT", comment: "Brak źródeł i sprzeczne dawki.", supersedesId: "x" }, "tylko przy zatwierdzeniu"],
     [{ decision: "APPROVE", comment: "", supersedesId: ID }, "samego siebie"],
   ] as const)("refuses %j", (draft, message) => {
-    expect(validateDecision(draft, ID).join(" ")).toContain(message);
+    const t = createTranslator({ locale: "pl", messages: MESSAGES.pl, namespace: "review.validation" });
+    expect(validateDecision(draft, ID).map((key) => t(key)).join(" ")).toContain(message);
   });
 
   it("accepts a plain approval and a reasoned rejection", () => {
@@ -128,5 +133,14 @@ describe("DecisionForm", () => {
     await userEvent.click(screen.getByRole("button", { name: "Zapisz decyzję" }));
     const link = await screen.findByRole("link", { name: "Zaloguj ponownie z MFA" });
     expect(link.getAttribute("href")).toContain("/api/auth/login?prompt=login&return_to=");
+  });
+});
+
+describe("in English (14.4)", () => {
+  it("keeps members out with an English notice", async () => {
+    setTestLocale("en");
+    server.use(me(["MEMBER"]));
+    renderWithClient(<RequireRole role="EXPERT"><p>queue</p></RequireRole>);
+    expect(await screen.findByRole("heading", { name: "No access" })).toBeInTheDocument();
   });
 });

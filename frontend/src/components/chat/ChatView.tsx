@@ -2,6 +2,7 @@
 
 import { MessagesSquare, SendHorizontal } from "lucide-react";
 import Link from "next/link";
+import { useFormatter, useTranslations } from "next-intl";
 import { useRef, useState, type FormEvent } from "react";
 
 import { StepUpNotice } from "@/components/auth/RequireRole";
@@ -13,7 +14,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { ModelMissing } from "@/components/ui/ModelMissing";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { loginUrl, NotAuthenticated } from "@/lib/api";
-import { isModelMissing, MODEL_MISSING, useFeature } from "@/lib/capabilities";
+import { isModelMissing, useFeature } from "@/lib/capabilities";
 import { askCooperative, type Ask, type Citation, type RagAnswer } from "@/lib/chat";
 import { solveInBackground } from "@/lib/pow";
 
@@ -24,9 +25,8 @@ type Turn =
   | { id: number; question: string; state: "mfa"; stepUp: string }
   | { id: number; question: string; state: "error"; message: string };
 
-const DATE = new Intl.DateTimeFormat("pl-PL", { dateStyle: "medium" });
 const MAX_CHARS = 1000;
-const EXAMPLES = ["Jak leczyć warrozę zimą?", "Kiedy poszerzać gniazdo wiosną?", "Jak rozpoznać zgniliznę?"];
+const EXAMPLES = ["varroa", "brood", "foulbrood"] as const;
 
 export type Solver = typeof solveInBackground;
 
@@ -37,6 +37,7 @@ export type Solver = typeof solveInBackground;
  * in a Web Worker, MFA sends the member to log in again, a lock ends the conversation.
  */
 export function ChatView({ ask = askCooperative, solve = solveInBackground }: { ask?: Ask; solve?: Solver }) {
+  const t = useTranslations("chat");
   const [turns, setTurns] = useState<Turn[]>([]);
   const [question, setQuestion] = useState("");
   const [locked, setLocked] = useState(false);
@@ -72,11 +73,11 @@ export function ChatView({ ask = askCooperative, solve = solveInBackground }: { 
             id,
             question: text,
             state: "error",
-            message: `Zadałeś dziś bardzo wiele pytań. Spróbuj ponownie za ${Math.ceil(outcome.retryAfterSeconds / 60)} min.`,
+            message: t("throttled", { minutes: Math.ceil(outcome.retryAfterSeconds / 60) }),
           });
           return;
         case "pow":
-          update(id, { id, question: text, state: "error", message: "Weryfikacja nie powiodła się. Spróbuj ponownie." });
+          update(id, { id, question: text, state: "error", message: t("powFailed") });
           return;
       }
     } catch (error) {
@@ -84,9 +85,7 @@ export function ChatView({ ask = askCooperative, solve = solveInBackground }: { 
         window.location.assign(loginUrl("/chat"));
         return;
       }
-      const message = isModelMissing(error)
-        ? `${MODEL_MISSING}: odpowiedzi spółdzielni są wyłączone.`
-        : "Nie udało się uzyskać odpowiedzi. Spróbuj ponownie za chwilę.";
+      const message = isModelMissing(error) ? t("modelMissing") : t("failed");
       update(id, { id, question: text, state: "error", message });
     }
   }
@@ -106,15 +105,15 @@ export function ChatView({ ask = askCooperative, solve = solveInBackground }: { 
     // A full-height conversation with the composer stuck to the bottom of the viewport (12.4).
     <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-6">
       <PageHeader
-        title="Zapytaj spółdzielnię"
-        description="Odpowiedzi powstają wyłącznie na podstawie artykułów zatwierdzonych przez Radę Ekspertów, zawsze ze źródłami."
+        title={t("title")}
+        description={t("description")}
       />
-      {!available && <ModelMissing what="Zadawanie pytań spółdzielni" />}
+      {!available && <ModelMissing what={t("feature")} />}
       {turns.length === 0 ? (
-        <EmptyState icon={MessagesSquare} title="Zadaj pierwsze pytanie">
-          <p>Rozmowa nie jest zapisywana: znika po opuszczeniu strony.</p>
-          <ul className="mt-3 flex flex-wrap justify-center gap-2" aria-label="Przykładowe pytania">
-            {EXAMPLES.map((example) => (
+        <EmptyState icon={MessagesSquare} title={t("emptyTitle")}>
+          <p>{t("notSaved")}</p>
+          <ul className="mt-3 flex flex-wrap justify-center gap-2" aria-label={t("examplesLabel")}>
+            {EXAMPLES.map((key) => t(`examples.${key}`)).map((example) => (
               <li key={example}>
                 <button
                   type="button"
@@ -128,7 +127,7 @@ export function ChatView({ ask = askCooperative, solve = solveInBackground }: { 
           </ul>
         </EmptyState>
       ) : (
-        <ol className="flex flex-col gap-6" aria-label="Rozmowa">
+        <ol className="flex flex-col gap-6" aria-label={t("conversation")}>
           {turns.map((turn) => (
             <li key={turn.id} className="flex flex-col gap-3">
               <p className="max-w-[85%] self-end rounded-2xl bg-primary/15 px-4 py-2 text-sm break-words">{turn.question}</p>
@@ -142,7 +141,7 @@ export function ChatView({ ask = askCooperative, solve = solveInBackground }: { 
         className="sticky bottom-0 -mx-4 mt-auto flex flex-col gap-2 border-t border-border bg-bg px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] md:mx-0 md:rounded-t-xl md:border-x md:px-3"
       >
         <label htmlFor="chat-question" className="sr-only">
-          Twoje pytanie
+          {t("question")}
         </label>
         <textarea
           id="chat-question"
@@ -156,7 +155,7 @@ export function ChatView({ ask = askCooperative, solve = solveInBackground }: { 
               event.currentTarget.form?.requestSubmit();
             }
           }}
-          placeholder="Np. jak leczyć warrozę zimą?"
+          placeholder={t("placeholder")}
           className="resize-none rounded-xl border border-border bg-surface px-3 py-2 text-sm"
         />
         <div className="flex items-center justify-between text-xs text-text-muted">
@@ -165,7 +164,7 @@ export function ChatView({ ask = askCooperative, solve = solveInBackground }: { 
           </span>
           <Button type="submit" busy={busy} disabled={!available || question.trim().length < 3}>
             <SendHorizontal aria-hidden className="size-4" />
-            Zapytaj
+            {t("submit")}
           </Button>
         </div>
       </form>
@@ -174,20 +173,19 @@ export function ChatView({ ask = askCooperative, solve = solveInBackground }: { 
 }
 
 function TurnBody({ turn }: { turn: Turn }) {
+  const t = useTranslations("chat");
   switch (turn.state) {
     case "asking":
-      return <p className="text-sm text-text-muted" role="status">Szukam w bazie wiedzy…</p>;
+      return <p className="text-sm text-text-muted" role="status">{t("searching")}</p>;
     case "solving":
       return (
         <Card role="status" className="text-sm">
-          <p>Weryfikacja bezpieczeństwa w toku… To potrwa chwilę.</p>
-          <p className="mt-1 text-xs text-text-muted">
-            Sprawdzono {turn.tried.toLocaleString("pl-PL")} z ok. {(2 ** turn.difficulty).toLocaleString("pl-PL")} kombinacji
-          </p>
+          <p>{t("solving")}</p>
+          <p className="mt-1 text-xs text-text-muted">{t("tried", { tried: turn.tried, total: 2 ** turn.difficulty })}</p>
         </Card>
       );
     case "mfa":
-      return <StepUpNotice stepUp={turn.stepUp} reason="Aby kontynuować rozmowę, potwierdź swoją tożsamość drugim składnikiem logowania." />;
+      return <StepUpNotice stepUp={turn.stepUp} reason={t("mfa")} />;
     case "error":
       return (
         <p role="alert" className="text-sm text-danger">
@@ -200,18 +198,19 @@ function TurnBody({ turn }: { turn: Turn }) {
 }
 
 export function AnswerCard({ answer }: { answer: RagAnswer }) {
+  const t = useTranslations("chat");
   return (
     <Card className={cn("flex flex-col gap-4", answer.no_official_position && "border-dashed bg-surface-muted")}>
       {answer.no_official_position ? (
         <div role="note" className="text-sm">
-          <p className="font-medium">Brak oficjalnego stanowiska ekspertów</p>
+          <p className="font-medium">{t("noPosition")}</p>
           <p className="mt-1 text-text-muted">{answer.answer_markdown}</p>
         </div>
       ) : (
         <SafeMarkdown markdown={answer.answer_markdown} citations />
       )}
       {answer.citations.length > 0 && (
-        <ol className="grid gap-2 @2xl:grid-cols-2" aria-label="Źródła">
+        <ol className="grid gap-2 @2xl:grid-cols-2" aria-label={t("sources")}>
           {answer.citations.map((c, i) => (
             <CitationCard key={c.article_id} citation={c} number={i + 1} />
           ))}
@@ -222,31 +221,31 @@ export function AnswerCard({ answer }: { answer: RagAnswer }) {
 }
 
 function CitationCard({ citation, number }: { citation: Citation; number: number }) {
+  const t = useTranslations("chat");
+  const format = useFormatter();
   return (
     <li id={`cite-${number}`} className="rounded-lg border border-border p-3 text-xs">
       <Link href={`/wiki/${citation.article_id}`} className="font-medium text-primary-strong underline">
         [{number}] {citation.article_title}
       </Link>
       <p className="mt-1 text-text-muted">
-        {citation.last_verified_at ? `Zweryfikowano ${DATE.format(new Date(citation.last_verified_at))}` : "Bez daty weryfikacji"}
+        {citation.last_verified_at ? t("verified", { date: format.dateTime(new Date(citation.last_verified_at), "medium") }) : t("notVerified")}
       </p>
-      {citation.authors.length > 0 && <p className="text-text-muted">Autorzy: {citation.authors.join(", ")}</p>}
+      {citation.authors.length > 0 && <p className="text-text-muted">{t("authors", { names: citation.authors.join(", ") })}</p>}
       {citation.approving_experts.length > 0 && (
-        <p className="text-text-muted">Zatwierdzili: {citation.approving_experts.join(", ")}</p>
+        <p className="text-text-muted">{t("approvedBy", { names: citation.approving_experts.join(", ") })}</p>
       )}
     </li>
   );
 }
 
 function LockedNotice() {
+  const t = useTranslations("chat");
   return (
     <div role="alert" className="fixed inset-0 z-40 flex items-center justify-center bg-bg/95 p-6">
       <Card className="max-w-md text-center">
-        <h1 className="font-display text-xl font-semibold">Konto zostało zablokowane</h1>
-        <p className="mt-2 text-sm text-text-muted">
-          Ze względów bezpieczeństwa dostęp do bazy wiedzy został wstrzymany. Skontaktuj się z administratorem spółdzielni,
-          aby wyjaśnić sytuację.
-        </p>
+        <h1 className="font-display text-xl font-semibold">{t("lockedTitle")}</h1>
+        <p className="mt-2 text-sm text-text-muted">{t("lockedBody")}</p>
       </Card>
     </div>
   );

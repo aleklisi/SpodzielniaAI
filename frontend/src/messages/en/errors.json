@@ -1,0 +1,31 @@
+{
+  "upload": {
+    "executable": "Executable files are not allowed.",
+    "extension_mismatch": "The file extension does not match its content.",
+    "content_type_mismatch": "The file type does not match its content.",
+    "type_not_allowed": "This file type is not supported.",
+    "macros_not_allowed": "Documents with macros are not allowed.",
+    "pdf_encrypted": "Encrypted PDF files cannot be processed.",
+    "pdf_corrupt": "The PDF file is damaged.",
+    "image_corrupt": "The photo is damaged.",
+    "image_too_many_pixels": "The photo's resolution is too high.",
+    "media_corrupt": "The recording is damaged.",
+    "too_large": "The file is too large.",
+    "infected": "The file contains malware and was rejected.",
+    "archive_nested": "Nested archives are not allowed.",
+    "note_not_found": "The note does not exist.",
+    "failed": "The file could not be uploaded."
+  },
+  "ssrf": {
+    "private_address": "The address points to a private or internal network.",
+    "internal_hostname": "The address points to an internal server.",
+    "scheme_not_allowed": "Only https:// addresses are allowed.",
+    "port_not_allowed": "This port is not allowed.",
+    "credentials_in_url": "The address cannot contain a username or password.",
+    "ip_encoding": "An unusual IP address notation is not allowed.",
+    "invalid_hostname": "Invalid server name.",
+    "invalid_url": "Invalid address.",
+    "url_too_long": "The address is too long.",
+    "failed": "This address cannot be added."
+  }
+}

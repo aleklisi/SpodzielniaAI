@@ -196,3 +196,18 @@ def test_a_run_of_markers_names_each_article_once() -> None:
     body, cited = renumber("Odmowa [S1][S2][S3][S4][S5]. Dalej [S3] i [S2].", labelled)
     assert body == "Odmowa [1][2]. Dalej [1] i [2]."
     assert cited == [A, B]
+
+
+@pytest.mark.parametrize("language", ["pl", "en"])
+async def test_the_answer_language_is_the_askers(language: str) -> None:
+    """14.5: the prompt asks for the asker's UI language; the sources stay as they are."""
+    from spoldzielnia_ai.llm.prompts import LANGUAGE_RULES
+
+    llm = FakeLLMGateway(reply=paraphrase)
+    style = Style(language="en") if language == "en" else Style()
+    await _synth(llm).draft("Jak leczyć?", label_sources(TEXTS), style)
+
+    call = llm.calls[0]
+    assert LANGUAGE_RULES[language].strip() in call.text
+    assert ("answer in English" in call.text) is (language == "en")
+    assert "Odpowiadaj po polsku" not in call.text

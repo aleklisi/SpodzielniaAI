@@ -1,0 +1,55 @@
+{
+  "title": "Atlas: administration",
+  "description": "Atlas domains, their vocabularies and export of the verified dataset.",
+  "domains": {
+    "title": "Atlas domains",
+    "intro": "Each of the cooperative's fields of work (such as beekeeping or gardening) has its own label vocabulary, kept by the experts. An archived domain keeps its photos and labels but takes no new ones.",
+    "new": "New domain",
+    "name": "Name",
+    "description": "Description",
+    "add": "Add domain",
+    "none": "There are no domains yet.",
+    "list": "Domains",
+    "rename": "Rename: {name}",
+    "newName": "New name",
+    "archived": "Archived",
+    "renameButton": "Rename",
+    "restore": "Restore",
+    "archive": "Archive"
+  },
+  "export": {
+    "title": "Dataset export",
+    "disabled": "Export is off. The server operator can turn it on with <code>ATLAS_EXPORT_ENABLED=true</code> in the <code>.env</code> file.",
+    "intro": "Approved photos of one domain whose authors agreed to export, with their marks in COCO or YOLO format. A downloaded file cannot be withdrawn: photos revoked later are only flagged in the list below.",
+    "stepUp": "A dataset export needs a fresh sign-in.",
+    "new": "New export",
+    "domain": "Domain",
+    "choose": "Choose…",
+    "format": "Format",
+    "since": "Verified since (optional)",
+    "labels": "Only these labels (empty: all)",
+    "create": "Create export",
+    "exports": "Exports",
+    "created": "Created",
+    "photos": "Photos",
+    "state": "State",
+    "download": "Download",
+    "count": "{images} ({regions} marks)",
+    "revokedSince": "revoked since export: {count}",
+    "downloadOnce": "Download (once)",
+    "linkShown": "link shown at creation",
+    "status": {
+      "PENDING": "Being prepared…",
+      "READY": "Ready to download",
+      "FAILED": "Failed",
+      "DOWNLOADED": "Downloaded",
+      "EXPIRED": "Expired"
+    },
+    "errors": {
+      "export_disabled": "Export is off in the server configuration.",
+      "rate_limited": "The daily export limit has been reached.",
+      "domain_not_found": "Domain not found.",
+      "failed": "The export could not be created."
+    }
+  }
+}

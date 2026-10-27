@@ -8,6 +8,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import type { components } from "@/lib/api-schema";
 import { unwrap } from "@/lib/query";
+import { knownCode } from "@/lib/messages";
+import type { Messages } from "@/messages";
 
 export type ArticleSummary = components["schemas"]["ArticleSummaryOut"];
 export type Article = components["schemas"]["ArticleOut"];
@@ -114,17 +116,24 @@ export function useSubmit() {
   });
 }
 
-export const REVIEW_ERRORS: Record<string, string> = {
-  version_conflict: "Artykuł zmienił się w międzyczasie. Odśwież widok i oceń aktualną wersję.",
-  invalid_transition: "Tej decyzji nie można podjąć dla artykułu w obecnym stanie.",
-  own_article: "Nie możesz recenzować artykułu, którego jesteś współautorem.",
-  no_content: "Artykuł nie ma treści do zatwierdzenia.",
-  supersedes_not_found: "Wskazany artykuł do zastąpienia nie istnieje.",
-  supersedes_not_canonical: "Zastąpić można tylko artykuł kanoniczny.",
-  supersedes_self: "Artykuł nie może zastąpić samego siebie.",
-  supersedes_requires_approve: "Zastąpienie jest możliwe tylko przy zatwierdzeniu.",
-  not_found: "Artykuł nie istnieje.",
-};
+export type ReviewErrorKey = keyof Messages["wiki"]["reviewErrors"];
+
+const REVIEW_CODES = [
+  "version_conflict",
+  "invalid_transition",
+  "own_article",
+  "no_content",
+  "supersedes_not_found",
+  "supersedes_not_canonical",
+  "supersedes_self",
+  "supersedes_requires_approve",
+  "not_found",
+] as const satisfies readonly ReviewErrorKey[];
+
+/** The key in `wiki.reviewErrors` for a refusal code, if it is a known one. */
+export function reviewErrorKey(code: string): ReviewErrorKey | null {
+  return knownCode(REVIEW_CODES, code);
+}
 
 /** Plain text of an article's visible blocks (for the supersede diff). */
 export function articleText(article: Article | undefined): string {

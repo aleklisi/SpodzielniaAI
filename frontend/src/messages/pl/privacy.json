@@ -1,0 +1,28 @@
+{
+  "title": "Gdzie przetwarzane są Twoje dane",
+  "description": "Twoje notatki, nagrania, zdjęcia i dokumenty trafiają do modeli AI wyłącznie u dostawców dopuszczonych do danych prywatnych przez administratora spółdzielni (w granicach ustalonych przez operatora serwera). Jeśli żaden dostawca nie jest dopuszczony do danej funkcji, ta funkcja jest wyłączona: nic nie trafia gdzie indziej.",
+  "loading": "Wczytywanie…",
+  "loadFailed": "Nie udało się wczytać listy.",
+  "provider": "Dostawca {name}",
+  "onServer": "Serwer spółdzielni",
+  "cloud": "Chmura",
+  "region": "Region",
+  "retention": "Przechowywanie",
+  "contract": "Umowa",
+  "clearedSince": "Dopuszczony od",
+  "idle": "Dopuszczony, ale obecnie nie przetwarza Twoich danych.",
+  "none": "Żaden dostawca nie jest dopuszczony do danych prywatnych: funkcje AI na Twoich danych są wyłączone.",
+  "builtIn": "Modele wbudowane",
+  "builtInTitle": "Na serwerze spółdzielni (modele wbudowane)",
+  "purpose": {
+    "PII_SCRUB": "usuwanie danych osobowych z tekstów przed udostępnieniem",
+    "PRIVATE_NOTE": "odpowiedzi na pytania do Twojego notatnika",
+    "PROMOTION": "przygotowanie szkicu artykułu z Twoich notatek",
+    "VLM": "opisy zdjęć i sprawdzanie zdjęć przed wysłaniem do atlasu",
+    "EMBED": "wyszukiwanie w notatkach i w wiki (wektory tekstu)",
+    "TRANSCRIBE": "transkrypcja nagrań",
+    "OCR": "odczyt zeskanowanych dokumentów",
+    "IMAGE_EMBED": "atlas i „Rozpoznaj” (wektory zdjęć)",
+    "RAG": "odpowiedzi z wiki spółdzielni"
+  }
+}

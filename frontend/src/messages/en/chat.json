@@ -1,0 +1,33 @@
+{
+  "title": "Ask the cooperative",
+  "description": "Answers are based only on articles approved by the Expert Council, always with sources.",
+  "feature": "Asking the cooperative",
+  "emptyTitle": "Ask your first question",
+  "notSaved": "The conversation is not saved: it disappears when you leave the page.",
+  "examplesLabel": "Example questions",
+  "examples": {
+    "varroa": "How do I treat varroa in winter?",
+    "brood": "When should I expand the brood nest in spring?",
+    "foulbrood": "How do I recognise foulbrood?"
+  },
+  "conversation": "Conversation",
+  "question": "Your question",
+  "placeholder": "E.g. how do I treat varroa in winter?",
+  "submit": "Ask",
+  "throttled": "You have asked a great many questions today. Please try again in {minutes} min.",
+  "powFailed": "Verification failed. Please try again.",
+  "modelMissing": "No model is configured: the cooperative's answers are off.",
+  "failed": "No answer could be obtained. Please try again in a moment.",
+  "searching": "Searching the knowledge base…",
+  "solving": "Security check in progress… This will take a moment.",
+  "tried": "Tried {tried, number} of about {total, number} combinations",
+  "mfa": "To continue the conversation, confirm your identity with a second sign-in factor.",
+  "noPosition": "No official position of the experts",
+  "sources": "Sources",
+  "verified": "Verified {date}",
+  "notVerified": "No verification date",
+  "authors": "Authors: {names}",
+  "approvedBy": "Approved by: {names}",
+  "lockedTitle": "The account has been locked",
+  "lockedBody": "For security reasons, access to the knowledge base has been suspended. Please contact the cooperative's administrator to sort this out."
+}

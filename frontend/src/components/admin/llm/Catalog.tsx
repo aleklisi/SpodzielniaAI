@@ -1,5 +1,6 @@
 "use client";
 
+import { useFormatter, useTranslations } from "next-intl";
 import { useState, type FormEvent } from "react";
 
 import { StepUpNotice } from "@/components/auth/RequireRole";
@@ -13,7 +14,7 @@ import { StepUpRequired } from "@/lib/api";
 import {
   CAPABILITIES,
   generates,
-  llmError,
+  llmErrorKey,
   removalBlocked,
   useClearProvider,
   useCreateModel,
@@ -49,18 +50,22 @@ export function previewKind(url: string, status: Pick<LlmStatus, "local_endpoint
 }
 
 export function KindBadge({ kind }: { kind: "LOCAL" | "CLOUD" }) {
-  return kind === "LOCAL" ? <Badge tone="ok">Lokalny</Badge> : <Badge tone="warn">Chmura</Badge>;
+  const t = useTranslations("adminLlm.kind");
+  return kind === "LOCAL" ? <Badge tone="ok">{t("LOCAL")}</Badge> : <Badge tone="warn">{t("CLOUD")}</Badge>;
 }
 
-function keyLabel(provider: Provider): string {
-  if (provider.inherit_env_key) return "z konfiguracji serwera";
+type Translate = ReturnType<typeof useTranslations<"adminLlm">>;
+
+function keyLabel(t: Translate, provider: Provider): string {
+  if (provider.inherit_env_key) return t("providers.keyFromServer");
   if (provider.key_hint) return `••••${provider.key_hint}`;
-  return provider.key_set ? "ustawiony" : "brak";
+  return provider.key_set ? t("providers.keySet") : t("providers.keyNone");
 }
 
 // --- Providers ----------------------------------------------------------------------------------
 
 export function ProvidersPanel({ status, providers, models }: { status: LlmStatus; providers: Provider[]; models: LlmModel[] }) {
+  const t = useTranslations("adminLlm");
   const [editing, setEditing] = useState<Provider | "new" | null>(null);
   const [clearing, setClearing] = useState<Provider | null>(null);
   const [unclearing, setUnclearing] = useState<Provider | null>(null);
@@ -73,9 +78,9 @@ export function ProvidersPanel({ status, providers, models }: { status: LlmStatu
   async function runTest(provider: Provider) {
     try {
       const result = await test.mutateAsync(provider.id);
-      setTests((t) => ({ ...t, [provider.id]: result }));
+      setTests((current) => ({ ...current, [provider.id]: result }));
     } catch (error) {
-      setTests((t) => ({ ...t, [provider.id]: llmError(error, "Test nie powiódł się.") }));
+      setTests((current) => ({ ...current, [provider.id]: t(`errors.${llmErrorKey(error, "testFailed")}`) }));
     }
   }
 
@@ -83,7 +88,7 @@ export function ProvidersPanel({ status, providers, models }: { status: LlmStatu
     try {
       await disable.mutateAsync({ id: provider.id, disabled: !provider.disabled });
     } catch (error) {
-      toast(llmError(error), "error");
+      toast(t(`errors.${llmErrorKey(error)}`), "error");
     }
   }
 
@@ -91,55 +96,56 @@ export function ProvidersPanel({ status, providers, models }: { status: LlmStatu
     <div className="flex flex-col gap-4">
       <Card className="flex flex-col gap-1 text-sm">
         <p>
-          Dozwolone serwery lokalne: <code>{status.local_endpoints.join(", ") || "—"}</code>
+          {t("providers.localServers")} <code>{status.local_endpoints.join(", ") || "—"}</code>
         </p>
         <p>
-          Dozwolone API chmurowe: <code>{status.cloud_hosts.join(", ") || "—"}</code>
-          {!status.allow_cloud && " · chmura wyłączona w konfiguracji serwera"}
+          {t("providers.cloudApis")} <code>{status.cloud_hosts.join(", ") || "—"}</code>
+          {!status.allow_cloud && t("providers.cloudOff")}
         </p>
         <p>
-          Mogą otrzymywać dane prywatne: <code>{status.private_data_endpoints.join(", ") || "—"}</code>
-          {status.private_data_endpoints.length === 0 && " · funkcje na danych prywatnych są wyłączone"}
+          {t("providers.privateEndpoints")} <code>{status.private_data_endpoints.join(", ") || "—"}</code>
+          {status.private_data_endpoints.length === 0 && t("providers.privateOff")}
         </p>
-        <p className="text-text-muted">Listy ustawia administrator serwera (.env); panel nie może ich rozszerzyć.</p>
+        <p className="text-text-muted">{t("providers.listsHint")}</p>
       </Card>
       <div className="flex justify-end">
-        <Button onClick={() => setEditing("new")}>Dodaj dostawcę</Button>
+        <Button onClick={() => setEditing("new")}>{t("providers.add")}</Button>
       </div>
       <DataTable>
         <THead>
           <Tr>
-            <Th>Nazwa</Th>
-            <Th>Rodzaj</Th>
-            <Th>Adres</Th>
-            <Th>Klucz API</Th>
-            <Th>Dane prywatne</Th>
-            <Th>Stan</Th>
-            <Th>Akcje</Th>
+            <Th>{t("providers.name")}</Th>
+            <Th>{t("providers.kind")}</Th>
+            <Th>{t("providers.address")}</Th>
+            <Th>{t("providers.apiKey")}</Th>
+            <Th>{t("providers.privateData")}</Th>
+            <Th>{t("providers.state")}</Th>
+            <Th>{t("providers.actions")}</Th>
           </Tr>
         </THead>
         <TBody>
           {providers.map((p) => {
             const result = tests[p.id];
-            const blocked = removalBlocked(p);
+            const removal = removalBlocked(p);
+            const blocked = removal ? t(`removal.${removal.key}`, removal.values) : null;
             return (
               <Tr key={p.id}>
                 <Td primary className="font-medium">{p.name}</Td>
-                <Td label="Rodzaj">
+                <Td label={t("providers.kind")}>
                   <KindBadge kind={p.kind} />
                 </Td>
-                <Td label="Adres">
+                <Td label={t("providers.address")}>
                   <code className="break-all">{p.base_url}</code>
                 </Td>
-                <Td label="Klucz API">{keyLabel(p)}</Td>
-                <Td label="Dane prywatne">
+                <Td label={t("providers.apiKey")}>{keyLabel(t, p)}</Td>
+                <Td label={t("providers.privateData")}>
                   <ClearanceCell provider={p} onClear={() => setClearing(p)} onUnclear={() => setUnclearing(p)} />
                 </Td>
-                <Td label="Stan">
+                <Td label={t("providers.state")}>
                   <div className="flex flex-wrap gap-1">
-                    {p.in_active && <Badge tone="primary">W aktywnej konfiguracji</Badge>}
-                    {p.disabled && <Badge>Wyłączony</Badge>}
-                    {!p.allowed && <Badge tone="danger">Poza listą dozwolonych</Badge>}
+                    {p.in_active && <Badge tone="primary">{t("providers.inActive")}</Badge>}
+                    {p.disabled && <Badge>{t("providers.disabled")}</Badge>}
+                    {!p.allowed && <Badge tone="danger">{t("providers.notAllowed")}</Badge>}
                   </div>
                   {result !== undefined && <ConnectionResult result={result} />}
                 </Td>
@@ -151,22 +157,22 @@ export function ProvidersPanel({ status, providers, models }: { status: LlmStatu
                       disabled={p.kind === "CLOUD" && !status.allow_cloud}
                       onClick={() => void runTest(p)}
                     >
-                      Testuj połączenie
+                      {t("providers.test")}
                     </Button>
                     <Button variant="ghost" onClick={() => setEditing(p)}>
-                      Edytuj
+                      {t("providers.edit")}
                     </Button>
                     <Button variant="ghost" disabled={p.in_active && !p.disabled} onClick={() => void toggle(p)}>
-                      {p.disabled ? "Włącz" : "Wyłącz"}
+                      {p.disabled ? t("providers.enable") : t("providers.disable")}
                     </Button>
                     <Button
                       variant="ghost"
                       disabled={blocked !== null}
                       title={blocked ?? undefined}
-                      aria-label={`Usuń dostawcę ${p.name}`}
+                      aria-label={t("providers.removeLabel", { name: p.name })}
                       onClick={() => setRemoving(p)}
                     >
-                      Usuń
+                      {t("providers.remove")}
                     </Button>
                   </div>
                   {blocked && <p className="mt-1 text-xs text-text-muted">{blocked}</p>}
@@ -187,6 +193,8 @@ export function ProvidersPanel({ status, providers, models }: { status: LlmStatu
 // --- Removal (11.1) ------------------------------------------------------------------------------
 
 export function RemoveDialog({ provider, models, onClose }: { provider: Provider | null; models: number; onClose: () => void }) {
+  const t = useTranslations("adminLlm");
+  const common = useTranslations("common");
   const remove = useDeleteProvider();
   const toast = useToast();
 
@@ -194,34 +202,28 @@ export function RemoveDialog({ provider, models, onClose }: { provider: Provider
     if (!provider) return;
     try {
       await remove.mutateAsync(provider.id);
-      toast(`Dostawca „${provider.name}” został usunięty.`, "ok");
+      toast(t("removeDialog.done", { name: provider.name }), "ok");
       onClose();
     } catch (error) {
-      toast(llmError(error, "Nie udało się usunąć dostawcy."), "error");
+      toast(t(`errors.${llmErrorKey(error, "removeFailed")}`), "error");
     }
   }
 
   return (
-    <Dialog open={provider !== null} onClose={onClose} title={`Usuń dostawcę: ${provider?.name ?? ""}`}>
+    <Dialog open={provider !== null} onClose={onClose} title={t("removeDialog.title", { name: provider?.name ?? "" })}>
       <div className="flex flex-col gap-3 text-sm">
-        <p>
-          Zniknie z listy razem z modelami ({models}). Zapisany klucz API zostanie usunięty
-          {provider?.private_data_cleared ? ", a dopuszczenie do danych prywatnych cofnięte" : ""}.
-        </p>
+        <p>{t("removeDialog.body", { count: models, cleared: provider?.private_data_cleared ? t("removeDialog.cleared") : "" })}</p>
         {provider?.removal_archives ? (
-          <p className="text-text-muted">
-            Dostawca był używany w dawnych rewizjach: zostanie zarchiwizowany, aby historia zmian pozostała kompletna. Tych
-            rewizji nie będzie można przywrócić.
-          </p>
+          <p className="text-text-muted">{t("removeDialog.archives")}</p>
         ) : (
-          <p className="text-text-muted">Dostawca nie był używany w żadnej aktywowanej rewizji: zostanie usunięty całkowicie.</p>
+          <p className="text-text-muted">{t("removeDialog.deletes")}</p>
         )}
         <div className="flex justify-end gap-2">
           <Button variant="ghost" onClick={onClose}>
-            Anuluj
+            {common("cancel")}
           </Button>
           <Button variant="danger" busy={remove.isPending} onClick={() => void confirm()}>
-            Usuń
+            {t("removeDialog.submit")}
           </Button>
         </div>
       </div>
@@ -232,38 +234,46 @@ export function RemoveDialog({ provider, models, onClose }: { provider: Provider
 // --- Clearance for private data (10.1) -----------------------------------------------------------
 
 export function ClearanceCell({ provider, onClear, onUnclear }: { provider: Provider; onClear: () => void; onUnclear: () => void }) {
+  const t = useTranslations("adminLlm.clearance");
   if (provider.private_data_cleared) {
     return (
       <div className="flex flex-col items-start gap-1">
-        <Badge tone="ok">Dopuszczony do danych prywatnych</Badge>
+        <Badge tone="ok">{t("cleared")}</Badge>
         <span className="text-xs text-text-muted">
-          {provider.cleared_region} · przechowywanie: {provider.cleared_retention} · {provider.cleared_contract_ref}
+          {t("details", {
+            region: provider.cleared_region ?? "",
+            retention: provider.cleared_retention ?? "",
+            contract: provider.cleared_contract_ref ?? "",
+          })}
         </span>
         <Button variant="ghost" onClick={onUnclear}>
-          Cofnij dopuszczenie
+          {t("withdraw")}
         </Button>
       </div>
     );
   }
   if (!provider.clearable) {
-    return <span className="text-xs text-text-muted">Poza listą serwera dla danych prywatnych</span>;
+    return <span className="text-xs text-text-muted">{t("notClearable")}</span>;
   }
   return (
     <Button variant="secondary" disabled={provider.disabled} onClick={onClear}>
-      Dopuść do danych prywatnych
+      {t("clear")}
     </Button>
   );
 }
 
 function ClearanceDialog({ provider, onClose }: { provider: Provider | null; onClose: () => void }) {
+  const t = useTranslations("adminLlm.clearance");
   return (
-    <Dialog open={provider !== null} onClose={onClose} title={`Dopuszczenie do danych prywatnych: ${provider?.name ?? ""}`}>
+    <Dialog open={provider !== null} onClose={onClose} title={t("dialogTitle", { name: provider?.name ?? "" })}>
       {provider !== null && <ClearanceForm key={provider.id} provider={provider} onDone={onClose} />}
     </Dialog>
   );
 }
 
 export function ClearanceForm({ provider, onDone }: { provider: Provider; onDone: () => void }) {
+  const t = useTranslations("adminLlm");
+  const common = useTranslations("common");
   const [region, setRegion] = useState("");
   const [retention, setRetention] = useState("");
   const [contract, setContract] = useState("");
@@ -274,10 +284,10 @@ export function ClearanceForm({ provider, onDone }: { provider: Provider; onDone
     event.preventDefault();
     try {
       await clear.mutateAsync({ id: provider.id, clearance: { region, retention, contract_ref: contract } });
-      toast(`${provider.name} może teraz przetwarzać dane prywatne.`, "ok");
+      toast(t("clearance.done", { name: provider.name }), "ok");
       onDone();
     } catch (error) {
-      if (!(error instanceof StepUpRequired)) toast(llmError(error), "error");
+      if (!(error instanceof StepUpRequired)) toast(t(`errors.${llmErrorKey(error)}`), "error");
     }
   }
 
@@ -285,39 +295,38 @@ export function ClearanceForm({ provider, onDone }: { provider: Provider; onDone
     return (
       <StepUpNotice
         stepUp={clear.error.stepUp}
-        reason="Dopuszczenie dostawcy do danych prywatnych wymaga niedawnego logowania. Zaloguj się ponownie i powtórz operację."
+        reason={t("clearance.stepUp")}
       />
     );
   }
   return (
     <form onSubmit={submit} className="flex flex-col gap-3 text-sm">
       <p>
-        Prywatne notatki, anonimizacja, szkice do Wiki, opisy zdjęć i embeddingi będą mogły trafiać do{" "}
-        <code className="break-all">{provider.base_url}</code>
-        {provider.kind === "CLOUD" ? " — to serwer zewnętrzny, poza spółdzielnią." : "."}
+        {t.rich("clearance.intro", {
+          url: provider.base_url,
+          external: provider.kind === "CLOUD" ? t("clearance.external") : t("clearance.internal"),
+          code: (chunks) => <code className="break-all">{chunks}</code>,
+        })}
       </p>
-      <p className="text-text-muted">
-        Członkowie zobaczą te informacje na stronie „Gdzie przetwarzane są Twoje dane”. Dopuszczaj tylko dostawców, z którymi
-        spółdzielnia ma umowę powierzenia danych (lub własne serwery).
-      </p>
+      <p className="text-text-muted">{t("clearance.members")}</p>
       <label className="flex flex-col gap-1">
-        Region przetwarzania
-        <input className={INPUT} required minLength={2} maxLength={64} value={region} onChange={(e) => setRegion(e.target.value)} placeholder="np. UE (Francja)" />
+        {t("clearance.region")}
+        <input className={INPUT} required minLength={2} maxLength={64} value={region} onChange={(e) => setRegion(e.target.value)} placeholder={t("clearance.regionPlaceholder")} />
       </label>
       <label className="flex flex-col gap-1">
-        Przechowywanie danych przez dostawcę
-        <input className={INPUT} required minLength={2} maxLength={64} value={retention} onChange={(e) => setRetention(e.target.value)} placeholder="np. brak przechowywania, 30 dni" />
+        {t("clearance.retention")}
+        <input className={INPUT} required minLength={2} maxLength={64} value={retention} onChange={(e) => setRetention(e.target.value)} placeholder={t("clearance.retentionPlaceholder")} />
       </label>
       <label className="flex flex-col gap-1">
-        Umowa (numer lub odnośnik)
-        <input className={INPUT} required minLength={2} maxLength={200} value={contract} onChange={(e) => setContract(e.target.value)} placeholder="np. DPA 2026/01" />
+        {t("clearance.contract")}
+        <input className={INPUT} required minLength={2} maxLength={200} value={contract} onChange={(e) => setContract(e.target.value)} placeholder={t("clearance.contractPlaceholder")} />
       </label>
       <div className="flex justify-end gap-2">
         <Button type="button" variant="ghost" onClick={onDone}>
-          Anuluj
+          {common("cancel")}
         </Button>
         <Button type="submit" busy={clear.isPending}>
-          Dopuść
+          {t("clearance.submit")}
         </Button>
       </div>
     </form>
@@ -325,6 +334,8 @@ export function ClearanceForm({ provider, onDone }: { provider: Provider; onDone
 }
 
 function UnclearDialog({ provider, onClose }: { provider: Provider | null; onClose: () => void }) {
+  const t = useTranslations("adminLlm");
+  const common = useTranslations("common");
   const unclear = useUnclearProvider();
   const toast = useToast();
 
@@ -332,29 +343,24 @@ function UnclearDialog({ provider, onClose }: { provider: Provider | null; onClo
     if (!provider) return;
     try {
       await unclear.mutateAsync(provider.id);
-      toast(`${provider.name} nie otrzymuje już danych prywatnych.`, "ok");
+      toast(t("clearance.withdrawn", { name: provider.name }), "ok");
       onClose();
     } catch (error) {
-      toast(llmError(error), "error");
+      toast(t(`errors.${llmErrorKey(error)}`), "error");
     }
   }
 
   return (
-    <Dialog open={provider !== null} onClose={onClose} title={`Cofnij dopuszczenie: ${provider?.name ?? ""}`}>
+    <Dialog open={provider !== null} onClose={onClose} title={t("clearance.withdrawTitle", { name: provider?.name ?? "" })}>
       <div className="flex flex-col gap-3 text-sm">
-        <p>Dane prywatne przestaną trafiać do tego dostawcy od razu.</p>
-        {provider?.in_active && (
-          <p className="text-warn">
-            Dostawca obsługuje aktywną konfigurację: funkcje na danych prywatnych, które z niego korzystają, zatrzymają się, dopóki
-            nie przypiszesz im innego dopuszczonego modelu. System nie przełączy ich na innego dostawcę sam.
-          </p>
-        )}
+        <p>{t("clearance.withdrawBody")}</p>
+        {provider?.in_active && <p className="text-warn">{t("clearance.withdrawActive")}</p>}
         <div className="flex justify-end gap-2">
           <Button variant="ghost" onClick={onClose}>
-            Anuluj
+            {common("cancel")}
           </Button>
           <Button variant="danger" busy={unclear.isPending} onClick={() => void confirm()}>
-            Cofnij dopuszczenie
+            {t("clearance.withdraw")}
           </Button>
         </div>
       </div>
@@ -363,32 +369,36 @@ function UnclearDialog({ provider, onClose }: { provider: Provider | null; onClo
 }
 
 function ConnectionResult({ result }: { result: Connection | string }) {
+  const t = useTranslations("adminLlm.connection");
   if (typeof result === "string") return <p className="mt-1 text-danger">{result}</p>;
   if (!result.ok) {
     return (
       <p className="mt-1 text-danger" role="status">
-        Brak połączenia{result.status ? ` (HTTP ${result.status})` : result.error ? ` (${result.error})` : ""}
+        {t("failed", { detail: result.status ? ` (HTTP ${result.status})` : result.error ? ` (${result.error})` : "" })}
       </p>
     );
   }
   return (
     <p className="mt-1 text-ok" role="status">
-      Połączono ({result.latency_ms} ms) · modele: {result.models?.length ? result.models.join(", ") : "brak listy"}
+      {t("ok", { latency: result.latency_ms ?? 0, models: result.models?.length ? result.models.join(", ") : t("noList") })}
     </p>
   );
 }
 
 function ProviderDialog({ status, provider, onClose }: { status: LlmStatus; provider: Provider | "new" | null; onClose: () => void }) {
+  const t = useTranslations("adminLlm.providerForm");
   const isNew = provider === "new";
   const current = provider !== "new" ? provider : null;
   return (
-    <Dialog open={provider !== null} onClose={onClose} title={isNew ? "Nowy dostawca" : `Edycja: ${current?.name ?? ""}`}>
+    <Dialog open={provider !== null} onClose={onClose} title={isNew ? t("newTitle") : t("editTitle", { name: current?.name ?? "" })}>
       {provider !== null && <ProviderForm key={current?.id ?? "new"} status={status} current={current} onDone={onClose} />}
     </Dialog>
   );
 }
 
 function ProviderForm({ status, current, onDone }: { status: LlmStatus; current: Provider | null; onDone: () => void }) {
+  const t = useTranslations("adminLlm");
+  const common = useTranslations("common");
   const [name, setName] = useState(current?.name ?? "");
   const [baseUrl, setBaseUrl] = useState(current?.base_url ?? "");
   const [apiKey, setApiKey] = useState(""); // never pre-filled: keys are write-only
@@ -428,7 +438,7 @@ function ProviderForm({ status, current, onDone }: { status: LlmStatus; current:
           timeout_seconds,
         });
       }
-      toast("Zapisano dostawcę.", "ok");
+      toast(t("providerForm.saved"), "ok");
       onDone();
     } catch {
       // shown below
@@ -439,12 +449,12 @@ function ProviderForm({ status, current, onDone }: { status: LlmStatus; current:
     <form onSubmit={submit} className="flex flex-col gap-3 text-sm">
       {!current && (
         <label className="flex flex-col gap-1">
-          Nazwa (małe litery, cyfry, „.”, „_”, „-”)
+          {t("providerForm.name")}
           <input className={INPUT} value={name} onChange={(e) => setName(e.target.value)} pattern="[a-z0-9][a-z0-9._\-]{0,63}" required />
         </label>
       )}
       <label className="flex flex-col gap-1">
-        Adres API zgodnego z OpenAI
+        {t("providerForm.url")}
         <input
           className={INPUT}
           value={baseUrl}
@@ -456,61 +466,62 @@ function ProviderForm({ status, current, onDone }: { status: LlmStatus; current:
       </label>
       <p id="kind-hint" role="status" className="text-xs">
         {baseUrl.trim() === "" ? null : kind === "LOCAL" ? (
-          <span className="text-ok">Serwer lokalny: dane nie opuszczają infrastruktury spółdzielni.</span>
+          <span className="text-ok">{t("providerForm.local")}</span>
         ) : kind === "CLOUD" ? (
           cloudBlocked ? (
-            <span className="text-danger">
-              API chmurowe, ale chmura jest wyłączona w konfiguracji serwera (LLM_ALLOW_CLOUD). Dostawcy nie można dodać z panelu.
-            </span>
+            <span className="text-danger">{t("providerForm.cloudBlocked")}</span>
           ) : (
-            <span className="text-warn">API chmurowe: nadaje się tylko do czatu spółdzielni (RAG) i playgroundu.</span>
+            <span className="text-warn">{t("providerForm.cloud")}</span>
           )
         ) : (
-          <span className="text-danger">Adres spoza listy dozwolonych serwerów.</span>
+          <span className="text-danger">{t("providerForm.notAllowed")}</span>
         )}
       </p>
       <label className="flex flex-col gap-1">
-        Klucz API {current?.key_set && <span className="text-text-muted">(zapisany: {keyLabel(current)})</span>}
+        <span>
+          {t("providerForm.apiKey")}{" "}
+          {current?.key_set && <span className="text-text-muted">{t("providerForm.keySaved", { key: keyLabel(t, current) })}</span>}
+        </span>
         <input
           className={INPUT}
           type="password"
           autoComplete="off"
           value={apiKey}
           onChange={(e) => setApiKey(e.target.value)}
-          placeholder={current ? "pozostaw puste, aby nie zmieniać" : "opcjonalny"}
+          placeholder={current ? t("providerForm.keepKey") : t("providerForm.optional")}
         />
       </label>
       {current?.key_set && !current.inherit_env_key && (
         <label className="flex items-center gap-2">
           <input type="checkbox" checked={clearKey} onChange={(e) => setClearKey(e.target.checked)} />
-          Usuń zapisany klucz
+          {t("providerForm.clearKey")}
         </label>
       )}
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="flex flex-col gap-1">
-          Wymuszanie JSON
+          {t("providerForm.json")}
           <select className={INPUT} value={structured} onChange={(e) => setStructured(e.target.value)}>
-            <option value="">domyślne serwera</option>
-            <option value="json_schema">schemat (response_format)</option>
-            <option value="prompt">schemat w poleceniu</option>
+            <option value="">{t("providerForm.jsonDefault")}</option>
+            <option value="json_schema">{t("providerForm.jsonSchema")}</option>
+            <option value="prompt">{t("providerForm.jsonPrompt")}</option>
           </select>
         </label>
         <label className="flex flex-col gap-1">
-          Limit czasu [s]
+          {t("providerForm.timeout")}
           <input className={INPUT} type="number" min={1} max={600} value={timeout} onChange={(e) => setTimeout_(e.target.value)} />
         </label>
       </div>
       {error && (
         <p role="alert" className="text-danger">
-          {llmError(error)}
+          {t(`errors.${llmErrorKey(error)}`)}
         </p>
       )}
       <div className="flex justify-end gap-2">
         <Button variant="ghost" onClick={onDone}>
-          Anuluj
+          {common("cancel")}
         </Button>
         <Button type="submit" disabled={kind === null || cloudBlocked} busy={create.isPending || update.isPending}>
-          Zapisz
+          {common("save")}
         </Button>
       </div>
     </form>
@@ -519,16 +530,11 @@ function ProviderForm({ status, current, onDone }: { status: LlmStatus; current:
 
 // --- Models -------------------------------------------------------------------------------------
 
-const CHECKS: Record<string, string> = {
-  reply: "Odpowiedź",
-  json_json_schema: "JSON (response_format)",
-  json_prompt: "JSON (schemat w poleceniu)",
-  image: "Opis obrazu",
-  embed: "Embedding",
-  transcribe: "Transkrypcja nagrania testowego",
-  ocr: "Odczyt tekstu z obrazka",
-  image_embed: "Embeddingi zdjęć (ten sam obiekt bliżej niż inny)",
-};
+const CHECKS = ["reply", "json_json_schema", "json_prompt", "image", "embed", "transcribe", "ocr", "image_embed"] as const;
+
+function isCheck(name: string): name is (typeof CHECKS)[number] {
+  return (CHECKS as readonly string[]).includes(name);
+}
 
 interface ProbeCheck {
   name: string;
@@ -542,37 +548,42 @@ interface ProbeCheck {
 }
 
 export function ProbeReport({ report }: { report: Record<string, unknown> }) {
+  const t = useTranslations("adminLlm");
   const checks = (Array.isArray(report.checks) ? report.checks : []) as ProbeCheck[];
   const recommended = report.recommended_structured_output as string | null | undefined;
   return (
-    <div className="flex flex-col gap-1 text-xs" aria-label="Wynik testu">
+    <div className="flex flex-col gap-1 text-xs" aria-label={t("probe.report")}>
       <ul className="flex flex-col gap-0.5">
         {checks.map((c) => (
           <li key={c.name} className={c.ok ? "text-ok" : "text-danger"}>
-            {c.ok ? "✓" : "✗"} {CHECKS[c.name] ?? c.name}
+            {c.ok ? "✓" : "✗"} {isCheck(c.name) ? t(`checks.${c.name}`) : c.name}
             {c.latency_ms !== undefined && ` · ${c.latency_ms} ms`}
-            {c.tokens ? ` · ${c.tokens} tokenów` : ""}
-            {c.dimension !== undefined && ` · wymiar ${c.dimension}`}
-            {c.cosine_unrelated !== undefined && ` · podobieństwo niepowiązanych ${c.cosine_unrelated}`}
-            {c.word_error_rate !== undefined && ` · błędne słowa ${Math.round(c.word_error_rate * 100)}%`}
+            {c.tokens ? t("probe.tokens", { count: c.tokens }) : ""}
+            {c.dimension !== undefined && t("probe.dimension", { dimension: c.dimension })}
+            {c.cosine_unrelated !== undefined && t("probe.unrelated", { value: c.cosine_unrelated })}
+            {c.word_error_rate !== undefined && t("probe.wer", { percent: Math.round(c.word_error_rate * 100) })}
             {c.error && ` · ${c.error}`}
           </li>
         ))}
       </ul>
       {recommended !== undefined && (
         <p>
-          Zalecany tryb JSON:{" "}
-          <strong>{recommended === "json_schema" ? "response_format" : recommended === "prompt" ? "schemat w poleceniu" : "żaden nie działa"}</strong>
+          {t("probe.recommended")}{" "}
+          <strong>
+            {recommended === "json_schema" ? "response_format" : recommended === "prompt" ? t("providerForm.jsonPrompt") : t("probe.none")}
+          </strong>
         </p>
       )}
       {report.dimension_matches === false && (
-        <p className="text-danger">Wymiar nie zgadza się z indeksem ({String(report.expected_dimension)}).</p>
+        <p className="text-danger">{t("probe.dimensionMismatch", { expected: String(report.expected_dimension) })}</p>
       )}
     </div>
   );
 }
 
 export function ModelsPanel({ status, providers, models }: { status: LlmStatus; providers: Provider[]; models: LlmModel[] }) {
+  const t = useTranslations("adminLlm");
+  const format = useFormatter();
   const probe = useProbe();
   const disable = useModelDisabled();
   const toast = useToast();
@@ -581,9 +592,9 @@ export function ModelsPanel({ status, providers, models }: { status: LlmStatus; 
   async function runProbe(model: LlmModel) {
     try {
       const result = await probe.mutateAsync(model.id);
-      toast(result.report.ok ? "Test modelu zakończony powodzeniem." : "Model nie przeszedł testu.", result.report.ok ? "ok" : "error");
+      toast(result.report.ok ? t("models.probeOk") : t("models.probeFailed"), result.report.ok ? "ok" : "error");
     } catch (error) {
-      toast(llmError(error, "Test nie powiódł się."), "error");
+      toast(t(`errors.${llmErrorKey(error, "testFailed")}`), "error");
     }
   }
 
@@ -591,7 +602,7 @@ export function ModelsPanel({ status, providers, models }: { status: LlmStatus; 
     try {
       await disable.mutateAsync({ id: model.id, disabled: !model.disabled });
     } catch (error) {
-      toast(llmError(error), "error");
+      toast(t(`errors.${llmErrorKey(error)}`), "error");
     }
   }
 
@@ -601,11 +612,11 @@ export function ModelsPanel({ status, providers, models }: { status: LlmStatus; 
       <DataTable>
         <THead>
           <Tr>
-            <Th>Model</Th>
-            <Th>Typ</Th>
-            <Th>Parametry</Th>
-            <Th>Ostatni test</Th>
-            <Th>Akcje</Th>
+            <Th>{t("models.model")}</Th>
+            <Th>{t("models.type")}</Th>
+            <Th>{t("models.parameters")}</Th>
+            <Th>{t("models.lastTest")}</Th>
+            <Th>{t("providers.actions")}</Th>
           </Tr>
         </THead>
         <TBody>
@@ -620,29 +631,32 @@ export function ModelsPanel({ status, providers, models }: { status: LlmStatus; 
                   </div>
                   <div className="mt-1 flex flex-wrap gap-1">
                     {provider && <KindBadge kind={provider.kind} />}
-                    {m.in_active && <Badge tone="primary">W aktywnej konfiguracji</Badge>}
-                    {m.disabled && <Badge>Wyłączony</Badge>}
+                    {m.in_active && <Badge tone="primary">{t("providers.inActive")}</Badge>}
+                    {m.disabled && <Badge>{t("providers.disabled")}</Badge>}
                   </div>
                 </Td>
-                <Td label="Typ">{CAPABILITIES[m.capability]}</Td>
-                <Td label="Parametry" className="text-xs text-text-muted">
+                <Td label={t("models.type")}>{t(`capabilities.${m.capability}`)}</Td>
+                <Td label={t("models.parameters")} className="text-xs text-text-muted">
                   {m.capability === "EMBED" || m.capability === "IMAGE_EMBED"
-                    ? `wymiar ${m.embed_dimension ?? "?"}`
+                    ? t("models.dimension", { dimension: m.embed_dimension ?? "?" })
                     : m.capability === "TRANSCRIBE"
-                      ? "nagrania po polsku"
-                      : `temp. ${m.temperature ?? "dom."} · max ${m.max_tokens ?? "dom."} tok.`}
+                      ? t("models.polish")
+                      : t("models.generation", {
+                          temperature: m.temperature ?? t("models.default"),
+                          tokens: m.max_tokens ?? t("models.default"),
+                        })}
                 </Td>
-                <Td label="Ostatni test">
+                <Td label={t("models.lastTest")}>
                   {m.last_probe_at ? (
                     <>
                       <span className={m.last_probe_ok ? "text-ok" : "text-danger"}>
-                        {m.last_probe_ok ? "Zaliczony" : "Niezaliczony"}
+                        {m.last_probe_ok ? t("models.passed") : t("models.failed")}
                       </span>{" "}
-                      <span className="text-xs text-text-muted">{new Date(m.last_probe_at).toLocaleString("pl-PL")}</span>
+                      <span className="text-xs text-text-muted">{format.dateTime(new Date(m.last_probe_at), "dateTime")}</span>
                       {m.last_probe_report && <ProbeReport report={m.last_probe_report} />}
                     </>
                   ) : (
-                    <span className="text-text-muted">Nie testowano</span>
+                    <span className="text-text-muted">{t("models.notTested")}</span>
                   )}
                 </Td>
                 <Td>
@@ -653,10 +667,10 @@ export function ModelsPanel({ status, providers, models }: { status: LlmStatus; 
                       disabled={cloudBlocked || m.disabled}
                       onClick={() => void runProbe(m)}
                     >
-                      Testuj model
+                      {t("models.test")}
                     </Button>
                     <Button variant="ghost" disabled={m.in_active && !m.disabled} onClick={() => void toggle(m)}>
-                      {m.disabled ? "Włącz" : "Wyłącz"}
+                      {m.disabled ? t("providers.enable") : t("providers.disable")}
                     </Button>
                   </div>
                 </Td>
@@ -670,6 +684,7 @@ export function ModelsPanel({ status, providers, models }: { status: LlmStatus; 
 }
 
 function AddModel({ status, providers }: { status: LlmStatus; providers: Provider[] }) {
+  const t = useTranslations("adminLlm");
   const usable = providers.filter((p) => !p.disabled && p.allowed);
   const [providerId, setProviderId] = useState(usable[0]?.id ?? "");
   const [name, setName] = useState("");
@@ -686,9 +701,9 @@ function AddModel({ status, providers }: { status: LlmStatus; providers: Provide
     try {
       const result = await test.mutateAsync(providerId);
       setDiscovered(result.models ?? []);
-      if (!result.ok) toast("Serwer nie zwrócił listy modeli.", "error");
+      if (!result.ok) toast(t("models.noList"), "error");
     } catch (error) {
-      toast(llmError(error, "Nie udało się pobrać listy modeli."), "error");
+      toast(t(`errors.${llmErrorKey(error, "listFailed")}`), "error");
     }
   }
 
@@ -705,30 +720,30 @@ function AddModel({ status, providers }: { status: LlmStatus; providers: Provide
 
         notes: null,
       });
-      toast("Dodano model. Przetestuj go przed użyciem.", "ok");
+      toast(t("models.added"), "ok");
       setName("");
     } catch (error) {
-      toast(llmError(error), "error");
+      toast(t(`errors.${llmErrorKey(error)}`), "error");
     }
   }
 
   return (
     <Card>
-      <form onSubmit={submit} className="flex flex-col gap-3 text-sm" aria-label="Dodaj model">
-        <h2 className="font-display text-lg font-semibold">Dodaj model</h2>
+      <form onSubmit={submit} className="flex flex-col gap-3 text-sm" aria-label={t("models.addTitle")}>
+        <h2 className="font-display text-lg font-semibold">{t("models.addTitle")}</h2>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <label className="flex flex-col gap-1">
-            Dostawca
+            {t("models.provider")}
             <select className={INPUT} value={providerId} onChange={(e) => setProviderId(e.target.value)}>
               {usable.map((p) => (
                 <option key={p.id} value={p.id}>
-                  {p.name} ({p.kind === "LOCAL" ? "lokalny" : "chmura"})
+                  {p.name} ({p.kind === "LOCAL" ? t("models.local") : t("models.cloud")})
                 </option>
               ))}
             </select>
           </label>
           <label className="flex flex-col gap-1">
-            Nazwa modelu na serwerze
+            {t("models.nameOnServer")}
             <input className={INPUT} list="discovered-models" value={name} onChange={(e) => setName(e.target.value)} required />
             <datalist id="discovered-models">
               {discovered.map((m) => (
@@ -737,11 +752,11 @@ function AddModel({ status, providers }: { status: LlmStatus; providers: Provide
             </datalist>
           </label>
           <label className="flex flex-col gap-1">
-            Typ
+            {t("models.type")}
             <select className={INPUT} value={capability} onChange={(e) => setCapability(e.target.value as Capability)}>
-              {(Object.keys(CAPABILITIES) as Capability[]).map((c) => (
+              {CAPABILITIES.map((c) => (
                 <option key={c} value={c}>
-                  {CAPABILITIES[c]}
+                  {t(`capabilities.${c}`)}
                 </option>
               ))}
             </select>
@@ -749,22 +764,18 @@ function AddModel({ status, providers }: { status: LlmStatus; providers: Provide
           {generates(capability) ? (
             <div className="grid grid-cols-2 gap-2">
               <label className="flex flex-col gap-1">
-                Temperatura
+                {t("models.temperature")}
                 <input className={INPUT} type="number" min={0} max={2} step={0.1} value={temperature} onChange={(e) => setTemperature(e.target.value)} />
               </label>
               <label className="flex flex-col gap-1">
-                Max tokenów
+                {t("models.maxTokens")}
                 <input className={INPUT} type="number" min={1} value={maxTokens} onChange={(e) => setMaxTokens(e.target.value)} />
               </label>
             </div>
           ) : capability === "EMBED" || capability === "IMAGE_EMBED" ? (
-            <p className="self-end text-xs text-text-muted">
-              Wymiar wektora odczyta test modelu. Zmiana modelu embeddingów buduje nową wersję indeksu w tle.
-            </p>
+            <p className="self-end text-xs text-text-muted">{t("models.embedHint")}</p>
           ) : (
-            <p className="self-end text-xs text-text-muted">
-              Serwer z API /audio/transcriptions (np. whisper). Test modelu odczyta krótkie polskie nagranie testowe.
-            </p>
+            <p className="self-end text-xs text-text-muted">{t("models.transcribeHint")}</p>
           )}
         </div>
         <div className="flex flex-wrap justify-end gap-2">
@@ -774,10 +785,10 @@ function AddModel({ status, providers }: { status: LlmStatus; providers: Provide
             busy={test.isPending}
             onClick={() => void discover()}
           >
-            Wykryj modele
+            {t("models.discover")}
           </Button>
           <Button type="submit" disabled={!providerId || !name.trim()} busy={create.isPending}>
-            Dodaj
+            {t("models.add")}
           </Button>
         </div>
       </form>

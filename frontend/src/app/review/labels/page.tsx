@@ -1,9 +1,8 @@
-import type { Metadata } from "next";
-
 import { LabelVocabulary } from "@/components/atlas/LabelVocabulary";
 import { RequireRole } from "@/components/auth/RequireRole";
+import { titled } from "@/i18n/metadata";
 
-export const metadata: Metadata = { title: "Słownik etykiet" };
+export const generateMetadata = titled("labels");
 
 export default function LabelsPage() {
   return (

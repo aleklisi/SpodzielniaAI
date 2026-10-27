@@ -22,20 +22,17 @@ from __future__ import annotations
 import json
 import re
 import unicodedata
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Any, cast
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Sequence
 
     from spoldzielnia_ai.core.settings import ShieldSettings
+    from spoldzielnia_ai.shield.translation import TranslationResult
 
 N = 5
 JSON_SOURCE_OVERLAP = 0.5
-REFUSAL = (
-    "Nie mogę przytoczyć treści bazy wiedzy dosłownie ani w całości. Zapoznaj się z artykułem "
-    "w Wiki:"
-)
 
 _MARKER = re.compile(r"\[(?:S?\d{1,3})\]")
 _WORD = re.compile(r"\w+")
@@ -56,6 +53,21 @@ EXTRACTION_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = tuple(
         ("dump", r"\bdump\w*\b"),
         ("raw_data", r"\braw (data|text|chunks?|content)\b"),
         ("full_text", r"\b(full|entire|whole) (text|article|content|document)\b"),
+        # English answers (14.5): copying through a translation, or asking to quote it all.
+        (
+            "przetlumacz_calosc",
+            r"\bprzetlumacz\w*\b.*\b(calos\w*|cal\w*|wszystk\w*|zdanie po zdaniu)\b",
+        ),
+        (
+            "translate_in_full",
+            r"\btranslat\w*\b.*\b(full|entire|whole|all|everything|sentence by sentence)\b",
+        ),
+        ("quote_in_full", r"\bquote\w*\b.*\b(full|entire|whole|all|everything)\b"),
+        (
+            "copy_everything",
+            r"\b(copy|paste|reproduce|print|list)\b.*"
+            r"\b(everything|all (of )?(the )?(text|articles?|content|blocks?))\b",
+        ),
     )
 )
 
@@ -158,15 +170,24 @@ class Verification:
     rouge_l: float
     longest_span: int
     json_dump: bool
+    translation: TranslationResult | None = None  # answers in another language (14.5)
+
+    def with_translation(self, result: TranslationResult) -> Verification:
+        blocked = self.blocked or result.blocked
+        reason = self.reason or ("translation" if result.blocked else None)
+        return replace(self, blocked=blocked, reason=reason, translation=result)
 
     def to_json(self) -> dict[str, float | int | str | bool | None]:
-        return {
+        out: dict[str, float | int | str | bool | None] = {
             "reason": self.reason,
             "max_overlap": round(self.max_overlap, 4),
             "rouge_l": round(self.rouge_l, 4),
             "longest_span": self.longest_span,
             "json_dump": self.json_dump,
         }
+        if self.translation is not None:
+            out.update(self.translation.to_json())
+        return out
 
 
 class OutputVerifier:

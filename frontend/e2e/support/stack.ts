@@ -90,7 +90,7 @@ export function seed<T>(args: Record<string, unknown>): T {
 // --- In-page helpers --------------------------------------------------------------------
 
 /** An API call with the page's cookies and its CSRF token, like the frontend makes. */
-export async function apiCall(page: Page, method: "GET" | "POST", path: string, data?: unknown): Promise<APIResponse> {
+export async function apiCall(page: Page, method: "GET" | "POST" | "PUT", path: string, data?: unknown): Promise<APIResponse> {
   const cookies = await page.context().cookies(SITE);
   const csrf = cookies.find((c) => c.name === "__Host-csrf")?.value ?? "";
   const headers: Record<string, string> = method === "GET" ? {} : { Origin: SITE, "X-CSRF-Token": csrf };

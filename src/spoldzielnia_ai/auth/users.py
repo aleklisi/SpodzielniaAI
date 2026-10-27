@@ -25,6 +25,7 @@ class UserRecord:
     is_locked: bool
     email: str | None
     display_name: str | None
+    locale: str | None = None  # Stage 14: the account's UI language, None = not chosen
 
 
 class UserDirectory(Protocol):
@@ -46,4 +47,5 @@ class DbUserDirectory:
             is_locked=user.refused,
             email=user.email,
             display_name=user.display_name,
+            locale=user.locale,
         )

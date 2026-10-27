@@ -1,0 +1,57 @@
+{
+  "list": {
+    "title": "Knowledge base",
+    "description": "Articles approved by the cooperative's Expert Council.",
+    "loadFailed": "The articles could not be loaded.",
+    "empty": "No approved articles.",
+    "verified": " · verified {date}"
+  },
+  "member": "Cooperative member",
+  "page": {
+    "loading": "Loading the article…",
+    "rateLimited": "You have read a great many articles today. Please try again later.",
+    "locked": "Your account has been locked. Please contact the cooperative's administrator.",
+    "notFound": "This article does not exist or you do not have access to it.",
+    "loadFailed": "The article could not be loaded.",
+    "unavailable": "Article unavailable",
+    "back": "Back to the knowledge base",
+    "backShort": "← Knowledge base",
+    "submitted": "The article has gone to the Expert Council for review.",
+    "submitFailed": "It could not be sent.",
+    "submit": "Submit for review"
+  },
+  "article": {
+    "superseded": "This article has been superseded by a newer version.",
+    "current": "Go to the current article",
+    "version": "version {version}",
+    "lastVerified": "Last verified",
+    "notVerified": "not verified yet",
+    "authors": "Authors",
+    "approvedBy": "Approved by",
+    "paragraph": "Paragraph {n}",
+    "withheld": {
+      "SUSPENDED": "Content suspended by the author",
+      "REVOKED": "Content withdrawn by the author"
+    }
+  },
+  "drafts": {
+    "title": "My drafts",
+    "description": "Articles from your proposals before the Expert Council approves them.",
+    "emptyTitle": "You have no open drafts.",
+    "emptyBody": "Select notes in your notebook and create a wiki proposal; the draft will appear here.",
+    "table": "Drafts",
+    "article": "Article",
+    "status": "Status"
+  },
+  "reviewErrors": {
+    "version_conflict": "The article changed meanwhile. Refresh the view and assess the current version.",
+    "invalid_transition": "This decision cannot be made for the article in its current state.",
+    "own_article": "You cannot review an article you co-authored.",
+    "no_content": "The article has no content to approve.",
+    "supersedes_not_found": "The article to supersede does not exist.",
+    "supersedes_not_canonical": "Only a canonical article can be superseded.",
+    "supersedes_self": "An article cannot supersede itself.",
+    "supersedes_requires_approve": "Superseding is only possible when approving.",
+    "not_found": "The article does not exist."
+  }
+}

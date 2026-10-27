@@ -7,6 +7,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest
 import { NoteWorkspace } from "@/components/notebook/NoteWorkspace";
 import { NotebookList } from "@/components/notebook/NotebookList";
 import { API, renderWithClient } from "@/test/render";
+import { setTestLocale } from "@/test/rtl";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
 // BlockNote needs a real browser; the workspace layout is what is under test here.
@@ -91,5 +92,18 @@ describe("NotebookList (12.3)", () => {
     expect(list.getByRole("link", { name: "Przegląd wiosenny" })).toHaveAttribute("href", `/notebook/${NOTE}`);
     await userEvent.click(list.getByRole("checkbox", { name: "Zaznacz: Przegląd wiosenny" }));
     expect(screen.getByRole("button", { name: "Utwórz wniosek do Wiki (1)" })).toBeEnabled();
+  });
+});
+
+describe("in English (14.3)", () => {
+  it("has Sources, Note and Ask panels", async () => {
+    setTestLocale("en");
+    note();
+    renderWithClient(<NoteWorkspace noteId={NOTE} />);
+    const tabs = within(await screen.findByRole("tablist", { name: "Note view" }));
+    expect(tabs.getAllByRole("tab").map((t) => t.textContent)).toEqual(["Sources", "Note", "Ask"]);
+    expect(within(screen.getByRole("region", { name: "Note" })).getByLabelText("Note title")).toHaveValue("Przegląd wiosenny");
+    expect(within(screen.getByRole("region", { name: "Sources" })).getByRole("button", { name: "Add a web page" })).toBeInTheDocument();
+    expect(within(screen.getByRole("region", { name: "Ask" })).getByRole("heading", { name: "Ask your notebook" })).toBeInTheDocument();
   });
 });

@@ -18,6 +18,7 @@ from fastapi import APIRouter, Header, HTTPException, Request, status
 
 from spoldzielnia_ai.api.capabilities import model_not_configured
 from spoldzielnia_ai.auth.deps import CurrentUser, step_up_url
+from spoldzielnia_ai.i18n import locale_or_default
 from spoldzielnia_ai.llm.gateway import LLMError, ModelNotConfigured
 from spoldzielnia_ai.notebook.deps import NotebookDep  # noqa: TC001 - FastAPI resolves it
 from spoldzielnia_ai.rag.deps import NotebookQADep  # noqa: TC001 - FastAPI resolves it
@@ -59,7 +60,7 @@ async def ask_notes(
     """Ask the member's own notebook."""
     question = check_question(request, payload)
     try:
-        return await qa.ask(notebook, user.id, question)
+        return await qa.ask(notebook, user.id, question, locale_or_default(user.user.locale))
     except ModelNotConfigured:
         raise model_not_configured() from None
     except LLMError:
@@ -81,6 +82,7 @@ async def ask_cooperative(
         principal.mfa_satisfied,
         principal.session.auth_time,
         step_up_url(request.app.state.settings),
+        locale_or_default(principal.user.locale),
     )
     try:
         return await guard.ask(asker, question, pow_solution)

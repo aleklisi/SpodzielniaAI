@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { useState, type FormEvent } from "react";
 
 import { Button } from "@/components/ui/Button";
@@ -11,6 +12,8 @@ import { useUnlock, type UserCoverage } from "@/lib/admin";
 export type UnlockTarget = Pick<UserCoverage, "user_id" | "display_name" | "email" | "locked_reason">;
 
 export function UnlockDialog({ user, onClose }: { user: UnlockTarget | null; onClose: () => void }) {
+  const t = useTranslations("adminSecurity.unlock");
+  const common = useTranslations("common");
   const [reason, setReason] = useState("");
   const [resetRisk, setResetRisk] = useState(true);
   const unlock = useUnlock();
@@ -21,22 +24,22 @@ export function UnlockDialog({ user, onClose }: { user: UnlockTarget | null; onC
     if (!user || reason.trim().length < 10) return;
     try {
       await unlock.mutateAsync({ userId: user.user_id, reason: reason.trim(), resetRisk });
-      toast("Konto odblokowane. Decyzja została zapisana w dzienniku audytu.", "ok");
+      toast(t("done"), "ok");
       setReason("");
       onClose();
     } catch {
-      toast("Nie udało się odblokować konta.", "error");
+      toast(t("failed"), "error");
     }
   }
 
   return (
-    <Dialog open={user !== null} onClose={onClose} title="Odblokuj konto">
+    <Dialog open={user !== null} onClose={onClose} title={t("title")}>
       <form onSubmit={submit} className="flex flex-col gap-3 text-sm">
         <p>
-          {user?.display_name ?? user?.email ?? user?.user_id} · powód blokady: <code>{user?.locked_reason ?? "–"}</code>
+          {user?.display_name ?? user?.email ?? user?.user_id} · {t("reason")} <code>{user?.locked_reason ?? "–"}</code>
         </p>
         <label className="flex flex-col gap-1">
-          Uzasadnienie (zapisywane w dzienniku audytu, min. 10 znaków)
+          {t("justification")}
           <textarea
             rows={3}
             value={reason}
@@ -47,14 +50,14 @@ export function UnlockDialog({ user, onClose }: { user: UnlockTarget | null; onC
         </label>
         <label className="flex items-center gap-2">
           <input type="checkbox" checked={resetRisk} onChange={(event) => setResetRisk(event.target.checked)} />
-          Wyzeruj ryzyko konta (incydenty, trafienia kanarków, otwarte wyzwania)
+          {t("resetRisk")}
         </label>
         <div className="flex justify-end gap-2">
           <Button variant="ghost" onClick={onClose}>
-            Anuluj
+            {common("cancel")}
           </Button>
           <Button type="submit" disabled={reason.trim().length < 10} busy={unlock.isPending}>
-            Odblokuj
+            {t("submit")}
           </Button>
         </div>
       </form>

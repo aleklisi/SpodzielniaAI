@@ -11,6 +11,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, ApiError } from "@/lib/api";
 import type { components } from "@/lib/api-schema";
 import { unwrap } from "@/lib/query";
+import { apiErrorCode, knownCode } from "@/lib/messages";
+import type { Messages } from "@/messages";
 
 export type Domain = components["schemas"]["DomainOut"];
 export type Label = components["schemas"]["LabelOut"];
@@ -18,11 +20,12 @@ export type CuratedLabel = components["schemas"]["CuratedLabelOut"];
 export type LabelStatus = Label["status"];
 export type DomainStatus = Domain["status"];
 
-export const LABEL_STATUS: Record<LabelStatus, { label: string; tone: "ok" | "warn" | "neutral" | "danger" }> = {
-  ACTIVE: { label: "Aktywna", tone: "ok" },
-  PROPOSED: { label: "Propozycja", tone: "warn" },
-  DEPRECATED: { label: "Wycofana", tone: "neutral" },
-  REJECTED: { label: "Odrzucona", tone: "danger" },
+/** Labels in `atlas.labelStatus`. */
+export const LABEL_STATUS_TONE: Record<LabelStatus, "ok" | "warn" | "neutral" | "danger"> = {
+  ACTIVE: "ok",
+  PROPOSED: "warn",
+  DEPRECATED: "neutral",
+  REJECTED: "danger",
 };
 
 const KEY = ["atlas"] as const;
@@ -109,33 +112,34 @@ export function useUpdateDomain() {
 
 // --- Errors -------------------------------------------------------------------------------------
 
-const ERRORS: Record<string, string> = {
-  label_exists: "Taka etykieta już istnieje w tej dziedzinie.",
-  domain_exists: "Taka dziedzina już istnieje.",
-  domain_archived: "Ta dziedzina jest zarchiwizowana: nie przyjmuje nowych etykiet ani zdjęć.",
-  invalid_name: "Nazwa musi zawierać litery lub cyfry.",
-  too_many_synonyms: "Najwyżej 20 synonimów.",
-  label_closed: "Ta etykieta jest wycofana lub odrzucona.",
-  not_proposed: "To nie jest propozycja (ktoś już ją rozpatrzył?).",
-  not_active: "Wycofać można tylko aktywną etykietę.",
-  different_domain: "Scalać można tylko etykiety z tej samej dziedziny.",
-  target_not_active: "Etykieta docelowa musi być aktywna.",
-  merge_into_self: "Nie można scalić etykiety z nią samą.",
-  label_not_found: "Nie znaleziono etykiety.",
-  domain_not_found: "Nie znaleziono dziedziny.",
-  rate_limited: "Limit propozycji na dziś został wyczerpany.",
-};
+export type AtlasErrorKey = keyof Messages["atlas"]["errors"];
+
+const CODES = [
+  "label_exists",
+  "domain_exists",
+  "domain_archived",
+  "invalid_name",
+  "too_many_synonyms",
+  "label_closed",
+  "not_proposed",
+  "not_active",
+  "different_domain",
+  "target_not_active",
+  "merge_into_self",
+  "label_not_found",
+  "domain_not_found",
+  "rate_limited",
+] as const satisfies readonly AtlasErrorKey[];
 
 export function atlasErrorCode(error: unknown): string | null {
   if (!(error instanceof ApiError)) return null;
-  const detail = (error.detail as { detail?: unknown } | null)?.detail ?? error.detail;
-  if (detail && typeof detail === "object" && "error" in detail && typeof detail.error === "string") return detail.error;
-  return error.status === 429 ? "rate_limited" : null;
+  return apiErrorCode(error) ?? (error.status === 429 ? "rate_limited" : null);
 }
 
-export function atlasError(error: unknown, fallback = "Operacja nie powiodła się."): string {
-  const code = atlasErrorCode(error);
-  if (code && ERRORS[code]) return ERRORS[code];
-  if (error instanceof ApiError && error.status === 422) return "Sprawdź wprowadzone wartości.";
+/** The key in `atlas.errors`; `fallback` when the code is unknown. */
+export function atlasErrorKey(error: unknown, fallback: AtlasErrorKey = "failed"): AtlasErrorKey {
+  const code = knownCode(CODES, atlasErrorCode(error));
+  if (code) return code;
+  if (error instanceof ApiError && error.status === 422) return "invalid";
   return fallback;
 }

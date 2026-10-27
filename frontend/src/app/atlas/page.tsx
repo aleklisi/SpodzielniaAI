@@ -1,8 +1,7 @@
-import type { Metadata } from "next";
-
 import { AtlasGallery } from "@/components/atlas/AtlasGallery";
+import { titled } from "@/i18n/metadata";
 
-export const metadata: Metadata = { title: "Atlas" };
+export const generateMetadata = titled("atlas");
 
 export default function AtlasPage() {
   return <AtlasGallery />;

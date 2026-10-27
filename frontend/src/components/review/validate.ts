@@ -1,4 +1,5 @@
 import type { Decision } from "@/lib/wiki";
+import type { Messages } from "@/messages";
 
 export interface DecisionDraft {
   decision: Decision | null;
@@ -6,23 +7,24 @@ export interface DecisionDraft {
   supersedesId: string | null;
 }
 
-export const DECISIONS: Array<{ value: Decision; label: string; needsComment: boolean }> = [
-  { value: "APPROVE", label: "Zatwierdź (kanoniczny)", needsComment: false },
-  { value: "REQUEST_CHANGES", label: "Poproś o zmiany", needsComment: true },
-  { value: "REJECT", label: "Odrzuć", needsComment: true },
-  { value: "MARK_DISPUTED", label: "Oznacz jako sporny", needsComment: true },
+/** The decisions in their order; labels in `review.decision.<value>`. */
+export const DECISIONS: Array<{ value: Decision; needsComment: boolean }> = [
+  { value: "APPROVE", needsComment: false },
+  { value: "REQUEST_CHANGES", needsComment: true },
+  { value: "REJECT", needsComment: true },
+  { value: "MARK_DISPUTED", needsComment: true },
 ];
 
-/** Errors to show before sending; the server checks the same rules (and more). */
-export function validateDecision(draft: DecisionDraft, articleId: string): string[] {
-  const errors: string[] = [];
-  if (!draft.decision) errors.push("Wybierz decyzję.");
+export type DecisionError = keyof Messages["review"]["validation"];
+
+/** Errors to show before sending (keys in `review.validation`); the server checks the same rules (and more). */
+export function validateDecision(draft: DecisionDraft, articleId: string): DecisionError[] {
+  const errors: DecisionError[] = [];
+  if (!draft.decision) errors.push("chooseDecision");
   const rule = DECISIONS.find((d) => d.value === draft.decision);
-  if (rule?.needsComment && draft.comment.trim().length < 10) {
-    errors.push("Uzasadnij decyzję (co najmniej 10 znaków): autor zobaczy ten komentarz.");
-  }
-  if (draft.comment.length > 5000) errors.push("Komentarz może mieć najwyżej 5000 znaków.");
-  if (draft.supersedesId && draft.decision !== "APPROVE") errors.push("Zastąpić inny artykuł można tylko przy zatwierdzeniu.");
-  if (draft.supersedesId === articleId) errors.push("Artykuł nie może zastąpić samego siebie.");
+  if (rule?.needsComment && draft.comment.trim().length < 10) errors.push("justify");
+  if (draft.comment.length > 5000) errors.push("commentTooLong");
+  if (draft.supersedesId && draft.decision !== "APPROVE") errors.push("supersedeNeedsApprove");
+  if (draft.supersedesId === articleId) errors.push("supersedeSelf");
   return errors;
 }

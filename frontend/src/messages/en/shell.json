@@ -1,0 +1,40 @@
+{
+  "sections": {
+    "work": "My work",
+    "knowledge": "Cooperative knowledge",
+    "experts": "Expert Council",
+    "admin": "Administration"
+  },
+  "nav": {
+    "notebook": "Notebook",
+    "drafts": "My drafts",
+    "contributions": "My contributions",
+    "wiki": "Wiki",
+    "atlas": "Atlas",
+    "chat": "Ask the cooperative",
+    "review": "Reviews",
+    "atlasReview": "Atlas reviews",
+    "labels": "Label vocabulary",
+    "security": "Security",
+    "llm": "AI models",
+    "users": "Users",
+    "adminAtlas": "Atlas (admin)",
+    "branding": "Appearance",
+    "privacy": "Your data"
+  },
+  "mainNav": "Main",
+  "menu": "Menu",
+  "openMenu": "Open menu",
+  "closeMenu": "Close menu",
+  "expandMenu": "Expand menu",
+  "collapseMenu": "Collapse menu",
+  "createNote": "Create a note",
+  "newNoteTitle": "New note",
+  "signIn": "Sign in",
+  "signOut": "Sign out",
+  "language": {
+    "label": "Language",
+    "failed": "The language could not be changed. Please try again."
+  },
+  "account": "account"
+}

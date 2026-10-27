@@ -17,9 +17,10 @@ from spoldzielnia_ai.core.ids import uuid7
 from spoldzielnia_ai.core.settings import ShieldSettings
 from spoldzielnia_ai.db.models import SecurityAuditLog
 from spoldzielnia_ai.db.session import SessionFactory, create_session_factory
+from spoldzielnia_ai.i18n import t
 from spoldzielnia_ai.rag.synthesis import Style
 from spoldzielnia_ai.shield.output import OutputShield
-from spoldzielnia_ai.shield.output_verifier import REFUSAL, extraction_intent
+from spoldzielnia_ai.shield.output_verifier import extraction_intent
 from spoldzielnia_ai.shield.risk import RiskStore
 from spoldzielnia_ai.shield.watermark import Watermarker
 from tests.fixtures.llm import FakeLLMGateway
@@ -77,7 +78,7 @@ async def test_full_quote_is_refused_with_citations_and_audited(
     assert "nie przytaczaj źródeł dosłownie" in llm.calls[0].text  # the strict prompt
     assert checked.blocked
     assert checked.verification.reason == "ngram_overlap"
-    assert answer.answer_markdown.startswith(REFUSAL)
+    assert answer.answer_markdown.startswith(t("shield.verbatim_refusal", "pl"))
     assert "bezczerwiowym" not in answer.answer_markdown
     assert [c.article_id for c in answer.citations] == [article_id]
     assert await risk.incidents(user) == pytest.approx(SETTINGS.verbatim_penalty)

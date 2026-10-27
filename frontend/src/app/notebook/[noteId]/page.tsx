@@ -1,8 +1,7 @@
-import type { Metadata } from "next";
-
 import { NoteWorkspace } from "@/components/notebook/NoteWorkspace";
+import { titled } from "@/i18n/metadata";
 
-export const metadata: Metadata = { title: "Notatka" };
+export const generateMetadata = titled("note");
 
 export default async function NotePage(props: PageProps<"/notebook/[noteId]">) {
   const { noteId } = await props.params;

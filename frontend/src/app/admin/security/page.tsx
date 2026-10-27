@@ -1,9 +1,8 @@
-import type { Metadata } from "next";
-
 import { SecurityDashboard } from "@/components/admin/SecurityDashboard";
 import { RequireRole } from "@/components/auth/RequireRole";
+import { titled } from "@/i18n/metadata";
 
-export const metadata: Metadata = { title: "Bezpieczeństwo" };
+export const generateMetadata = titled("security");
 
 export default function SecurityPage() {
   return (

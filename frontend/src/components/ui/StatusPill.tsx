@@ -1,20 +1,33 @@
+"use client";
+
+import { useTranslations } from "next-intl";
+
+import type { Messages } from "@/messages";
+
 import { Badge, type Tone } from "./Badge";
 
-/** Article statuses (4.2) and consent states (4.3) with their Polish labels. */
-export const STATUS: Record<string, { label: string; tone: Tone }> = {
-  DRAFT: { label: "Szkic", tone: "neutral" },
-  IN_REVIEW: { label: "W recenzji", tone: "accent" },
-  CANONICAL: { label: "Kanoniczny", tone: "ok" },
-  SUPERSEDED: { label: "Zastąpiony", tone: "neutral" },
-  DISPUTED: { label: "Sporny", tone: "warn" },
-  REVISION_REQUIRED: { label: "Wymaga rewizji", tone: "warn" },
-  REJECTED: { label: "Odrzucony", tone: "danger" },
-  ACTIVE: { label: "Aktywny", tone: "ok" },
-  SUSPENDED: { label: "Wstrzymany", tone: "warn" },
-  REVOKED: { label: "Wycofany", tone: "danger" },
+type Status = keyof Messages["common"]["status"];
+
+/** Article statuses (4.2) and consent states (4.3); labels in `common.status`. */
+export const STATUS_TONE: Record<Status, Tone> = {
+  DRAFT: "neutral",
+  IN_REVIEW: "accent",
+  CANONICAL: "ok",
+  SUPERSEDED: "neutral",
+  DISPUTED: "warn",
+  REVISION_REQUIRED: "warn",
+  REJECTED: "danger",
+  ACTIVE: "ok",
+  SUSPENDED: "warn",
+  REVOKED: "danger",
 };
 
+export function isStatus(status: string): status is Status {
+  return status in STATUS_TONE;
+}
+
 export function StatusPill({ status }: { status: string }) {
-  const known = STATUS[status] ?? { label: status, tone: "neutral" as const };
-  return <Badge tone={known.tone}>{known.label}</Badge>;
+  const t = useTranslations("common.status");
+  if (!isStatus(status)) return <Badge tone="neutral">{status}</Badge>;
+  return <Badge tone={STATUS_TONE[status]}>{t(status)}</Badge>;
 }

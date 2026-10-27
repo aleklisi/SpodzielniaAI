@@ -2,9 +2,13 @@
 
 import "@blocknote/ariakit/style.css";
 
+import { en, pl } from "@blocknote/core/locales";
 import { BlockNoteView } from "@blocknote/ariakit";
 import { useCreateBlockNote } from "@blocknote/react";
+import { useLocale } from "next-intl";
 import { useEffect, useRef } from "react";
+
+import { appLocale } from "@/i18n/locales";
 
 import { useNonce } from "@/lib/nonce";
 
@@ -22,7 +26,9 @@ const CONVERT_AFTER_MS = 500;
 export default function NoteEditor({ markdown, onChange }: { markdown: string; onChange: (markdown: string) => void }) {
   // TipTap and BlockNote inject <style> elements: they need the CSP nonce.
   const nonce = useNonce();
-  const editor = useCreateBlockNote({ _tiptapOptions: { injectNonce: nonce } });
+  // The editor's own menus and placeholders follow the UI language (14.3).
+  const dictionary = appLocale(useLocale()) === "en" ? en : pl;
+  const editor = useCreateBlockNote({ dictionary, _tiptapOptions: { injectNonce: nonce } });
   const loaded = useRef(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const onChangeRef = useRef(onChange);

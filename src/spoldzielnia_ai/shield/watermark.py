@@ -1,9 +1,10 @@
 """``Watermarker``: deterministic, per-account lexical watermark of answers (5.5, gap G13).
 
 An LLM can't be trusted to apply a watermark consistently, so this is post-processing. Every
-**slot** is a pair of interchangeable Polish forms (``należy/trzeba``, ``ponadto/dodatkowo``,
-``ważne/istotne`` …) or a structural choice (bullet ``-``/``*``, numbering ``1.``/``1)``). For
-each account the choice in each slot is fixed by
+**slot** is a pair of interchangeable forms of the answer's language (Polish, or English since
+14.5: ``PAIRS_EN``, slots prefixed ``en:``) such as ``należy/trzeba``, ``ponadto/dodatkowo``,
+``moreover/furthermore``, or a structural choice (bullet ``-``/``*``, numbering ``1.``/``1)``).
+For each account the choice in each slot is fixed by
 
     bit = HMAC_SHA256(watermark_key, user_id || slot)[0] & 1
 
@@ -216,6 +217,69 @@ PAIRS: tuple[tuple[str, str], ...] = (
     ("sezon", "okres pszczelarski"),
     ("sezonie", "okresie pszczelarskim"),
 )
+# English answers (14.5). Stricter than the Polish table: English words are often both a noun
+# and a verb ("check", "start", "result", "needs"), and a swap must never change the grammar
+# or the meaning, so only forms with one part of speech and one sense in advice are used. Fewer
+# slots, so English answers carry less watermark each: detection needs a few more of them.
+PAIRS_EN: tuple[tuple[str, str], ...] = (
+    # Connectives and adverbs
+    ("moreover", "furthermore"),
+    ("therefore", "thus"),
+    ("usually", "typically"),
+    ("often", "frequently"),
+    ("immediately", "promptly"),
+    ("regularly", "routinely"),
+    ("carefully", "thoroughly"),
+    ("mainly", "mostly"),
+    ("especially", "particularly"),
+    ("almost", "nearly"),
+    ("quickly", "rapidly"),
+    ("currently", "presently"),
+    ("sometimes", "occasionally"),
+    ("significantly", "considerably"),
+    ("approximately", "roughly"),
+    ("completely", "entirely"),
+    ("partially", "partly"),
+    ("appropriately", "suitably"),
+    ("eventually", "ultimately"),
+    ("initially", "at first"),
+    ("gradually", "progressively"),
+    ("for example", "for instance"),
+    ("above all", "first and foremost"),
+    ("in case of", "in the event of"),
+    # Verbs
+    ("checked", "inspected"),
+    ("ensure", "make sure"),
+    ("ensures", "makes sure"),
+    ("allows", "enables"),
+    ("begins", "starts"),
+    ("contains", "includes"),
+    ("recommended", "advised"),
+    ("obtain", "acquire"),
+    ("assess", "evaluate"),
+    ("assesses", "evaluates"),
+    # Adjectives
+    ("important", "significant"),
+    ("large", "big"),
+    ("appropriate", "suitable"),
+    ("strong", "robust"),
+    ("simple", "easy"),
+    ("various", "diverse"),
+    ("main", "primary"),
+    ("harmful", "damaging"),
+    ("rapid", "quick"),
+    ("sufficient", "adequate"),
+    ("additional", "extra"),
+    ("typical", "usual"),
+    ("dangerous", "hazardous"),
+    ("visible", "noticeable"),
+    # Nouns
+    ("method", "technique"),
+    ("methods", "techniques"),
+    ("recommendation", "guideline"),
+    ("recommendations", "guidelines"),
+    ("types", "kinds"),
+)
 STRUCTURAL = ("bullet", "numbering")
 
 _PROTECTED = re.compile(
@@ -230,16 +294,31 @@ _BULLET = re.compile(r"^([ \t]*)([-*])(?=[ \t]+\S)", re.M)
 _NUMBERED = re.compile(r"^([ \t]*\d{1,3})([.)])(?=[ \t]+\S)", re.M)
 
 
-def _slot_of() -> dict[str, tuple[int, int]]:
-    """Lower-case form → (pair index, variant)."""
-    return {form: (i, v) for i, pair in enumerate(PAIRS) for v, form in enumerate(pair)}
+@dataclass(frozen=True, slots=True)
+class _Table:
+    """One language's slots. A slot's name is its first form, with the table's prefix."""
+
+    pairs: tuple[tuple[str, str], ...]
+    prefix: str
+    slot_of: dict[str, tuple[int, int]]  # lower-case form → (pair index, variant)
+    forms: re.Pattern[str]
+
+    @classmethod
+    def build(cls, pairs: tuple[tuple[str, str], ...], prefix: str) -> _Table:
+        slot_of = {form: (i, v) for i, pair in enumerate(pairs) for v, form in enumerate(pair)}
+        longest_first = sorted(slot_of, key=len, reverse=True)
+        forms = re.compile(
+            r"(?<!\w)(" + "|".join(re.escape(f) for f in longest_first) + r")(?!\w)",
+            re.IGNORECASE,
+        )
+        return cls(pairs, prefix, slot_of, forms)
+
+    def slot(self, pair: int) -> str:
+        return self.prefix + self.pairs[pair][0]
 
 
-SLOT_OF = _slot_of()
-_LONGEST_FIRST = sorted(SLOT_OF, key=len, reverse=True)
-_FORMS = re.compile(
-    r"(?<!\w)(" + "|".join(re.escape(f) for f in _LONGEST_FIRST) + r")(?!\w)", re.IGNORECASE
-)
+TABLES: dict[str, _Table] = {"pl": _Table.build(PAIRS, ""), "en": _Table.build(PAIRS_EN, "en:")}
+SLOT_OF = TABLES["pl"].slot_of
 
 
 def _match_case(original: str, replacement: str) -> str:
@@ -287,23 +366,23 @@ class Watermarker:
         digest = hmac.new(self._key, f"{user_id}|{slot}".encode(), hashlib.sha256).digest()
         return digest[0] & 1
 
-    def _choice(self, user_id: UUID, pair: int) -> str:
-        return PAIRS[pair][self.bit(user_id, PAIRS[pair][0])]
-
-    def apply(self, text: str, user_id: UUID) -> str:
+    def apply(self, text: str, user_id: UUID, language: str = "pl") -> str:
+        """``text`` with the account's variants of ``language``'s slots (Polish by default)."""
+        table = TABLES[language]
         bullet = "-*"[self.bit(user_id, "bullet")]
         numbering = ".)"[self.bit(user_id, "numbering")]
 
         def word(m: re.Match[str]) -> str:
-            pair, _ = SLOT_OF[m.group(1).lower()]
-            return _match_case(m.group(1), self._choice(user_id, pair))
+            pair, _ = table.slot_of[m.group(1).lower()]
+            choice = table.pairs[pair][self.bit(user_id, table.slot(pair))]
+            return _match_case(m.group(1), choice)
 
         out: list[str] = []
         for editable, piece in _segments(text):
             if not editable:
                 out.append(piece)
                 continue
-            piece = _FORMS.sub(word, piece)
+            piece = table.forms.sub(word, piece)
             piece = _BULLET.sub(lambda m: m.group(1) + bullet, piece)
             piece = _NUMBERED.sub(lambda m: m.group(1) + numbering, piece)
             out.append(piece)
@@ -311,12 +390,14 @@ class Watermarker:
 
     @staticmethod
     def observations(text: str) -> dict[str, int]:
-        """Slot → majority variant used in ``text`` (ties and absent slots left out)."""
+        """Slot → majority variant used in ``text`` (ties and absent slots left out). Both
+        languages' slots are observed: a text does not say which one it was written in."""
         counts: dict[str, list[int]] = {}
         editable = " \n".join(piece for ok, piece in _segments(text) if ok)
-        for m in _FORMS.finditer(editable):
-            pair, variant = SLOT_OF[m.group(1).lower()]
-            counts.setdefault(PAIRS[pair][0], [0, 0])[variant] += 1
+        for table in TABLES.values():
+            for m in table.forms.finditer(editable):
+                pair, variant = table.slot_of[m.group(1).lower()]
+                counts.setdefault(table.slot(pair), [0, 0])[variant] += 1
         for slot, pattern, symbols in (("bullet", _BULLET, "-*"), ("numbering", _NUMBERED, ".)")):
             for m in pattern.finditer(editable):
                 counts.setdefault(slot, [0, 0])[symbols.index(m.group(2))] += 1

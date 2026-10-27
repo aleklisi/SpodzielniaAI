@@ -1,8 +1,7 @@
-import type { Metadata } from "next";
-
 import { ProcessorsPage } from "@/components/privacy/ProcessorsPage";
+import { titled } from "@/i18n/metadata";
 
-export const metadata: Metadata = { title: "Gdzie przetwarzane są Twoje dane" };
+export const generateMetadata = titled("privacy");
 
 export default function PrivacyPage() {
   return <ProcessorsPage />;
