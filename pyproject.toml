@@ -6,7 +6,7 @@ readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]
 authors = [
-    { name = "Piotr Pacewicz", email = "piotr@pacewi.cz" }
+    { name = "Piotr Pacewicz", email = "qwerty@pacewi.cz" }
 ]
 requires-python = ">=3.12"
 dependencies = [
