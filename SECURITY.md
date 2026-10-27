@@ -13,7 +13,7 @@ handled privately until a fix is available.
 
 1. Preferred: use GitHub's private reporting — the **Security** tab of this repository →
    **Report a vulnerability**.
-2. Alternatively, e-mail **piotr@pacewi.cz** with the subject `[SECURITY] Spółdzielnia AI`.
+2. Alternatively, e-mail **qwerty@pacewi.cz** with the subject `[SECURITY] Spółdzielnia AI`.
 
 Please include:
 
