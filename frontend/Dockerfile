@@ -13,7 +13,8 @@ WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-RUN npm run build
+# public/ may be empty, and git does not keep empty directories: make sure it exists for the copy below.
+RUN mkdir -p public && npm run build
 
 FROM ${RUNTIME_IMAGE} AS runtime
 WORKDIR /app

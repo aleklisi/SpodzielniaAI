@@ -86,10 +86,11 @@ needs_compose = pytest.mark.skipif(shutil.which("docker") is None, reason="no do
 
 @needs_compose
 def test_prod_compose_refuses_to_start_without_its_settings() -> None:
-    result = _compose_config({})
-    assert result.returncode != 0
-    for name in ("REGISTRY", "SITE_DOMAIN", "ACME_EMAIL"):
-        assert f"required variable {name}" in result.stderr
+    # One setting missing at a time: Compose v2 reports only the first missing variable, v5 all.
+    for name in ("REGISTRY", "VERSION", "SITE_DOMAIN", "ACME_EMAIL"):
+        result = _compose_config({k: v for k, v in PROD_ENV.items() if k != name})
+        assert result.returncode != 0, name
+        assert f"required variable {name}" in result.stderr, result.stderr
 
 
 @needs_compose
