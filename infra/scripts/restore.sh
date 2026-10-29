@@ -141,9 +141,17 @@ fi
 
 step "9. Audit log"
 "${COMPOSE[@]}" run --rm --no-deps api audit-verify
-head_now="$(pg psql -X -At -d spoldzielnia -c "SELECT id || ' ' || encode(hash, 'hex') FROM security_audit_log WHERE id = $(manifest audit_head | cut -d' ' -f1)")"
-[[ "$head_now" == "$(manifest audit_head)" ]] || die "the audit entry the backup ended with is not the same: $head_now"
-echo "  chain intact through the backup's last entry #$(manifest audit_head | cut -d' ' -f1)"
+head_id="$(manifest audit_head | cut -d' ' -f1)"
+if [[ -z "$head_id" ]]; then # the backup was taken before the first audited action
+  rows="$(pg psql -X -At -d spoldzielnia -c "SELECT count(*) FROM security_audit_log")"
+  [[ "$rows" == 0 ]] || die "the backup had an empty audit log, the restored one has $rows entries"
+  echo "  audit log empty, as in the backup"
+else
+  [[ "$head_id" =~ ^[0-9]+$ ]] || die "unexpected audit head in the manifest: $head_id"
+  head_now="$(pg psql -X -At -d spoldzielnia -c "SELECT id || ' ' || encode(hash, 'hex') FROM security_audit_log WHERE id = $head_id")"
+  [[ "$head_now" == "$(manifest audit_head)" ]] || die "the audit entry the backup ended with is not the same: $head_now"
+  echo "  chain intact through the backup's last entry #$head_id"
+fi
 
 echo
 echo "restored $(manifest created_at) (version $VERSION). Next: make smoke"

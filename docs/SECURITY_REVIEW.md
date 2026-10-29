@@ -234,6 +234,19 @@ Every entry is the reason a scanner is told to stay quiet. Re-check each entry w
 | Exported datasets cannot be recalled | 9.7 | An archive already downloaded is outside the system. Export is off by default, needs a fresh MFA login and a per-photo opt-in, and every manifest is audited; later revokes are flagged on the export | the export policy changes |
 | Recognition threshold not calibrated on real photos | 9.9 `atlas.recognition_min_score` | Set to 0.80 provisionally; synthetic E2E photos look alike to the model. Calibrate with `spoldzielnia atlas benchmark` once the atlas holds real photos | the atlas has ~50 approved photos per domain |
 
+## Dependency exceptions
+
+Departures from the dependency rules in `AGENTS.md` §7 (exact pins, releases at least two
+weeks old). Each one is a security fix. Remove the entry once its trigger is met.
+
+| Package | Pinned | Rule broken | Why | Proof | Remove when |
+|---|---|---|---|---|---|
+| `filelock` | 4.2.1 via `[tool.uv] override-dependencies` | Release 12 days old (2026-10-17); overrides litellm's `filelock<4.0` | 3.32.7 had 13 advisories, among them CVE-2026-112940 (HIGH, arbitrary file overwrite), and there is no fixed 3.x release. litellm uses filelock only in its proxy CLI, which this project does not run. Hugging Face Hub and PyTorch use only `FileLock`, `SoftFileLock`, `BaseFileLock` and `Timeout`, which 4.2.1 keeps | full `uv run pytest` (1452 passed, including `ml`), `make smoke`, `make dr-rehearsal` and a clean `make audit` on 2026-10-29 | litellm allows `filelock>=4`: drop the override |
+| `setuptools` | 84.1.0 via `[tool.uv] constraint-dependencies` | Release 10 days old (2026-10-19) | GHSA-xmj3-9gf7-h52w in 84.0.0 (pulled in by spaCy) | same | 2026-11-02: drop the constraint and lock normally |
+
+`pip-audit` audits the exported pins without resolving them (`--no-deps --disable-pip`).
+pip's resolver knows neither the override nor the PyTorch CPU index (`torch==…+cpu`).
+
 ## Environment-dependent checks
 
 - **Embedding quality.** The smoke check "embedding model separates unrelated texts" and E2E `4-happy-path`

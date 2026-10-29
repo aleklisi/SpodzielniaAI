@@ -20,9 +20,9 @@ step "pip-audit (locked dependencies)"
 REQS="$(mktemp)"; trap 'rm -f "$REQS"' EXIT
 uv export --format requirements-txt --no-hashes --no-emit-project --frozen > "$REQS"
 # pl-core-news-lg is a spaCy model wheel from GitHub releases: not on PyPI, so not auditable.
-# torch/torchvision come from the PyTorch CPU index on Linux ([tool.uv.index]), not PyPI.
-uvx pip-audit -r "$REQS" --progress-spinner off \
-  --extra-index-url https://download.pytorch.org/whl/cpu || failed+=(pip-audit)
+# The export pins every package, so audit the pins as they are: no pip resolution, which
+# knows neither uv's overrides ([tool.uv] override-dependencies) nor the PyTorch CPU index.
+uvx pip-audit -r "$REQS" --progress-spinner off --no-deps --disable-pip || failed+=(pip-audit)
 
 step "bandit (src, medium+)"
 uvx bandit -r src -ll -q || failed+=(bandit)

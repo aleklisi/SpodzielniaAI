@@ -83,6 +83,11 @@ core = [
 
 [tool.uv]
 default-groups = ["dev", "media", "core"]
+# Security fixes past an upstream cap (docs/SECURITY_REVIEW.md, "Dependency exceptions"):
+# filelock 4.2.1 fixes CVE-2026-112940 and 12 more; litellm caps it below 4.0 but uses it only
+# in its proxy CLI. Drop the override once litellm allows filelock 4.
+override-dependencies = ["filelock==4.2.1"]
+constraint-dependencies = ["setuptools==84.1.0"]  # GHSA-xmj3-9gf7-h52w
 
 # CPU-only PyTorch wheels on Linux (the worker image); PyPI's default Linux x86_64 wheels bundle
 # CUDA (~GBs). GPU builds use their own index via compose.gpu.yaml (Stage 6).
