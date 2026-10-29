@@ -12,7 +12,9 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     LITELLM_LOCAL_MODEL_COST_MAP=True \
     PATH="/app/.venv/bin:$PATH"
+# `upgrade`: Debian security fixes released after the pinned base image (e.g. OpenSSL).
 RUN apt-get update \
+ && apt-get upgrade -y --no-install-recommends \
  && apt-get install -y --no-install-recommends libmagic1 tini \
  && rm -rf /var/lib/apt/lists/* \
  && useradd --uid 10001 --user-group --no-create-home --shell /usr/sbin/nologin app

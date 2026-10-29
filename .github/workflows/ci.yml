@@ -32,6 +32,8 @@ jobs:
         with:
           enable-cache: true
       - run: uv sync --locked
+      # test_infra_smoke reads the generated ./secrets (gitignored).
+      - run: cp .env.example .env && make secrets
       - run: uv run pytest -m integration
 
   frontend:

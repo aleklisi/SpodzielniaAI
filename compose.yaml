@@ -411,8 +411,14 @@ services:
       clamav: { condition: service_healthy }
     environment: *app-env
     secrets: *worker-secrets
+    # No HTTP port: healthy while its process runs (Compose v2 `up --wait` rejects a
+    # disabled healthcheck, and the api image's own check probes :8000).
     healthcheck:
-      disable: true
+      test: ["CMD", "python", "-c", "import pathlib,sys; sys.exit(0 if any(b'egress.fetch' in f.read_bytes().split(bytes(1)) for f in pathlib.Path('/proc').glob('[0-9]*/cmdline')) else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
   # The only way out to cloud LLM APIs (7.3): CONNECT to LLM_CLOUD_HOSTS on :443, public
   # addresses only. Holds no secrets (TLS is end to end).
@@ -506,8 +512,14 @@ services:
     environment: *app-env
     secrets:
       - { source: redis_password, target: redis__password }
+    # No HTTP port: healthy while its process runs (Compose v2 `up --wait` rejects a
+    # disabled healthcheck, and the api image's own check probes :8000).
     healthcheck:
-      disable: true
+      test: ["CMD", "python", "-c", "import pathlib,sys; sys.exit(0 if any(b'beat' in f.read_bytes().split(bytes(1)) for f in pathlib.Path('/proc').glob('[0-9]*/cmdline')) else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
   # One-shot model download with internet access (`make models`). Not part of `up`.
   models-init:
